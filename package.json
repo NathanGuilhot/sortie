@@ -1,0 +1,25 @@
+{
+  "name": "sortie",
+  "version": "0.1.0",
+  "description": "Picture Tagger & Embedding Electron App",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "pipeline",
+    "electron"
+  ],
+  "scripts": {
+    "type-check": "tsc --noEmit -p tsconfig.base.json",
+    "build": "yarn workspaces foreach -pt run build",
+    "dev": "yarn workspaces foreach -pt run dev",
+    "clean": "yarn workspaces foreach -pt run clean",
+    "pipeline": "yarn workspace pipeline start",
+    "electron": "yarn workspace electron start"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
