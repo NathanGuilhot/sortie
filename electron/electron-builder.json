@@ -1,0 +1,43 @@
+{
+  "appId": "com.sortie.app",
+  "productName": "Sortie",
+  "directories": {
+    "output": "out",
+    "buildResources": "resources"
+  },
+  "files": [
+    "dist/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "mac": {
+    "category": "public.app-category.photography",
+    "icon": "resources/icons/icon.png",
+    "target": [
+      "dmg",
+      "zip"
+    ],
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "resources/entitlements.mac.plist",
+    "entitlementsInherit": "resources/entitlements.mac.plist"
+  },
+  "win": {
+    "target": [
+      "nsis",
+      "zip"
+    ],
+    "icon": "resources/icons/icon.ico"
+  },
+  "linux": {
+    "category": "Graphics",
+    "target": [
+      "AppImage",
+      "deb",
+      "rpm",
+      "snap"
+    ],
+    "icon": "resources/icons/icon.png"
+  },
+  "extends": null
+}

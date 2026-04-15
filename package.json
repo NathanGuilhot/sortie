@@ -10,11 +10,16 @@
   ],
   "scripts": {
     "type-check": "tsc --noEmit -p tsconfig.base.json",
-    "build": "yarn workspaces foreach -pt run build",
-    "dev": "yarn workspaces foreach -pt run dev",
-    "clean": "yarn workspaces foreach -pt run clean",
+    "build": "yarn workspace shared run build && yarn workspace pipeline run build && yarn workspace electron run build",
+    "dev": "yarn workspace shared run build && yarn workspace pipeline run build && yarn workspace electron run dev",
+    "clean": "yarn workspace shared run clean && yarn workspace pipeline run clean && yarn workspace electron run clean",
     "pipeline": "yarn workspace pipeline start",
-    "electron": "yarn workspace electron start"
+    "electron": "yarn workspace electron start",
+    "dist": "yarn workspace electron run dist",
+    "dist:mac": "yarn workspace electron run dist:mac",
+    "dist:win": "yarn workspace electron run dist:win",
+    "dist:linux": "yarn workspace electron run dist:linux",
+    "package": "yarn workspace electron run package"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

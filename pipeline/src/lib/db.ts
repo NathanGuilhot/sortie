@@ -1,5 +1,4 @@
 import Database from 'better-sqlite3';
-import { resolve } from 'path';
 import { Image, Tag, ImageTag, Folder, DismissedSuggestion, MetadataChange } from 'shared';
 
 export class DatabaseManager {
@@ -21,7 +20,9 @@ export class DatabaseManager {
   private setupExtensions() {
     // Load sqlite-vec extension if available
     try {
-      this.db.loadExtension(resolve(__dirname, '../../node_modules/sqlite-vec/libvec0'));
+      const { load } = require('sqlite-vec');
+      load(this.db);
+      console.log('sqlite-vec extension loaded successfully');
     } catch (err) {
       console.warn('sqlite-vec extension not available:', err);
     }
@@ -98,6 +99,29 @@ export class DatabaseManager {
       )
     `);
 
+    // Create collections table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS collections (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        cluster_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create collection_images table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS collection_images (
+        collection_id INTEGER NOT NULL,
+        image_id INTEGER NOT NULL,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (collection_id, image_id),
+        FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+        FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+      )
+    `);
+
     // Create dismissed_suggestions table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS dismissed_suggestions (
@@ -136,6 +160,16 @@ export class DatabaseManager {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_image_tags_tag ON image_tags(tag_id)
     `);
+    // Suggestions indexes
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_image ON dismissed_suggestions(image_id)
+    `);
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_tag ON dismissed_suggestions(tag_id)
+    `);
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_image_tags_source ON image_tags(source)
+    `);
   }
 
   // Basic CRUD methods
@@ -170,7 +204,7 @@ export class DatabaseManager {
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO vec_images (rowid, embedding) VALUES (?, ?)
     `);
-    stmt.run(rowid, JSON.stringify(embedding));
+    stmt.run(BigInt(rowid), new Float32Array(embedding));
   }
 
   close() {
@@ -179,5 +213,63 @@ export class DatabaseManager {
 
   getDatabase(): Database.Database {
     return this.db;
+  }
+
+  // Query methods for suggestions
+  getAllEmbeddings(): Array<{rowid: number, embedding: number[]}> {
+    const rows = this.db.prepare('SELECT rowid, embedding FROM vec_images').all() as any[];
+    return rows.map(row => {
+      let embedding: number[];
+      if (Buffer.isBuffer(row.embedding)) {
+        // Convert binary BLOB to Float32Array then to number[]
+        const floatArray = new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.embedding.byteLength / 4);
+        embedding = Array.from(floatArray);
+      } else if (typeof row.embedding === 'string') {
+        embedding = JSON.parse(row.embedding);
+      } else {
+        // Fallback: assume it's already an array (should not happen)
+        embedding = row.embedding;
+      }
+      return {
+        rowid: row.rowid,
+        embedding
+      };
+    });
+  }
+
+  getImageTags(imageId: number): Array<{id: number, name: string, category: string, color: string, created_at: string}> {
+    return this.db.prepare(`
+      SELECT t.* FROM tags t
+      JOIN image_tags it ON t.id = it.tag_id
+      WHERE it.image_id = ?
+    `).all(imageId) as any[];
+  }
+
+  getDismissedSuggestions(imageId: number): Array<{image_id: number, tag_id: number, dismissed_at: string}> {
+    return this.db.prepare('SELECT * FROM dismissed_suggestions WHERE image_id = ?').all(imageId) as any[];
+  }
+
+  dismissSuggestion(imageId: number, tagId: number): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO dismissed_suggestions (image_id, tag_id)
+      VALUES (?, ?)
+    `).run(imageId, tagId);
+  }
+
+  getAllTags(): Array<{id: number, name: string, category: string, color: string, created_at: string}> {
+    return this.db.prepare('SELECT * FROM tags').all() as any[];
+  }
+
+  // Performance: create indexes if not exist
+  createSuggestionIndexes(): void {
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_image ON dismissed_suggestions(image_id)
+    `);
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_tag ON dismissed_suggestions(tag_id)
+    `);
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_image_tags_source ON image_tags(source)
+    `);
   }
 }

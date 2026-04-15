@@ -1,8 +1,12 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
-import { DatabaseManager } from 'pipeline';
+import { DatabaseService } from './database';
+import { WatcherService } from './watcher';
+import { setupIpcHandlers } from './ipc';
 
 let mainWindow: BrowserWindow | null = null;
+let dbService: DatabaseService | null = null;
+let watcherService: WatcherService | null = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -23,7 +27,30 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
+async function initializeServices() {
+  // Database path in user data directory
+  const dbPath = path.join(app.getPath('userData'), 'sortie.db');
+  console.log('Database path:', dbPath);
+  
+  dbService = new DatabaseService();
+  dbService.initialize(dbPath);
+  
+  watcherService = new WatcherService();
+  watcherService.setDatabaseService(dbService);
+  
+  setupIpcHandlers(dbService, watcherService);
+  
+  // Start watching existing folders
+  const folders = await dbService.getFolders();
+  for (const folder of folders) {
+    if (folder.watched) {
+      watcherService.watchFolder(folder.path);
+    }
+  }
+}
+
+app.whenReady().then(async () => {
+  await initializeServices();
   createWindow();
 
   app.on('activate', () => {
@@ -39,8 +66,8 @@ app.on('window-all-closed', () => {
   }
 });
 
-// IPC handlers
-ipcMain.handle('get-images', async () => {
-  // TODO: implement
-  return [];
+app.on('before-quit', () => {
+  // Cleanup
+  watcherService?.stopAll();
+  dbService?.close();
 });
