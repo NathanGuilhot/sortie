@@ -2,11 +2,13 @@ import { CLIP_INPUT_SIZE, normalizeVector } from 'shared';
 import sharp from 'sharp';
 
 export class ClipEmbedder {
+  /* eslint-disable @typescript-eslint/no-explicit-any -- dynamic import from @xenova/transformers */
   private visionModel: any = null;
   private textModel: any = null;
   private processor: any = null;
   private tokenizer: any = null;
   private transformersModule: any = null;
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   private isInitialized = false;
 
   async initialize() {

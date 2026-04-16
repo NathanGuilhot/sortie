@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Image } from 'shared';
-import { computeMasonryLayout, MasonryImage } from './masonry-utils';
+import { computeMasonryLayout } from './masonry-layout';
+import { MasonryImage } from './masonry-utils';
 
 const GAP = 6;
 

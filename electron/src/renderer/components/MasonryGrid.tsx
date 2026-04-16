@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo, RefObject } from 'react';
 import { useImageStore } from '../stores/imageStore';
-import { computeMasonryLayout, MasonryImage } from './masonry-utils';
+import { computeMasonryLayout } from './masonry-layout';
+import { MasonryImage } from './masonry-utils';
 
 const OVERSCAN = 500;
 const GAP = 8;
