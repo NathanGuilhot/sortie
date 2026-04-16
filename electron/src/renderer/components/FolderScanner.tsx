@@ -27,7 +27,13 @@ export function FolderScanner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scanningFolder, setScanningFolder] = useState<string | null>(null);
+  const [scanProgress, setScanProgress] = useState<{
+    current: number;
+    total: number;
+    currentFile: string;
+  } | null>(null);
   const [removingFolder, setRemovingFolder] = useState<string | null>(null);
+  const [resettingDb, setResettingDb] = useState(false);
 
   useEffect(() => {
     void loadFolders();
@@ -52,19 +58,35 @@ export function FolderScanner() {
       if (!selected) return;
       setError(null);
       await window.sortieAPI.addFolder(selected);
+      await loadFolders();
+
       setScanningFolder(selected);
-      await window.sortieAPI.scanFolder(selected);
+      setScanProgress(null);
+      const unsubscribe = window.sortieAPI.onScanProgress((progress) => {
+        setScanProgress(progress);
+      });
+      try {
+        await window.sortieAPI.scanFolder(selected);
+      } finally {
+        unsubscribe();
+      }
       setScanningFolder(null);
+      setScanProgress(null);
       await loadFolders();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       setScanningFolder(null);
+      setScanProgress(null);
     }
   };
 
   const handleScanFolder = async (path: string) => {
     setScanningFolder(path);
+    setScanProgress(null);
+    const unsubscribe = window.sortieAPI.onScanProgress((progress) => {
+      setScanProgress(progress);
+    });
     try {
       await window.sortieAPI.scanFolder(path);
       await loadFolders();
@@ -72,7 +94,9 @@ export function FolderScanner() {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
     } finally {
+      unsubscribe();
       setScanningFolder(null);
+      setScanProgress(null);
     }
   };
 
@@ -103,6 +127,22 @@ export function FolderScanner() {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       setRemovingFolder(null);
+    }
+  };
+
+  const handleResetDatabase = async () => {
+    if (!resettingDb) {
+      setResettingDb(true);
+      return;
+    }
+    try {
+      await window.sortieAPI.resetDatabase();
+      setResettingDb(false);
+      await loadFolders();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      setResettingDb(false);
     }
   };
 
@@ -293,6 +333,26 @@ export function FolderScanner() {
                   )}
                 </div>
 
+                {/* Scan progress */}
+                {scanningFolder === folder.path && scanProgress && scanProgress.total > 0 && (
+                  <div className="mt-3">
+                    <div className="w-full bg-blue-100 rounded-full h-1.5">
+                      <div
+                        className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${(scanProgress.current / scanProgress.total) * 100}%`,
+                        }}
+                      />
+                    </div>
+                    <p
+                      className="text-xs text-gray-400 mt-1 truncate"
+                      title={scanProgress.currentFile}
+                    >
+                      {scanProgress.currentFile.split('/').pop()}
+                    </p>
+                  </div>
+                )}
+
                 {/* Bottom row: watch toggle + scan */}
                 <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
                   <button
@@ -323,7 +383,9 @@ export function FolderScanner() {
                     {scanningFolder === folder.path ? (
                       <>
                         <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-300 border-t-blue-600" />
-                        Scanning...
+                        {scanProgress
+                          ? `${scanProgress.current}/${scanProgress.total}`
+                          : 'Scanning...'}
                       </>
                     ) : (
                       <>
@@ -349,6 +411,34 @@ export function FolderScanner() {
             ))}
           </div>
         )}
+
+        {/* Reset database */}
+        <div className="mt-12 pt-6 border-t border-gray-200">
+          {resettingDb ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-red-600">Erase all data? This cannot be undone.</span>
+              <button
+                onClick={() => void handleResetDatabase()}
+                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer"
+              >
+                Confirm Reset
+              </button>
+              <button
+                onClick={() => setResettingDb(false)}
+                className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => void handleResetDatabase()}
+              className="text-xs text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+            >
+              Reset Database
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -243,7 +243,10 @@ export class DatabaseService {
     return result.lastInsertRowid as number;
   }
 
-  async scanFolder(folderPath: string): Promise<number> {
+  async scanFolder(
+    folderPath: string,
+    onProgress?: (progress: { current: number; total: number; currentFile: string }) => void,
+  ): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
     const normalized = path.resolve(folderPath);
     try {
@@ -275,13 +278,15 @@ export class DatabaseService {
     console.log(`Found ${imageFiles.length} image files`);
 
     let processed = 0;
-    for (const file of imageFiles) {
+    for (let i = 0; i < imageFiles.length; i++) {
+      const file = imageFiles[i];
       try {
         await this.addImage(file);
         processed++;
       } catch (error) {
         console.error(`Failed to process ${file}:`, error);
       }
+      onProgress?.({ current: i + 1, total: imageFiles.length, currentFile: file });
     }
 
     const stmt = this.db.getDatabase().prepare(`
@@ -327,8 +332,43 @@ export class DatabaseService {
 
   async removeFolder(folderPath: string): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
+    const db = this.db.getDatabase();
     const normalized = path.resolve(folderPath);
-    this.db.getDatabase().prepare('DELETE FROM folders WHERE path = ?').run(normalized);
+    const pattern = normalized + '/%';
+
+    const txn = db.transaction(() => {
+      const imageIds = db
+        .prepare("SELECT id FROM images WHERE file_path LIKE ?")
+        .all(pattern) as { id: number }[];
+
+      if (imageIds.length > 0) {
+        const deleteVec = db.prepare('DELETE FROM vec_images WHERE rowid = ?');
+        for (const { id } of imageIds) {
+          deleteVec.run(id);
+        }
+        db.prepare("DELETE FROM images WHERE file_path LIKE ?").run(pattern);
+      }
+
+      db.prepare('DELETE FROM folders WHERE path = ?').run(normalized);
+    });
+    txn();
+
+    this.invalidateImageCache();
+  }
+
+  async resetDatabase(): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db.getDatabase();
+
+    const txn = db.transaction(() => {
+      db.prepare('DELETE FROM vec_images').run();
+      db.prepare('DELETE FROM images').run();
+      db.prepare('DELETE FROM collections').run();
+      db.prepare('DELETE FROM tags').run();
+      db.prepare('DELETE FROM folders').run();
+    });
+    txn();
+
     this.invalidateImageCache();
   }
 
@@ -490,6 +530,51 @@ export class DatabaseService {
     console.log(`[migration] fixed dimensions for ${fixed}/${rows.length} images`);
   }
 
+  async backfillExifData(): Promise<number> {
+    if (!this.db) return 0;
+    const db = this.db.getDatabase();
+
+    console.log('[migration] backfilling camera EXIF data...');
+    const rows = db
+      .prepare(
+        'SELECT id, file_path FROM images WHERE camera_make IS NULL AND camera_model IS NULL',
+      )
+      .all() as Array<{ id: number; file_path: string }>;
+
+    let filled = 0;
+    for (const row of rows) {
+      try {
+        const exif = await extractExif(row.file_path);
+        if (
+          exif.cameraMake ||
+          exif.cameraModel ||
+          exif.aperture ||
+          exif.iso ||
+          exif.exposureTime ||
+          exif.focalLength
+        ) {
+          db.prepare(
+            `UPDATE images SET camera_make = ?, camera_model = ?, aperture = ?, iso = ?, exposure_time = ?, focal_length = ? WHERE id = ?`,
+          ).run(
+            exif.cameraMake,
+            exif.cameraModel,
+            exif.aperture,
+            exif.iso,
+            exif.exposureTime,
+            exif.focalLength,
+            row.id,
+          );
+          filled++;
+        }
+      } catch (err) {
+        console.warn(`Failed to backfill EXIF for ${row.file_path}:`, err);
+      }
+    }
+    this.invalidateImageCache();
+    console.log(`[migration] backfilled EXIF for ${filled}/${rows.length} images`);
+    return filled;
+  }
+
   getDatabase(): DatabaseManager | null {
     return this.db;
   }
@@ -526,6 +611,12 @@ export class DatabaseService {
       description: null,
       favorite: false,
       hidden: false,
+      camera_make: exifData.cameraMake,
+      camera_model: exifData.cameraModel,
+      aperture: exifData.aperture,
+      iso: exifData.iso,
+      exposure_time: exifData.exposureTime,
+      focal_length: exifData.focalLength,
       file_hash: fileHash,
       dhash: dhash,
     };

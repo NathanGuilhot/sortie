@@ -1,15 +1,16 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, RefObject } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useImageStore } from '../stores/imageStore';
 import { TagInput } from './TagInput';
 
 interface SearchBarProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
 }
 
 const SUGGESTIONS = ['landscape', 'portrait', 'sunset', 'beach', 'family', 'vacation'];
 
-export function SearchBar({ inputRef }: SearchBarProps) {
+export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   const {
     searchQuery,
     setSearchQuery,
@@ -85,17 +86,22 @@ export function SearchBar({ inputRef }: SearchBarProps) {
   }, []);
 
   const handleSearch = useCallback(() => {
+    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
     if (localQuery.trim()) {
       void searchImages(localQuery);
+    } else {
+      clearFilters();
+      void fetchImages();
     }
-  }, [localQuery, searchImages]);
+  }, [localQuery, searchImages, clearFilters, fetchImages, scrollContainerRef]);
 
   const handleClear = useCallback(() => {
     setLocalQuery('');
     clearFilters();
     void fetchImages();
+    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
     inputRef?.current?.focus();
-  }, [clearFilters, fetchImages, inputRef]);
+  }, [clearFilters, fetchImages, inputRef, scrollContainerRef]);
 
   const handleFocus = () => {
     clearTimeout(blurTimeoutRef.current);

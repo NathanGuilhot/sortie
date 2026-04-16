@@ -35,10 +35,22 @@ export class SuggestionEngine {
     if (cached) return cached;
     const db = this.db.getDatabase();
     const row = db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(imageId) as
-      | { embedding: string }
+      | { embedding: Buffer | string | number[] }
       | undefined;
     if (!row) return [];
-    const embedding = JSON.parse(row.embedding) as number[];
+    let embedding: number[];
+    if (Buffer.isBuffer(row.embedding)) {
+      const floatArray = new Float32Array(
+        row.embedding.buffer,
+        row.embedding.byteOffset,
+        row.embedding.byteLength / 4,
+      );
+      embedding = Array.from(floatArray);
+    } else if (typeof row.embedding === 'string') {
+      embedding = JSON.parse(row.embedding) as number[];
+    } else {
+      embedding = row.embedding;
+    }
     this.embeddingCache.set(imageId, embedding);
     return embedding;
   }

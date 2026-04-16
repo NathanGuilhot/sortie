@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { WithContext as ReactTags, Tag } from 'react-tag-input';
 import { useTagStore } from '../stores/tagStore';
 
@@ -14,13 +14,24 @@ interface TagInputProps {
   onChange: (tags: string[]) => void;
   placeholder?: string;
   allowNew?: boolean;
+  tagCategories?: Map<string, string>;
 }
+
+const CATEGORY_CLASSES: Record<string, string> = {
+  ai: 'bg-purple-100 text-purple-700 hover:bg-purple-200',
+  location: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+  camera: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
+};
+
+const DEFAULT_TAG_CLASS =
+  'bg-gray-100 hover:bg-gray-200 text-gray-700';
 
 export function TagInput({
   selectedTags,
   onChange,
   placeholder = 'Add tags...',
   allowNew: _allowNew = true,
+  tagCategories,
 }: TagInputProps) {
   const { tags, fetchTags } = useTagStore();
 
@@ -80,7 +91,11 @@ export function TagInput({
     <div className="tag-input-wrapper">
       <ReactTags
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-        tags={selectedTags.map((tag) => ({ id: tag, text: tag, className: '' })) as any}
+        tags={selectedTags.map((tag) => {
+          const cat = tagCategories?.get(tag);
+          const cls = (cat && CATEGORY_CLASSES[cat]) || DEFAULT_TAG_CLASS;
+          return { id: tag, text: tag, className: cls };
+        }) as any}
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
         suggestions={suggestions as any}
         delimiters={delimiters}
@@ -99,7 +114,7 @@ export function TagInput({
         classNames={{
           tags: 'flex flex-wrap gap-1.5 items-center',
           tagInput: 'inline-flex',
-          tag: 'inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors',
+          tag: 'inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full transition-colors',
           remove: 'ml-0.5 text-gray-400 hover:text-gray-600 cursor-pointer transition-colors',
           suggestions:
             'absolute z-20 mt-1 bg-white rounded-xl border border-gray-200/60 shadow-xl shadow-black/5 overflow-hidden',

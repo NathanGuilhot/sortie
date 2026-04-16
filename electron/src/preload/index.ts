@@ -78,7 +78,25 @@ contextBridge.exposeInMainWorld('sortieAPI', {
     };
   },
 
+  onScanProgress: (
+    callback: (progress: { current: number; total: number; currentFile: string }) => void,
+  ) => {
+    const handler = (
+      _event: unknown,
+      progress: { current: number; total: number; currentFile: string },
+    ) => callback(progress);
+    ipcRenderer.on('scan-progress', handler);
+    return () => {
+      ipcRenderer.removeListener('scan-progress', handler);
+    };
+  },
+
+  // File actions
+  revealInFinder: (filePath: string) => ipcRenderer.invoke('reveal-in-finder', { filePath }),
+  backfillExif: () => ipcRenderer.invoke('backfill-exif'),
+
   // System
+  resetDatabase: () => ipcRenderer.invoke('reset-database'),
   getDatabasePath: () => ipcRenderer.invoke('get-database-path'),
 
   pickFolder: () => ipcRenderer.invoke('pick-folder'),

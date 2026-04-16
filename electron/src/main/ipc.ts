@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron';
+import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
 import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
 
@@ -60,8 +60,11 @@ export function setupIpcHandlers(
     return folderId;
   });
 
-  ipcMain.handle('scan-folder', async (_event, { path }: { path: string }) => {
-    const folderId = await dbService.scanFolder(path);
+  ipcMain.handle('scan-folder', async (event, { path }: { path: string }) => {
+    const webContents = event.sender;
+    const folderId = await dbService.scanFolder(path, (progress) => {
+      webContents.send('scan-progress', progress);
+    });
     return folderId;
   });
 
@@ -76,6 +79,12 @@ export function setupIpcHandlers(
   ipcMain.handle('remove-folder', async (_event, { path }: { path: string }) => {
     watcherService.stopWatching(path);
     await dbService.removeFolder(path);
+    return { success: true };
+  });
+
+  ipcMain.handle('reset-database', async () => {
+    watcherService.stopAll();
+    await dbService.resetDatabase();
     return { success: true };
   });
 
@@ -191,5 +200,15 @@ export function setupIpcHandlers(
   ipcMain.handle('delete-image', async (_event, { imageId }: { imageId: number }) => {
     await dbService.deleteImage(imageId);
     return { success: true };
+  });
+
+  ipcMain.handle('reveal-in-finder', async (_event, { filePath }: { filePath: string }) => {
+    shell.showItemInFolder(filePath);
+    return { success: true };
+  });
+
+  ipcMain.handle('backfill-exif', async () => {
+    const filled = await dbService.backfillExifData();
+    return { filled };
   });
 }

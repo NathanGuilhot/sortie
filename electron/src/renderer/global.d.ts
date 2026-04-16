@@ -58,7 +58,14 @@ declare global {
       onHashProgress: (
         callback: (progress: { current: number; total: number; currentFile: string }) => void,
       ) => () => void;
+      onScanProgress: (
+        callback: (progress: { current: number; total: number; currentFile: string }) => void,
+      ) => () => void;
+      // File actions
+      revealInFinder: (filePath: string) => Promise<{ success: boolean }>;
+      backfillExif: () => Promise<{ filled: number }>;
       // System
+      resetDatabase: () => Promise<{ success: boolean }>;
       getDatabasePath: () => Promise<string>;
       pickFolder: () => Promise<string | null>;
     };

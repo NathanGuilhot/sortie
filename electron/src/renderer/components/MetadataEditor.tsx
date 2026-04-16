@@ -3,9 +3,47 @@ import { Image } from 'shared';
 import { TagInput } from './TagInput';
 import { useImageStore } from '../stores/imageStore';
 
+interface TagSuggestion {
+  tagId: number;
+  tagName: string;
+  confidence: number;
+  source: 'cluster' | 'similarity';
+}
+
 interface MetadataEditorProps {
   image: Image | null;
   onClose?: () => void;
+}
+
+function DisclosureSection({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-gray-50/80 rounded-xl border border-gray-100 overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-medium text-gray-400 uppercase tracking-wider hover:text-gray-500 transition-colors"
+      >
+        {title}
+        <svg
+          className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && <div className="px-4 pb-3">{children}</div>}
+    </div>
+  );
 }
 
 export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
@@ -22,6 +60,8 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
   const [embeddingStatus, setEmbeddingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>(
     'idle',
   );
+  const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
+  const [tagCategories, setTagCategories] = useState<Map<string, string>>(new Map());
 
   // Reset form when image changes
   useEffect(() => {
@@ -31,10 +71,32 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
       setLocation([image.city, image.country].filter(Boolean).join(', ') || '');
       setDescription(image.description || '');
       setIsFavorite(image.favorite || false);
+
+      // Build tag category map
+      const catMap = new Map<string, string>();
+      image.tags?.forEach((t) => {
+        if (t.category) catMap.set(t.name, t.category);
+      });
+      setTagCategories(catMap);
     } else {
       resetForm();
     }
   }, [image]);
+
+  // Fetch AI suggestions when image changes
+  useEffect(() => {
+    if (!image) {
+      setSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    void window.sortieAPI.getSuggestions(image.id).then((results: TagSuggestion[]) => {
+      if (!cancelled) setSuggestions(results);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [image?.id]);
 
   const resetForm = () => {
     setTags([]);
@@ -42,6 +104,8 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     setLocation('');
     setDescription('');
     setIsFavorite(false);
+    setSuggestions([]);
+    setTagCategories(new Map());
   };
 
   const handleSave = async () => {
@@ -95,7 +159,35 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     }
   };
 
+  const handleAcceptSuggestion = (suggestion: TagSuggestion) => {
+    if (!tags.includes(suggestion.tagName)) {
+      setTags([...tags, suggestion.tagName]);
+      tagCategories.set(suggestion.tagName, 'ai');
+      setTagCategories(new Map(tagCategories));
+    }
+    setSuggestions(suggestions.filter((s) => s.tagId !== suggestion.tagId));
+  };
+
+  const handleDismissSuggestion = (suggestion: TagSuggestion) => {
+    if (!image) return;
+    void window.sortieAPI.dismissSuggestion(image.id, suggestion.tagId);
+    setSuggestions(suggestions.filter((s) => s.tagId !== suggestion.tagId));
+  };
+
   if (!image) return null;
+
+  const hasCamera =
+    image.camera_make || image.camera_model || image.aperture || image.iso || image.exposure_time || image.focal_length;
+
+  const cameraName = [image.camera_make, image.camera_model].filter(Boolean).join(' ');
+  const cameraSettings = [
+    image.aperture ? `f/${image.aperture}` : null,
+    image.exposure_time ? `${image.exposure_time}s` : null,
+    image.iso ? `ISO ${image.iso}` : null,
+    image.focal_length ? `${image.focal_length}mm` : null,
+  ]
+    .filter(Boolean)
+    .join('  \u00b7  ');
 
   const inputClasses =
     'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors text-gray-900 placeholder-gray-400';
@@ -167,13 +259,30 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
               />
             </svg>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-gray-800 truncate">{image.file_name}</div>
             <div className="text-xs text-gray-400">
               {image.width} &times; {image.height}
               {image.file_size ? ` \u00b7 ${(image.file_size / 1024 / 1024).toFixed(1)} MB` : ''}
             </div>
           </div>
+          <button
+            onClick={() => void window.sortieAPI.revealInFinder(image.file_path)}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
+            title="Reveal in Finder"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div className="mt-1.5 text-[11px] text-gray-300 truncate pl-[42px]" title={image.file_path}>
+          {image.file_path}
         </div>
       </div>
 
@@ -191,8 +300,69 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             </svg>
             Tags
           </label>
-          <TagInput selectedTags={tags} onChange={setTags} placeholder="Add tags..." />
+          <TagInput
+            selectedTags={tags}
+            onChange={setTags}
+            placeholder="Add tags..."
+            tagCategories={tagCategories}
+          />
         </div>
+
+        {/* AI Tag Suggestions */}
+        {suggestions.length > 0 && (
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                />
+              </svg>
+              Suggested
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {suggestions.map((s) => (
+                <span
+                  key={s.tagId}
+                  className="group inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium border border-dashed border-purple-300 text-purple-600 rounded-full bg-purple-50/50 transition-colors"
+                  style={{ opacity: 0.5 + s.confidence * 0.5 }}
+                >
+                  {s.tagName}
+                  <button
+                    onClick={() => handleAcceptSuggestion(s)}
+                    className="text-purple-400 hover:text-emerald-500 transition-colors"
+                    title="Accept"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M12 4v16m8-8H4"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDismissSuggestion(s)}
+                    className="text-purple-400 hover:text-red-500 transition-colors"
+                    title="Dismiss"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
@@ -292,60 +462,75 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
         </button>
       </div>
 
-      {/* [E] File info card */}
-      <div className="bg-gray-50/80 rounded-xl border border-gray-100 px-4 py-3 mb-6">
-        <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-          File Info
-        </h3>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-400">Created</span>
-            <span className="text-gray-600 font-medium">
-              {new Date(image.created_at).toLocaleDateString()}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-400">Modified</span>
-            <span className="text-gray-600 font-medium">
-              {new Date(image.modified_at).toLocaleDateString()}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-400">Type</span>
-            <span className="text-gray-600 font-medium">{image.mime_type || 'Unknown'}</span>
-          </div>
-          {image.latitude != null && image.longitude != null && (
+      {/* [E] Camera info — collapsible */}
+      {hasCamera && (
+        <div className="mb-3">
+          <DisclosureSection title="Camera">
+            <div className="space-y-1">
+              {cameraName && (
+                <div className="text-sm font-medium text-gray-700">{cameraName}</div>
+              )}
+              {cameraSettings && (
+                <div className="text-xs text-gray-500 font-mono">{cameraSettings}</div>
+              )}
+            </div>
+          </DisclosureSection>
+        </div>
+      )}
+
+      {/* [F] File info — collapsible */}
+      <div className="mb-6">
+        <DisclosureSection title="File Info">
+          <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400">Coordinates</span>
-              <span className="inline-flex px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-[11px]">
-                {image.latitude.toFixed(4)}, {image.longitude.toFixed(4)}
+              <span className="text-gray-400">Created</span>
+              <span className="text-gray-600 font-medium">
+                {new Date(image.created_at).toLocaleDateString()}
               </span>
             </div>
-          )}
-        </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-400">Modified</span>
+              <span className="text-gray-600 font-medium">
+                {new Date(image.modified_at).toLocaleDateString()}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-400">Type</span>
+              <span className="text-gray-600 font-medium">{image.mime_type || 'Unknown'}</span>
+            </div>
+            {image.latitude != null && image.longitude != null && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-400">Coordinates</span>
+                <span className="inline-flex px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-[11px]">
+                  {image.latitude.toFixed(4)}, {image.longitude.toFixed(4)}
+                </span>
+              </div>
+            )}
+          </div>
 
-        <button
-          onClick={() => void handleRecomputeEmbedding()}
-          disabled={embeddingStatus === 'loading'}
-          className={`mt-3 w-full px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-            embeddingStatus === 'success'
-              ? 'border-emerald-200 text-emerald-600 bg-emerald-50'
-              : embeddingStatus === 'error'
-                ? 'border-red-200 text-red-500 bg-red-50'
-                : 'border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          {embeddingStatus === 'loading'
-            ? 'Computing...'
-            : embeddingStatus === 'success'
-              ? 'Embedding updated'
-              : embeddingStatus === 'error'
-                ? 'Failed \u2014 try again'
-                : 'Recompute embedding'}
-        </button>
+          <button
+            onClick={() => void handleRecomputeEmbedding()}
+            disabled={embeddingStatus === 'loading'}
+            className={`mt-3 w-full px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              embeddingStatus === 'success'
+                ? 'border-emerald-200 text-emerald-600 bg-emerald-50'
+                : embeddingStatus === 'error'
+                  ? 'border-red-200 text-red-500 bg-red-50'
+                  : 'border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            {embeddingStatus === 'loading'
+              ? 'Computing...'
+              : embeddingStatus === 'success'
+                ? 'Embedding updated'
+                : embeddingStatus === 'error'
+                  ? 'Failed \u2014 try again'
+                  : 'Recompute embedding'}
+          </button>
+        </DisclosureSection>
       </div>
 
-      {/* [F] Danger zone */}
+      {/* [G] Danger zone */}
       <div className="pt-4 border-t border-gray-100">
         {confirmingDelete ? (
           <div className="flex items-center gap-2">

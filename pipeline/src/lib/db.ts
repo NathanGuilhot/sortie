@@ -210,6 +210,32 @@ export class DatabaseManager {
 
       this.db.pragma('user_version = 2');
     }
+
+    if (version < 3) {
+      const columns = this.db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>;
+      const colNames = new Set(columns.map((c) => c.name));
+
+      if (!colNames.has('camera_make')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN camera_make TEXT');
+      }
+      if (!colNames.has('camera_model')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN camera_model TEXT');
+      }
+      if (!colNames.has('aperture')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN aperture REAL');
+      }
+      if (!colNames.has('iso')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN iso INTEGER');
+      }
+      if (!colNames.has('exposure_time')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN exposure_time TEXT');
+      }
+      if (!colNames.has('focal_length')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN focal_length REAL');
+      }
+
+      this.db.pragma('user_version = 3');
+    }
   }
 
   insertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): number {
@@ -217,8 +243,9 @@ export class DatabaseManager {
       INSERT OR REPLACE INTO images (
         file_path, file_name, file_size, mime_type, width, height,
         captured_at, latitude, longitude, city, country, description,
-        favorite, hidden, file_hash, dhash
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        favorite, hidden, file_hash, dhash,
+        camera_make, camera_model, aperture, iso, exposure_time, focal_length
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const result = stmt.run(
       image.file_path,
@@ -237,6 +264,12 @@ export class DatabaseManager {
       image.hidden ? 1 : 0,
       image.file_hash ?? null,
       image.dhash ?? null,
+      image.camera_make ?? null,
+      image.camera_model ?? null,
+      image.aperture ?? null,
+      image.iso ?? null,
+      image.exposure_time ?? null,
+      image.focal_length ?? null,
     );
     return result.lastInsertRowid as number;
   }

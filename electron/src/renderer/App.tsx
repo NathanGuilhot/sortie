@@ -107,7 +107,7 @@ function App() {
       {/* Main content */}
       <div className="flex-1 flex flex-col ml-16">
         {/* Floating search bar — gallery only */}
-        {activeView === 'gallery' && <SearchBar inputRef={searchInputRef} />}
+        {activeView === 'gallery' && <SearchBar inputRef={searchInputRef} scrollContainerRef={scrollContainerRef} />}
 
         {/* Content area */}
         <main className="flex-1 overflow-hidden">

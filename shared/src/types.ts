@@ -16,6 +16,12 @@ export interface Image {
   description: string | null;
   favorite: boolean;
   hidden: boolean;
+  camera_make?: string | null;
+  camera_model?: string | null;
+  aperture?: number | null;
+  iso?: number | null;
+  exposure_time?: string | null;
+  focal_length?: number | null;
   embedded?: boolean;
   file_hash?: string | null;
   dhash?: string | null;
