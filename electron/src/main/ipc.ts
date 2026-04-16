@@ -1,8 +1,17 @@
-import { ipcMain } from 'electron';
+import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
 
 export function setupIpcHandlers(dbService: DatabaseService, watcherService: WatcherService) {
+  ipcMain.handle('pick-folder', async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+    const result = window
+      ? await dialog.showOpenDialog(window, { properties: ['openDirectory'] })
+      : await dialog.showOpenDialog({ properties: ['openDirectory'] });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
+
   // Image operations
   ipcMain.handle('get-images', async (event, { limit, offset }: { limit?: number; offset?: number } = {}) => {
     return await dbService.getImages(limit, offset);

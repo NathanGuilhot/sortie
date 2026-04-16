@@ -26,6 +26,7 @@ declare global {
       unwatchFolder: (path: string) => Promise<{ watching: boolean }>;
       // System
       getDatabasePath: () => Promise<string>;
+      pickFolder: () => Promise<string | null>;
     };
   }
 }

@@ -13,7 +13,11 @@ export class ClipEmbedder {
     if (this.isInitialized) return;
     console.log('Loading CLIP model...');
     try {
-      const transformers = await import('@xenova/transformers');
+      const dynamicImport = new Function('specifier', 'return import(specifier)') as
+        <T = unknown>(specifier: string) => Promise<T>;
+      const transformers = await dynamicImport<typeof import('@xenova/transformers')>(
+        '@xenova/transformers',
+      );
       this.transformersModule = transformers;
       const { AutoProcessor, CLIPVisionModelWithProjection, CLIPTextModelWithProjection, AutoTokenizer, RawImage } = transformers;
       

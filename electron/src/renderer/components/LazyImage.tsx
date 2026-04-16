@@ -1,15 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import type { RenderImageProps } from 'react-photo-gallery';
 
-interface LazyImageProps {
-  photo: any;
-  margin?: string | number;
-  direction: 'row' | 'column';
-  top: number;
-  left: number;
-  onClick?: (event: React.MouseEvent, photo: any) => void;
-}
+type LazyPhotoProps = { title?: string };
 
-export default function LazyImage({ photo, margin, direction, top, left, onClick }: LazyImageProps) {
+export default function LazyImage({ photo, margin, top = 0, left = 0, index, onClick }: RenderImageProps<LazyPhotoProps>) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -88,9 +82,8 @@ export default function LazyImage({ photo, margin, direction, top, left, onClick
         style={imageStyle}
         onLoad={handleLoad}
         onError={handleError}
-        onClick={(e) => onClick && onClick(e, photo)}
-        loading="lazy" // native lazy loading as fallback
-        crossOrigin="anonymous" // may help with CORS
+        onClick={(e) => onClick?.(e, { ...photo, index })}
+        loading="lazy"
       />
     </>
   );

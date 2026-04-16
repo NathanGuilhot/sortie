@@ -1,8 +1,12 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, net } from 'electron';
 import path from 'path';
 import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
 import { setupIpcHandlers } from './ipc';
+
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'sortie-file', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
+]);
 
 let mainWindow: BrowserWindow | null = null;
 let dbService: DatabaseService | null = null;
@@ -50,6 +54,11 @@ async function initializeServices() {
 }
 
 app.whenReady().then(async () => {
+  protocol.handle('sortie-file', (request) => {
+    const filePath = decodeURIComponent(new URL(request.url).pathname);
+    return net.fetch(`file://${filePath}`);
+  });
+
   await initializeServices();
   createWindow();
 

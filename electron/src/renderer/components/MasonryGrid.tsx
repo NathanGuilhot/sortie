@@ -41,7 +41,7 @@ export function MasonryGrid({ columns = 3, margin = 8 }: MasonryGridProps) {
 
   // Convert images to format expected by react-photo-gallery
   const photos = images.map((img) => ({
-    src: `file://${img.file_path}`, // Use file:// protocol for local images
+    src: `sortie-file://${img.file_path}`,
     width: img.width || 800,
     height: img.height || 600,
     key: img.id.toString(),
@@ -61,7 +61,9 @@ export function MasonryGrid({ columns = 3, margin = 8 }: MasonryGridProps) {
           // Handle image click - maybe open metadata editor
           console.log('Image clicked:', photo, index);
         }}
-        renderImage={LazyImage}
+        renderImage={({ key: imageKey, ...rest }: any) => (
+          <LazyImage key={imageKey} {...rest} />
+        )}
       />
     </div>
   );

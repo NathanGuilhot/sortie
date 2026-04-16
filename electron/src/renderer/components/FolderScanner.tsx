@@ -73,12 +73,13 @@ export function FolderScanner({ onFolderAdded }: FolderScannerProps) {
     }
   };
 
-  const handleBrowseFolder = () => {
-    // Electron's dialog.showOpenDialog is only available in main process.
-    // We'll need to implement IPC for folder picker.
-    // For now, just log
-    console.log('Browse folder clicked');
-    // TODO: Implement folder picker via IPC
+  const handleBrowseFolder = async () => {
+    try {
+      const selected = await window.sortieAPI.pickFolder();
+      if (selected) setNewFolderPath(selected);
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   return (

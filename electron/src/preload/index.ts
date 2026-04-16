@@ -41,6 +41,9 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   // System
   getDatabasePath: () =>
     ipcRenderer.invoke('get-database-path'),
+
+  pickFolder: () =>
+    ipcRenderer.invoke('pick-folder'),
 });
 
 console.log('sortieAPI exposed');
