@@ -10,7 +10,7 @@ export default defineConfig({
       target: 'node18',
       outDir: 'dist/main',
       rollupOptions: {
-        external: ['shared', 'pipeline'],
+        external: ['shared', 'pipeline', 'sharp'],
       },
     },
   },

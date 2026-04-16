@@ -1,11 +1,15 @@
 import { app, BrowserWindow, ipcMain, protocol, net } from 'electron';
 import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
+import sharp from 'sharp';
 import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
 import { setupIpcHandlers } from './ipc';
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'sortie-file', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
+  { scheme: 'sortie-thumb', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
 ]);
 
 let mainWindow: BrowserWindow | null = null;
@@ -42,8 +46,10 @@ async function initializeServices() {
   watcherService = new WatcherService();
   watcherService.setDatabaseService(dbService);
   
-  setupIpcHandlers(dbService, watcherService);
-  
+  await dbService.fixImageDimensions();
+
+  setupIpcHandlers(dbService, watcherService, dbPath);
+
   // Start watching existing folders
   const folders = await dbService.getFolders();
   for (const folder of folders) {
@@ -54,9 +60,45 @@ async function initializeServices() {
 }
 
 app.whenReady().then(async () => {
+  const thumbDir = path.join(app.getPath('userData'), 'thumbs');
+  fs.mkdirSync(thumbDir, { recursive: true });
+
   protocol.handle('sortie-file', (request) => {
     const filePath = decodeURIComponent(new URL(request.url).pathname);
     return net.fetch(`file://${filePath}`);
+  });
+
+  protocol.handle('sortie-thumb', async (request) => {
+    const url = new URL(request.url);
+    const filePath = decodeURIComponent(url.pathname);
+    const width = parseInt(url.searchParams.get('w') || '400', 10);
+
+    const hash = crypto.createHash('sha256').update(filePath).digest('hex').slice(0, 16);
+    const cachePath = path.join(thumbDir, `${hash}_${width}.jpg`);
+
+    try {
+      // Check if cached thumbnail is fresh
+      const srcStat = fs.statSync(filePath);
+      let useCached = false;
+      try {
+        const cacheStat = fs.statSync(cachePath);
+        useCached = cacheStat.mtimeMs >= srcStat.mtimeMs;
+      } catch {}
+
+      if (!useCached) {
+        console.log(`[thumb] generating ${width}px thumbnail for ${path.basename(filePath)}`);
+        await sharp(filePath)
+          .rotate()
+          .resize(width, null, { withoutEnlargement: true })
+          .jpeg({ quality: 85 })
+          .toFile(cachePath);
+      }
+
+      return net.fetch(`file://${cachePath}`);
+    } catch (err) {
+      console.error('[thumb] failed:', err);
+      return net.fetch(`file://${filePath}`);
+    }
   });
 
   await initializeServices();

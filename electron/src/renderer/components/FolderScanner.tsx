@@ -34,8 +34,7 @@ export function FolderScanner({ onFolderAdded }: FolderScannerProps) {
     setLoading(true);
     setError(null);
     try {
-      const folderId = await window.sortieAPI.addFolder(newFolderPath);
-      console.log('Folder added with ID:', folderId);
+      await window.sortieAPI.addFolder(newFolderPath);
       setNewFolderPath('');
       await loadFolders();
       onFolderAdded?.(newFolderPath);
@@ -120,14 +119,29 @@ export function FolderScanner({ onFolderAdded }: FolderScannerProps) {
 
       {/* Error message */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          {error}
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center justify-between">
+          <span>{error}</span>
+          <button
+            onClick={() => setError(null)}
+            className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 text-red-400 hover:text-red-600"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
       )}
 
       {/* Folders list */}
       {loading && folders.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">Loading folders...</div>
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="p-4 border border-gray-200 rounded-lg animate-pulse">
+              <div className="h-5 bg-gray-200 rounded w-3/4 mb-3" />
+              <div className="h-4 bg-gray-200 rounded w-1/2" />
+            </div>
+          ))}
+        </div>
       ) : folders.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
           <div className="text-lg font-medium mb-2">No folders added yet</div>
@@ -177,16 +191,17 @@ export function FolderScanner({ onFolderAdded }: FolderScannerProps) {
         </div>
       )}
 
-      {/* Info panel */}
-      <div className="mt-8 pt-6 border-t border-gray-200">
-        <h3 className="font-medium text-gray-900 mb-2">How it works</h3>
-        <ul className="text-sm text-gray-600 space-y-1">
-          <li>• Watched folders are automatically scanned for new images</li>
-          <li>• Images are tagged using AI and EXIF metadata</li>
-          <li>• You can pause watching on any folder</li>
-          <li>• Manual scanning updates tags for existing images</li>
-        </ul>
-      </div>
+      {folders.length === 0 && !loading && (
+        <div className="mt-8 pt-6 border-t border-gray-200">
+          <h3 className="font-medium text-gray-900 mb-2">How it works</h3>
+          <ul className="text-sm text-gray-600 space-y-1">
+            <li>• Watched folders are automatically scanned for new images</li>
+            <li>• Images are tagged using AI and EXIF metadata</li>
+            <li>• You can pause watching on any folder</li>
+            <li>• Manual scanning updates tags for existing images</li>
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

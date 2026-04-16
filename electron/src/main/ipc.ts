@@ -2,7 +2,7 @@ import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
 
-export function setupIpcHandlers(dbService: DatabaseService, watcherService: WatcherService) {
+export function setupIpcHandlers(dbService: DatabaseService, watcherService: WatcherService, dbPath: string) {
   ipcMain.handle('pick-folder', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender) ?? undefined;
     const result = window
@@ -21,6 +21,10 @@ export function setupIpcHandlers(dbService: DatabaseService, watcherService: Wat
     return await dbService.searchImages(query, limit);
   });
 
+  ipcMain.handle('filter-images', async (event, { tags, limit, offset }: { tags: string[]; limit?: number; offset?: number }) => {
+    return await dbService.getImagesByTags(tags, limit, offset);
+  });
+
   ipcMain.handle('add-folder', async (event, { path }: { path: string }) => {
     const folderId = await dbService.addFolder(path);
     // Start watching the folder
@@ -36,6 +40,10 @@ export function setupIpcHandlers(dbService: DatabaseService, watcherService: Wat
 
   ipcMain.handle('get-folders', async () => {
     return await dbService.getFolders();
+  });
+
+  ipcMain.handle('get-all-tags', async () => {
+    return await dbService.getAllTags();
   });
 
   ipcMain.handle('update-image-tags', async (event, { imageId, tags }: { imageId: number; tags: string[] }) => {
@@ -79,9 +87,24 @@ export function setupIpcHandlers(dbService: DatabaseService, watcherService: Wat
     return { watching: false };
   });
 
+  // Image management
+  ipcMain.handle('hide-image', async (_event, { imageId }: { imageId: number }) => {
+    await dbService.hideImage(imageId);
+    return { success: true };
+  });
+
+  ipcMain.handle('update-image-metadata', async (_event, { imageId, metadata }: { imageId: number; metadata: { description?: string; favorite?: boolean; captured_at?: string | null; city?: string | null; country?: string | null } }) => {
+    await dbService.updateImageMetadata(imageId, metadata);
+    return { success: true };
+  });
+
+  ipcMain.handle('recompute-embedding', async (_event, { imageId }: { imageId: number }) => {
+    await dbService.recomputeEmbedding(imageId);
+    return { success: true };
+  });
+
   // System
   ipcMain.handle('get-database-path', async () => {
-    // TODO: return actual path
-    return './sortie.db';
+    return dbPath;
   });
 }

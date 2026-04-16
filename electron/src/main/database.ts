@@ -31,18 +31,47 @@ export class DatabaseService {
       return cached;
     }
     const stmt = this.db.getDatabase().prepare(`
-      SELECT * FROM images
-      WHERE hidden = 0
-      ORDER BY captured_at DESC, created_at DESC
+      SELECT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
+      FROM images i
+      WHERE i.hidden = 0
+      ORDER BY i.captured_at DESC, i.created_at DESC
       LIMIT ? OFFSET ?
     `);
-    const images = stmt.all(limit, offset) as Image[];
+    const rows = stmt.all(limit, offset) as any[];
+    const images: Image[] = rows.map(row => ({ ...row, embedded: !!row.embedded }));
+    for (const image of images) {
+      image.tags = this.db!.getImageTags(image.id) as Tag[];
+    }
     this.imageCache.set(cacheKey, images);
     return images;
   }
 
   private invalidateImageCache() {
     this.imageCache.clear();
+  }
+
+  async getImagesByTags(tagNames: string[], limit: number = 100, offset: number = 0): Promise<Image[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    if (tagNames.length === 0) return this.getImages(limit, offset);
+
+    const placeholders = tagNames.map(() => '?').join(',');
+    const stmt = this.db.getDatabase().prepare(`
+      SELECT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
+      FROM images i
+      INNER JOIN image_tags it ON i.id = it.image_id
+      INNER JOIN tags t ON it.tag_id = t.id
+      WHERE i.hidden = 0 AND t.name IN (${placeholders})
+      GROUP BY i.id
+      HAVING COUNT(DISTINCT t.id) = ?
+      ORDER BY i.captured_at DESC, i.created_at DESC
+      LIMIT ? OFFSET ?
+    `);
+    const rows = stmt.all(...tagNames, tagNames.length, limit, offset) as any[];
+    const images: Image[] = rows.map(row => ({ ...row, embedded: !!row.embedded }));
+    for (const image of images) {
+      image.tags = this.db!.getImageTags(image.id) as Tag[];
+    }
+    return images;
   }
 
   async searchImages(query: string, limit: number = 50): Promise<SearchResult[]> {
@@ -54,11 +83,14 @@ export class DatabaseService {
     
     // Search using vector similarity
     const stmt = this.db.getDatabase().prepare(`
-      SELECT rowid, distance
-      FROM vec_images
-      WHERE rowid IN (SELECT id FROM images WHERE hidden = 0)
-      ORDER BY vec_distance(embedding, ?)
-      LIMIT ?
+      SELECT sub.rowid, sub.distance
+      FROM (
+        SELECT v.rowid, v.distance
+        FROM vec_images v
+        WHERE v.embedding MATCH ? AND k = ?
+      ) sub
+      INNER JOIN images i ON i.id = sub.rowid AND i.hidden = 0
+      ORDER BY sub.distance
     `);
     const results = stmt.all(JSON.stringify(embedding), limit) as Array<{ rowid: number, distance: number }>;
     
@@ -77,7 +109,7 @@ export class DatabaseService {
     return images.map(img => ({
       ...img,
       distance: distanceMap.get(img.id),
-      tags: [] // TODO: load tags
+      tags: this.db!.getImageTags(img.id) as Tag[],
     }));
   }
 
@@ -165,10 +197,76 @@ export class DatabaseService {
 
   async updateImageTags(imageId: number, tagNames: string[]): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    // TODO: implement tag linking
-    console.log('Update image tags not yet implemented', imageId, tagNames);
-    // Invalidate cache since images may have changed
+    const db = this.db.getDatabase();
+
+    const txn = db.transaction(() => {
+      db.prepare(`DELETE FROM image_tags WHERE image_id = ? AND source = 'user'`).run(imageId);
+
+      const insertTag = db.prepare(`INSERT OR IGNORE INTO tags (name, category) VALUES (?, 'user')`);
+      const getTagId = db.prepare(`SELECT id FROM tags WHERE name = ?`);
+      const linkTag = db.prepare(`INSERT OR IGNORE INTO image_tags (image_id, tag_id, source) VALUES (?, ?, 'user')`);
+
+      for (const name of tagNames) {
+        insertTag.run(name);
+        const row = getTagId.get(name) as { id: number } | undefined;
+        if (row) {
+          linkTag.run(imageId, row.id);
+        }
+      }
+    });
+    txn();
+
     this.invalidateImageCache();
+  }
+
+  async hideImage(imageId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db.getDatabase().prepare(
+      `UPDATE images SET hidden = 1, modified_at = datetime('now') WHERE id = ?`
+    ).run(imageId);
+    this.invalidateImageCache();
+  }
+
+  async markImageMissing(filePath: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db.getDatabase().prepare(
+      `UPDATE images SET hidden = 1, modified_at = datetime('now') WHERE file_path = ?`
+    ).run(filePath);
+    this.invalidateImageCache();
+  }
+
+  async updateImageMetadata(imageId: number, metadata: {
+    description?: string;
+    favorite?: boolean;
+    captured_at?: string | null;
+    city?: string | null;
+    country?: string | null;
+  }): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db.getDatabase();
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (metadata.description !== undefined) { fields.push('description = ?'); values.push(metadata.description); }
+    if (metadata.favorite !== undefined) { fields.push('favorite = ?'); values.push(metadata.favorite ? 1 : 0); }
+    if (metadata.captured_at !== undefined) { fields.push('captured_at = ?'); values.push(metadata.captured_at); }
+    if (metadata.city !== undefined) { fields.push('city = ?'); values.push(metadata.city); }
+    if (metadata.country !== undefined) { fields.push('country = ?'); values.push(metadata.country); }
+
+    if (fields.length === 0) return;
+
+    fields.push("modified_at = datetime('now')");
+    values.push(imageId);
+
+    db.prepare(`UPDATE images SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    this.invalidateImageCache();
+  }
+
+  // Tags
+  async getAllTags(): Promise<Tag[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.db.getAllTags() as Tag[];
   }
 
   // Suggestions
@@ -196,6 +294,29 @@ export class DatabaseService {
   async organizeImages(): Promise<number[]> {
     if (!this.organizer) throw new Error('Organizer not initialized');
     return this.organizer.createCollectionsFromClusters();
+  }
+
+  async fixImageDimensions(): Promise<void> {
+    if (!this.db) return;
+    const db = this.db.getDatabase();
+    const version = db.pragma('user_version', { simple: true }) as number;
+    if (version >= 1) return; // already migrated
+
+    console.log('[migration] fixing image dimensions for EXIF rotation...');
+    const rows = db.prepare('SELECT id, file_path, width, height FROM images').all() as Array<{ id: number; file_path: string; width: number | null; height: number | null }>;
+    let fixed = 0;
+    for (const row of rows) {
+      try {
+        const exif = await extractExif(row.file_path);
+        if (exif.width !== row.width || exif.height !== row.height) {
+          db.prepare('UPDATE images SET width = ?, height = ? WHERE id = ?').run(exif.width, exif.height, row.id);
+          fixed++;
+        }
+      } catch {}
+    }
+    db.pragma(`user_version = 1`);
+    this.invalidateImageCache();
+    console.log(`[migration] fixed dimensions for ${fixed}/${rows.length} images`);
   }
 
   // Helper to get database instance (for watcher)
@@ -263,8 +384,21 @@ export class DatabaseService {
     
     // Invalidate cache since new image added
     this.invalidateImageCache();
-    
+
     console.log(`Added image ${imageId}: ${filePath}`);
     return imageId;
+  }
+
+  async recomputeEmbedding(imageId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    if (!this.embedder) throw new Error('Embedder not initialized');
+
+    const stmt = this.db.getDatabase().prepare('SELECT file_path FROM images WHERE id = ?');
+    const row = stmt.get(imageId) as { file_path: string } | undefined;
+    if (!row) throw new Error(`Image ${imageId} not found`);
+
+    const embedding = await this.embedder.embedImage(row.file_path);
+    this.db.insertEmbedding(imageId, embedding);
+    this.invalidateImageCache();
   }
 }

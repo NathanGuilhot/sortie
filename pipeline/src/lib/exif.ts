@@ -29,7 +29,14 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
 
     // Get image dimensions using sharp
     const metadata = await sharp(imagePath).metadata();
-    
+
+    // EXIF orientations 5-8 involve a 90°/270° rotation, swapping width/height.
+    // sharp returns raw pixel dimensions, but browsers auto-rotate based on EXIF,
+    // so we store the display dimensions to match what the browser will render.
+    const needsSwap = metadata.orientation && metadata.orientation >= 5;
+    const width = needsSwap ? (metadata.height || null) : (metadata.width || null);
+    const height = needsSwap ? (metadata.width || null) : (metadata.height || null);
+
     // Parse GPS coordinates if available
     let latitude: number | null = null;
     let longitude: number | null = null;
@@ -93,8 +100,8 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
       capturedAt,
       latitude,
       longitude,
-      width: metadata.width || null,
-      height: metadata.height || null,
+      width,
+      height,
       cameraMake,
       cameraModel,
       aperture: aperture ? parseFloat(aperture.toString()) : null,
@@ -107,12 +114,13 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
     // Fallback to just getting dimensions
     try {
       const metadata = await sharp(imagePath).metadata();
+      const needsSwap = metadata.orientation && metadata.orientation >= 5;
       return {
         capturedAt: null,
         latitude: null,
         longitude: null,
-        width: metadata.width || null,
-        height: metadata.height || null,
+        width: needsSwap ? (metadata.height || null) : (metadata.width || null),
+        height: needsSwap ? (metadata.width || null) : (metadata.height || null),
         cameraMake: null,
         cameraModel: null,
         aperture: null,

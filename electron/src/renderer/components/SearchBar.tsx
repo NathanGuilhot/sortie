@@ -1,15 +1,35 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useImageStore } from '../stores/imageStore';
 import { TagInput } from './TagInput';
 
-export function SearchBar() {
-  const { searchQuery, setSearchQuery, dateRange, setDateRange, tagFilters, setTagFilters, clearFilters } = useUIStore();
-  const { searchImages, loading } = useImageStore();
+interface SearchBarProps {
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+}
+
+const SUGGESTIONS = ['landscape', 'portrait', 'sunset', 'beach', 'family', 'vacation'];
+
+export function SearchBar({ inputRef }: SearchBarProps) {
+  const {
+    searchQuery, setSearchQuery,
+    dateRange, setDateRange,
+    tagFilters, setTagFilters,
+    showAIResults, setShowAIResults,
+    showHidden, setShowHidden,
+    clearFilters,
+  } = useUIStore();
+  const { searchImages, fetchImages, filterByTags, loading } = useImageStore();
+
   const [localQuery, setLocalQuery] = useState(searchQuery);
+  const [isFocused, setIsFocused] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Debounce search
+  const containerRef = useRef<HTMLDivElement>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const hasActiveFilters = tagFilters.length > 0 || dateRange.start !== null || dateRange.end !== null || !showAIResults || showHidden;
+
+  // Debounce search query to store
   useEffect(() => {
     const timer = setTimeout(() => {
       if (localQuery !== searchQuery) {
@@ -19,16 +39,65 @@ export function SearchBar() {
     return () => clearTimeout(timer);
   }, [localQuery, setSearchQuery, searchQuery]);
 
+  // React to tag filter changes
+  useEffect(() => {
+    if (tagFilters.length > 0) {
+      filterByTags(tagFilters);
+    } else if (!localQuery.trim()) {
+      fetchImages();
+    }
+  }, [tagFilters]);
+
+  // Click-outside dismissal
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsFocused(false);
+        setShowAdvanced(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleSearch = useCallback(() => {
     if (localQuery.trim()) {
       searchImages(localQuery);
     }
   }, [localQuery, searchImages]);
 
+  const handleClear = useCallback(() => {
+    setLocalQuery('');
+    clearFilters();
+    fetchImages();
+    inputRef?.current?.focus();
+  }, [clearFilters, fetchImages, inputRef]);
+
+  const handleFocus = () => {
+    clearTimeout(blurTimeoutRef.current);
+    setIsFocused(true);
+  };
+
+  const handleBlur = () => {
+    blurTimeoutRef.current = setTimeout(() => setIsFocused(false), 150);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSearch();
     }
+    if (e.key === 'Escape') {
+      setIsFocused(false);
+      setShowAdvanced(false);
+      inputRef?.current?.blur();
+    }
+  };
+
+  const handleSuggestionClick = (term: string) => {
+    setLocalQuery(term);
+    setSearchQuery(term);
+    searchImages(term);
+    setIsFocused(false);
   };
 
   const handleDateChange = (field: 'start' | 'end', value: string) => {
@@ -39,126 +108,167 @@ export function SearchBar() {
     });
   };
 
+  const showDropdown = isFocused || showAdvanced;
+
   return (
-    <div className="w-full p-4 bg-white shadow rounded-lg">
-      <div className="flex flex-col space-y-4">
-        {/* Main search input */}
-        <div className="flex items-center space-x-2">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Search by natural language (e.g., 'photos of mountains at sunset')"
-              value={localQuery}
-              onChange={(e) => setLocalQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-            />
-            {loading && (
-              <div className="absolute right-3 top-2.5">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-              </div>
-            )}
-          </div>
+    <div
+      ref={containerRef}
+      className="fixed top-4 left-1/2 -translate-x-1/2 ml-8 z-20 w-full max-w-xl px-4"
+    >
+      {/* Input bar */}
+      <div
+        className={`
+          flex items-center px-4 py-2.5 rounded-2xl border transition-all duration-200
+          ${isFocused
+            ? 'bg-white shadow-xl border-gray-300'
+            : 'bg-white/80 backdrop-blur-lg shadow-lg shadow-black/5 border-gray-200/60'
+          }
+        `}
+      >
+        {/* Search icon */}
+        <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+
+        {/* Input */}
+        <input
+          ref={inputRef as any}
+          type="text"
+          className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 placeholder-gray-400 ml-3"
+          placeholder="Search photos..."
+          value={localQuery}
+          onChange={(e) => setLocalQuery(e.target.value)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+        />
+
+        {/* Loading spinner */}
+        {loading && (
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-gray-600 shrink-0" />
+        )}
+
+        {/* Clear X button */}
+        {localQuery && (
           <button
-            onClick={handleSearch}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onClick={handleClear}
+            className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0 ml-1"
           >
-            Search
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
+        )}
+
+        {/* Filter toggle */}
+        {(isFocused || hasActiveFilters) && (
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            className={`p-1 rounded-full transition-colors shrink-0 ml-1 relative ${
+              showAdvanced
+                ? 'bg-gray-100 text-gray-700'
+                : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'
+            }`}
           >
-            {showAdvanced ? 'Simple' : 'Advanced'}
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            {hasActiveFilters && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full" />
+            )}
           </button>
-          <button
-            onClick={clearFilters}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-          >
-            Clear
-          </button>
-        </div>
+        )}
 
-        {/* Advanced filters */}
-        {showAdvanced && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
-            {/* Tag filters */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Filter by tags
-              </label>
-              <TagInput
-                selectedTags={tagFilters}
-                onChange={setTagFilters}
-                placeholder="Add tags to filter..."
-              />
+        {/* Cmd+K hint */}
+        {!isFocused && !localQuery && (
+          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] text-gray-400 bg-gray-100 rounded border border-gray-200 ml-2 shrink-0">
+            <span className="text-[10px]">&#8984;K</span>
+          </kbd>
+        )}
+      </div>
+
+      {/* Dropdown panel */}
+      {showDropdown && (
+        <div className="mt-2 bg-white rounded-2xl border border-gray-200/60 shadow-xl shadow-black/5 overflow-hidden animate-dropdown-in">
+          {/* Suggestion pills — only when focused and no query */}
+          {isFocused && !localQuery && (
+            <div className="px-4 py-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-400">Suggestions</span>
+              {SUGGESTIONS.map((term) => (
+                <button
+                  key={term}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleSuggestionClick(term)}
+                  className="px-2.5 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors"
+                >
+                  {term}
+                </button>
+              ))}
             </div>
+          )}
 
-            {/* Date range */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Date range
-              </label>
-              <div className="flex space-x-2">
-                <div className="flex-1">
+          {/* Advanced filters */}
+          {showAdvanced && (
+            <div className={`px-4 py-3 space-y-3 ${isFocused && !localQuery ? 'border-t border-gray-100' : ''}`}>
+              {/* Tag filters */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                  Filter by tags
+                </label>
+                <TagInput
+                  selectedTags={tagFilters}
+                  onChange={setTagFilters}
+                  placeholder="Add tags..."
+                />
+              </div>
+
+              {/* Date range */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                  Date range
+                </label>
+                <div className="flex gap-2">
                   <input
                     type="date"
-                    className="w-full px-3 py-2 border border-gray-300 rounded"
+                    className="flex-1 px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors"
                     value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
                     onChange={(e) => handleDateChange('start', e.target.value)}
                   />
-                  <div className="text-xs text-gray-500 mt-1">Start date</div>
-                </div>
-                <div className="flex-1">
+                  <span className="text-gray-300 self-center text-xs">to</span>
                   <input
                     type="date"
-                    className="w-full px-3 py-2 border border-gray-300 rounded"
+                    className="flex-1 px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors"
                     value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
                     onChange={(e) => handleDateChange('end', e.target.value)}
                   />
-                  <div className="text-xs text-gray-500 mt-1">End date</div>
                 </div>
               </div>
-            </div>
 
-            {/* Toggle filters */}
-            <div className="space-y-3">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 text-blue-600 rounded"
-                  checked={true}
-                  onChange={() => {}}
-                />
-                <span className="ml-2 text-sm text-gray-700">Show AI suggestions</span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 text-blue-600 rounded"
-                  checked={false}
-                  onChange={() => {}}
-                />
-                <span className="ml-2 text-sm text-gray-700">Show hidden images</span>
-              </label>
+              {/* Toggle filters */}
+              <div className="flex gap-4">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 text-blue-600 rounded border-gray-300"
+                    checked={showAIResults}
+                    onChange={(e) => setShowAIResults(e.target.checked)}
+                  />
+                  <span className="text-xs text-gray-600">AI suggestions</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 text-blue-600 rounded border-gray-300"
+                    checked={showHidden}
+                    onChange={(e) => setShowHidden(e.target.checked)}
+                  />
+                  <span className="text-xs text-gray-600">Hidden images</span>
+                </label>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Quick suggestions */}
-        <div className="flex flex-wrap gap-2">
-          <span className="text-sm text-gray-500">Try:</span>
-          {['landscape', 'portrait', 'sunset', 'beach', 'family', 'vacation'].map((term) => (
-            <button
-              key={term}
-              onClick={() => setLocalQuery(term)}
-              className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-full"
-            >
-              {term}
-            </button>
-          ))}
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

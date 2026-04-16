@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Image } from 'shared';
 import { TagInput } from './TagInput';
 import { useImageStore } from '../stores/imageStore';
@@ -9,18 +9,21 @@ interface MetadataEditorProps {
 }
 
 export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
-  const { updateImageTags } = useImageStore();
+  const { updateImageTags, hideImage, updateImageMetadata, setSelectedImage, fetchImages } = useImageStore();
   const [tags, setTags] = useState<string[]>([]);
   const [date, setDate] = useState<string>('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [embeddingStatus, setEmbeddingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   // Reset form when image changes
   useEffect(() => {
     if (image) {
-      setTags((image as any).tags || []);
+      setTags(image.tags?.map(t => t.name) || []);
       setDate(image.captured_at ? new Date(image.captured_at).toISOString().split('T')[0] : '');
       setLocation([image.city, image.country].filter(Boolean).join(', ') || '');
       setDescription(image.description || '');
@@ -42,10 +45,24 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     if (!image) return;
     setIsSaving(true);
     try {
-      // Update tags
       await updateImageTags(image.id, tags);
-      // TODO: Update other metadata fields via API
-      console.log('Saved metadata for image', image.id);
+      const [city, country] = location.includes(',')
+        ? location.split(',').map(s => s.trim())
+        : [location.trim(), ''];
+      await updateImageMetadata(image.id, {
+        description: description || undefined,
+        favorite: isFavorite,
+        captured_at: date ? new Date(date).toISOString() : null,
+        city: city || undefined,
+        country: country || undefined,
+      });
+      await fetchImages();
+      // Refresh selectedImage so tags reload in the editor
+      const updatedImages = useImageStore.getState().images;
+      const updated = updatedImages.find(img => img.id === image.id);
+      if (updated) setSelectedImage(updated);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
     } catch (error) {
       console.error('Failed to save metadata:', error);
     } finally {
@@ -53,47 +70,51 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!image) return;
-    if (window.confirm('Are you sure you want to delete this image? This will hide it from the gallery.')) {
-      // TODO: Implement hide/delete via API
-      console.log('Delete image', image.id);
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      return;
+    }
+    await hideImage(image.id);
+    setSelectedImage(null);
+    setConfirmingDelete(false);
+  };
+
+  const handleRecomputeEmbedding = async () => {
+    if (!image) return;
+    setEmbeddingStatus('loading');
+    try {
+      await window.sortieAPI.recomputeEmbedding(image.id);
+      setEmbeddingStatus('success');
+      setTimeout(() => setEmbeddingStatus('idle'), 2000);
+    } catch {
+      setEmbeddingStatus('error');
+      setTimeout(() => setEmbeddingStatus('idle'), 3000);
     }
   };
 
-  if (!image) {
-    return (
-      <div className="w-80 h-full bg-gray-50 border-l border-gray-200 p-6 flex items-center justify-center">
-        <div className="text-gray-500 text-center">
-          <div className="text-lg font-medium mb-2">No image selected</div>
-          <p className="text-sm">Select an image to view and edit its metadata</p>
-        </div>
-      </div>
-    );
-  }
+  if (!image) return null;
 
   return (
-    <div className="w-80 h-full bg-white border-l border-gray-200 overflow-y-auto">
+    <div>
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Edit Metadata</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Details</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
           >
-            ✕
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
-        {/* Image preview */}
-        <div className="mb-6">
-          <img
-            src={`file://${image.file_path}`}
-            alt={image.file_name}
-            className="w-full h-48 object-cover rounded-lg shadow"
-          />
-          <div className="mt-2 text-sm text-gray-600 truncate">{image.file_name}</div>
+        {/* File info */}
+        <div className="mb-6 text-sm text-gray-600">
+          <div className="truncate">{image.file_name}</div>
           <div className="text-xs text-gray-500">
             {image.width} × {image.height} • {image.file_size ? `${(image.file_size / 1024 / 1024).toFixed(2)} MB` : 'Unknown size'}
           </div>
@@ -108,7 +129,6 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             selectedTags={tags}
             onChange={setTags}
             placeholder="Add tags..."
-            showSuggestions={true}
           />
         </div>
 
@@ -170,16 +190,33 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${saveSuccess ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
-            {isSaving ? 'Saving...' : 'Save Changes'}
+            {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save Changes'}
           </button>
-          <button
-            onClick={handleDelete}
-            className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
-          >
-            Delete
-          </button>
+          {confirmingDelete ? (
+            <div className="flex space-x-2">
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleDelete}
+              className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+            >
+              Delete
+            </button>
+          )}
         </div>
 
         {/* Metadata info */}
@@ -205,6 +242,22 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
               </div>
             )}
           </div>
+          <button
+            onClick={handleRecomputeEmbedding}
+            disabled={embeddingStatus === 'loading'}
+            className={`mt-4 w-full px-3 py-1.5 text-sm rounded border disabled:opacity-50 disabled:cursor-not-allowed ${
+              embeddingStatus === 'success'
+                ? 'border-green-300 text-green-600 bg-green-50'
+                : embeddingStatus === 'error'
+                ? 'border-red-300 text-red-600 bg-red-50'
+                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            {embeddingStatus === 'loading' ? 'Computing...' :
+             embeddingStatus === 'success' ? 'Embedding updated' :
+             embeddingStatus === 'error' ? 'Failed — try again' :
+             'Recompute embedding'}
+          </button>
         </div>
       </div>
     </div>

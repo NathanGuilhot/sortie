@@ -42,21 +42,13 @@ export const useTagStore = create<TagStore>((set) => ({
   fetchTags: async () => {
     set({ loading: true, error: null });
     try {
-      // TODO: Implement API endpoint for fetching tags
-      // For now, we'll get tags from images
-      const images = await window.sortieAPI.getImages(1000, 0);
-      const tagSet = new Set<string>();
-      images.forEach((img: any) => {
-        if (img.tags) {
-          img.tags.forEach((tag: string) => tagSet.add(tag));
-        }
-      });
-      const tags: Tag[] = Array.from(tagSet).map((name, idx) => ({
-        id: idx,
-        name,
-        category: 'user',
-        color: '',
-        created_at: new Date().toISOString(),
+      const allTags = await window.sortieAPI.getAllTags();
+      const tags: Tag[] = allTags.map(t => ({
+        id: t.id,
+        name: t.name,
+        category: (t.category || 'user') as Tag['category'],
+        color: t.color,
+        created_at: t.created_at,
       }));
       set({ tags, loading: false });
     } catch (error: any) {

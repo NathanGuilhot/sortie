@@ -7,6 +7,7 @@ interface ImageStore {
   searchResults: SearchResult[];
   loading: boolean;
   error: string | null;
+  hasMore: boolean;
   selectedImage: Image | null;
   suggestions: TagSuggestion[];
   suggestionsLoading: boolean;
@@ -19,12 +20,15 @@ interface ImageStore {
   setSuggestions: (suggestions: TagSuggestion[]) => void;
   setSuggestionsLoading: (loading: boolean) => void;
   setSuggestionsError: (error: string | null) => void;
-  fetchImages: (limit?: number, offset?: number) => Promise<void>;
+  fetchImages: (limit?: number, offset?: number, append?: boolean) => Promise<void>;
   searchImages: (query: string, limit?: number) => Promise<void>;
   updateImageTags: (imageId: number, tags: string[]) => Promise<void>;
+  filterByTags: (tags: string[], limit?: number, offset?: number) => Promise<void>;
   fetchSuggestions: (imageId: number) => Promise<void>;
   dismissSuggestion: (imageId: number, tagId: number) => Promise<void>;
   clearSuggestions: () => void;
+  hideImage: (imageId: number) => Promise<void>;
+  updateImageMetadata: (imageId: number, metadata: { description?: string; favorite?: boolean; captured_at?: string | null; city?: string | null; country?: string | null }) => Promise<void>;
 }
 
 export const useImageStore = create<ImageStore>((set, get) => ({
@@ -32,6 +36,7 @@ export const useImageStore = create<ImageStore>((set, get) => ({
   searchResults: [],
   loading: false,
   error: null,
+  hasMore: true,
   selectedImage: null,
   suggestions: [],
   suggestionsLoading: false,
@@ -44,11 +49,16 @@ export const useImageStore = create<ImageStore>((set, get) => ({
   setSuggestions: (suggestions) => set({ suggestions }),
   setSuggestionsLoading: (loading) => set({ suggestionsLoading: loading }),
   setSuggestionsError: (error) => set({ suggestionsError: error }),
-  fetchImages: async (limit = 100, offset = 0) => {
+  fetchImages: async (limit = 100, offset = 0, append = false) => {
     set({ loading: true, error: null });
     try {
-      const images = await window.sortieAPI.getImages(limit, offset);
-      set({ images, loading: false });
+      const fetched = await window.sortieAPI.getImages(limit, offset);
+      const hasMore = fetched.length >= limit;
+      if (append) {
+        set((state) => ({ images: [...state.images, ...fetched], loading: false, hasMore }));
+      } else {
+        set({ images: fetched, loading: false, hasMore });
+      }
     } catch (error: any) {
       set({ error: error.message, loading: false });
     }
@@ -57,7 +67,20 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const results = await window.sortieAPI.searchImages(query, limit);
-      set({ searchResults: results, loading: false });
+      set({ searchResults: results, images: results, loading: false });
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+    }
+  },
+  filterByTags: async (tags: string[], limit = 100, offset = 0) => {
+    if (tags.length === 0) {
+      await get().fetchImages(limit, offset);
+      return;
+    }
+    set({ loading: true, error: null });
+    try {
+      const images = await window.sortieAPI.filterImages(tags, limit, offset);
+      set({ images, loading: false });
     } catch (error: any) {
       set({ error: error.message, loading: false });
     }
@@ -94,4 +117,23 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     }
   },
   clearSuggestions: () => set({ suggestions: [], suggestionsError: null }),
+  hideImage: async (imageId: number) => {
+    try {
+      await window.sortieAPI.hideImage(imageId);
+      set((state) => ({
+        images: state.images.filter(img => img.id !== imageId),
+        selectedImage: state.selectedImage?.id === imageId ? null : state.selectedImage,
+      }));
+    } catch (error: any) {
+      set({ error: error.message });
+    }
+  },
+  updateImageMetadata: async (imageId: number, metadata: { description?: string; favorite?: boolean; captured_at?: string | null; city?: string | null; country?: string | null }) => {
+    try {
+      await window.sortieAPI.updateImageMetadata(imageId, metadata);
+      await get().fetchImages();
+    } catch (error: any) {
+      set({ error: error.message });
+    }
+  },
 }));

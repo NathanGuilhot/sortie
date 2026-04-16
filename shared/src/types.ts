@@ -16,6 +16,8 @@ export interface Image {
   description: string | null;
   favorite: boolean;
   hidden: boolean;
+  embedded?: boolean;
+  tags?: Tag[];
 }
 
 export interface Tag {

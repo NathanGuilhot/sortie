@@ -71,8 +71,15 @@ export class WatcherService {
     console.log('File changed:', filePath);
   }
 
-  private onFileRemoved(filePath: string) {
-    console.log('File removed:', filePath);
-    // TODO: Mark image as missing in database
+  private async onFileRemoved(filePath: string) {
+    const ext = path.extname(filePath).toLowerCase();
+    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.heic'];
+    if (imageExts.includes(ext) && this.dbService) {
+      try {
+        await this.dbService.markImageMissing(filePath);
+      } catch (error) {
+        console.error('Failed to mark image as missing:', filePath, error);
+      }
+    }
   }
 }
