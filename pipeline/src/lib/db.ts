@@ -1,5 +1,24 @@
 import Database from 'better-sqlite3';
-import { Image, Tag, ImageTag, Folder, DismissedSuggestion, MetadataChange } from 'shared';
+import { Image } from 'shared';
+
+interface EmbeddingDbRow {
+  rowid: number;
+  embedding: Buffer | string | number[];
+}
+
+interface TagDbRow {
+  id: number;
+  name: string;
+  category: string;
+  color: string;
+  created_at: string;
+}
+
+interface DismissedDbRow {
+  image_id: number;
+  tag_id: number;
+  dismissed_at: string;
+}
 
 export class DatabaseManager {
   private db: Database.Database;
@@ -18,21 +37,17 @@ export class DatabaseManager {
   }
 
   private setupExtensions() {
-    // Load sqlite-vec extension if available
     try {
       const { load } = require('sqlite-vec');
       load(this.db);
-      console.log('sqlite-vec extension loaded successfully');
     } catch (err) {
       console.warn('sqlite-vec extension not available:', err);
     }
   }
 
   private setupSchema() {
-    // Enable vector extension
     this.db.exec(`SELECT vec_version()`);
 
-    // Create images table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS images (
         id INTEGER PRIMARY KEY,
@@ -55,7 +70,6 @@ export class DatabaseManager {
       )
     `);
 
-    // Create tags table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS tags (
         id INTEGER PRIMARY KEY,
@@ -66,7 +80,6 @@ export class DatabaseManager {
       )
     `);
 
-    // Create image_tags table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS image_tags (
         image_id INTEGER NOT NULL,
@@ -80,14 +93,12 @@ export class DatabaseManager {
       )
     `);
 
-    // Create vector embeddings table
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS vec_images USING vec0(
         embedding float[512]
       )
     `);
 
-    // Create folders table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS folders (
         id INTEGER PRIMARY KEY,
@@ -99,7 +110,6 @@ export class DatabaseManager {
       )
     `);
 
-    // Create collections table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS collections (
         id INTEGER PRIMARY KEY,
@@ -110,7 +120,6 @@ export class DatabaseManager {
       )
     `);
 
-    // Create collection_images table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS collection_images (
         collection_id INTEGER NOT NULL,
@@ -122,7 +131,6 @@ export class DatabaseManager {
       )
     `);
 
-    // Create dismissed_suggestions table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS dismissed_suggestions (
         image_id INTEGER NOT NULL,
@@ -134,7 +142,6 @@ export class DatabaseManager {
       )
     `);
 
-    // Create metadata_changes table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS metadata_changes (
         id INTEGER PRIMARY KEY,
@@ -147,7 +154,6 @@ export class DatabaseManager {
       )
     `);
 
-    // Create indexes
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_images_captured_at ON images(captured_at)
     `);
@@ -160,7 +166,6 @@ export class DatabaseManager {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_image_tags_tag ON image_tags(tag_id)
     `);
-    // Suggestions indexes
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_image ON dismissed_suggestions(image_id)
     `);
@@ -172,7 +177,6 @@ export class DatabaseManager {
     `);
   }
 
-  // Basic CRUD methods
   insertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): number {
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO images (
@@ -215,38 +219,32 @@ export class DatabaseManager {
     return this.db;
   }
 
-  // Query methods for suggestions
   getAllEmbeddings(): Array<{rowid: number, embedding: number[]}> {
-    const rows = this.db.prepare('SELECT rowid, embedding FROM vec_images').all() as any[];
+    const rows = this.db.prepare('SELECT rowid, embedding FROM vec_images').all() as EmbeddingDbRow[];
     return rows.map(row => {
       let embedding: number[];
       if (Buffer.isBuffer(row.embedding)) {
-        // Convert binary BLOB to Float32Array then to number[]
         const floatArray = new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.embedding.byteLength / 4);
         embedding = Array.from(floatArray);
       } else if (typeof row.embedding === 'string') {
         embedding = JSON.parse(row.embedding);
       } else {
-        // Fallback: assume it's already an array (should not happen)
         embedding = row.embedding;
       }
-      return {
-        rowid: row.rowid,
-        embedding
-      };
+      return { rowid: row.rowid, embedding };
     });
   }
 
-  getImageTags(imageId: number): Array<{id: number, name: string, category: string, color: string, created_at: string}> {
+  getImageTags(imageId: number): TagDbRow[] {
     return this.db.prepare(`
       SELECT t.* FROM tags t
       JOIN image_tags it ON t.id = it.tag_id
       WHERE it.image_id = ?
-    `).all(imageId) as any[];
+    `).all(imageId) as TagDbRow[];
   }
 
-  getDismissedSuggestions(imageId: number): Array<{image_id: number, tag_id: number, dismissed_at: string}> {
-    return this.db.prepare('SELECT * FROM dismissed_suggestions WHERE image_id = ?').all(imageId) as any[];
+  getDismissedSuggestions(imageId: number): DismissedDbRow[] {
+    return this.db.prepare('SELECT * FROM dismissed_suggestions WHERE image_id = ?').all(imageId) as DismissedDbRow[];
   }
 
   dismissSuggestion(imageId: number, tagId: number): void {
@@ -256,20 +254,7 @@ export class DatabaseManager {
     `).run(imageId, tagId);
   }
 
-  getAllTags(): Array<{id: number, name: string, category: string, color: string, created_at: string}> {
-    return this.db.prepare('SELECT * FROM tags').all() as any[];
-  }
-
-  // Performance: create indexes if not exist
-  createSuggestionIndexes(): void {
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_image ON dismissed_suggestions(image_id)
-    `);
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_tag ON dismissed_suggestions(tag_id)
-    `);
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_image_tags_source ON image_tags(source)
-    `);
+  getAllTags(): TagDbRow[] {
+    return this.db.prepare('SELECT * FROM tags').all() as TagDbRow[];
   }
 }

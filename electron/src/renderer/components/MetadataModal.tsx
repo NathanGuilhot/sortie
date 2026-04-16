@@ -96,7 +96,6 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
           {image.file_name}
         </span>
         <div className="flex items-center gap-2">
-          {/* Info toggle */}
           <button
             onClick={() => setShowMetadata(prev => !prev)}
             className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
@@ -108,7 +107,6 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </button>
-          {/* Close */}
           <button
             onClick={onClose}
             className="w-9 h-9 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"

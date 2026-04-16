@@ -102,7 +102,6 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-base font-semibold text-gray-900">Details</h2>
         <div className="flex items-center gap-1">
-          {/* Heart toggle */}
           <button
             onClick={async () => {
               const newValue = !isFavorite;
@@ -129,7 +128,6 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
             </svg>
           </button>
-          {/* Close */}
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
@@ -161,7 +159,6 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
 
       {/* [C] Editable fields */}
       <div className="space-y-4 mb-6">
-        {/* Tags */}
         <div>
           <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,7 +173,6 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
           />
         </div>
 
-        {/* Capture Date */}
         <div>
           <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -192,7 +188,6 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
           />
         </div>
 
-        {/* Location */}
         <div>
           <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -210,7 +205,6 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
           />
         </div>
 
-        {/* Description */}
         <div>
           <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -278,7 +272,6 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
           )}
         </div>
 
-        {/* Recompute embedding */}
         <button
           onClick={handleRecomputeEmbedding}
           disabled={embeddingStatus === 'loading'}

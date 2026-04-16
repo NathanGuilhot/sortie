@@ -138,12 +138,10 @@ export function SearchBar({ inputRef }: SearchBarProps) {
           }
         `}
       >
-        {/* Search icon */}
         <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
 
-        {/* Input */}
         <input
           ref={inputRef as any}
           type="text"
@@ -156,12 +154,10 @@ export function SearchBar({ inputRef }: SearchBarProps) {
           onKeyDown={handleKeyDown}
         />
 
-        {/* Loading spinner */}
         {loading && (
           <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-gray-600 shrink-0" />
         )}
 
-        {/* Clear X button */}
         {localQuery && (
           <button
             onClick={handleClear}

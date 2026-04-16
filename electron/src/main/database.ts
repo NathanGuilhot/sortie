@@ -1,7 +1,24 @@
 import { DatabaseManager, ClipEmbedder, SuggestionEngine, Organizer, TagSuggestion, Collection, extractExif } from 'pipeline';
-import { Image, Tag, Folder, FolderWithStats, SearchResult } from 'shared';
+import { Image, Tag, Folder, FolderWithStats, SearchResult, SUPPORTED_IMAGE_EXTENSIONS } from 'shared';
 import path from 'path';
 import fs from 'fs/promises';
+
+const IMAGE_EXTENSIONS = new Set(SUPPORTED_IMAGE_EXTENSIONS);
+
+interface ImageDbRow extends Omit<Image, 'embedded'> {
+  embedded: number;
+}
+
+const MIME_TYPES: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.webp': 'image/webp',
+  '.tiff': 'image/tiff',
+  '.heic': 'image/heic',
+};
 
 export class DatabaseService {
   private db: DatabaseManager | null = null;
@@ -22,7 +39,6 @@ export class DatabaseService {
     this.suggestionEngine?.close();
   }
 
-  // Image operations
   async getImages(limit: number = 100, offset: number = 0): Promise<Image[]> {
     if (!this.db) throw new Error('Database not initialized');
     const cacheKey = `images:${limit}:${offset}`;
@@ -37,7 +53,7 @@ export class DatabaseService {
       ORDER BY i.captured_at DESC, i.created_at DESC
       LIMIT ? OFFSET ?
     `);
-    const rows = stmt.all(limit, offset) as any[];
+    const rows = stmt.all(limit, offset) as ImageDbRow[];
     const images: Image[] = rows.map(row => ({ ...row, embedded: !!row.embedded }));
     for (const image of images) {
       image.tags = this.db!.getImageTags(image.id) as Tag[];
@@ -59,7 +75,7 @@ export class DatabaseService {
       ORDER BY i.captured_at DESC, i.created_at DESC
       LIMIT ? OFFSET ?
     `);
-    const rows = stmt.all(limit, offset) as any[];
+    const rows = stmt.all(limit, offset) as ImageDbRow[];
     const images: Image[] = rows.map(row => ({ ...row, embedded: !!row.embedded }));
     for (const image of images) {
       image.tags = this.db!.getImageTags(image.id) as Tag[];
@@ -83,7 +99,7 @@ export class DatabaseService {
       ORDER BY i.captured_at DESC, i.created_at DESC
       LIMIT ? OFFSET ?
     `);
-    const rows = stmt.all(...tagNames, tagNames.length, limit, offset) as any[];
+    const rows = stmt.all(...tagNames, tagNames.length, limit, offset) as ImageDbRow[];
     const images: Image[] = rows.map(row => ({ ...row, embedded: !!row.embedded }));
     for (const image of images) {
       image.tags = this.db!.getImageTags(image.id) as Tag[];
@@ -95,10 +111,8 @@ export class DatabaseService {
     if (!this.db) throw new Error('Database not initialized');
     if (!this.embedder) throw new Error('Embedder not initialized');
 
-    // Generate embedding for query
     const embedding = await this.embedder.embedText(query);
 
-    // Search using vector similarity (vec0 defaults to L2 distance)
     const stmt = this.db.getDatabase().prepare(`
       SELECT sub.rowid, sub.distance
       FROM (
@@ -111,7 +125,6 @@ export class DatabaseService {
     `);
     const results = stmt.all(JSON.stringify(embedding), limit) as Array<{ rowid: number, distance: number }>;
 
-    // Get full image details
     const imageIds = results.map(r => r.rowid);
     if (imageIds.length === 0) return [];
 
@@ -121,7 +134,7 @@ export class DatabaseService {
     `);
     const images = imageStmt.all(...imageIds) as Image[];
 
-    // Map distances and sort by distance (IN query doesn't preserve order)
+    // IN query doesn't preserve order, so re-sort by distance
     const distanceMap = new Map(results.map(r => [r.rowid, r.distance]));
     const searchResults = images.map(img => ({
       ...img,
@@ -137,16 +150,14 @@ export class DatabaseService {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db.getDatabase();
 
-    // Get the source image's embedding
     const embRow = db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(imageId) as { embedding: Buffer } | undefined;
     if (!embRow) return [];
 
-    // Convert Buffer to JSON array for MATCH operator
     const buf = embRow.embedding;
     const floats = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
     const embJson = JSON.stringify(Array.from(floats));
 
-    // Vector similarity search (request extra to account for self-match)
+    // Request limit+1 to account for the source image appearing in results
     const stmt = db.prepare(`
       SELECT sub.rowid, sub.distance
       FROM (
@@ -160,7 +171,6 @@ export class DatabaseService {
     `);
     const results = stmt.all(embJson, limit + 1, imageId) as Array<{ rowid: number; distance: number }>;
 
-    // Get full image details
     const imageIds = results.map(r => r.rowid);
     if (imageIds.length === 0) return [];
 
@@ -170,7 +180,6 @@ export class DatabaseService {
     `);
     const images = imageStmt.all(...imageIds) as Image[];
 
-    // Map distances and preserve order
     const distanceMap = new Map(results.map(r => [r.rowid, r.distance]));
     const resultImages = images.map(img => ({
       ...img,
@@ -178,7 +187,7 @@ export class DatabaseService {
       tags: this.db!.getImageTags(img.id) as Tag[],
     }));
 
-    // Sort by distance (the IN query doesn't preserve order)
+    // IN query doesn't preserve order
     resultImages.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     return resultImages;
   }
@@ -186,7 +195,6 @@ export class DatabaseService {
   async addFolder(folderPath: string): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
     const normalized = path.resolve(folderPath);
-    // Check if folder exists
     try {
       await fs.access(normalized);
     } catch {
@@ -196,7 +204,6 @@ export class DatabaseService {
       INSERT OR IGNORE INTO folders (path) VALUES (?)
     `);
     const result = stmt.run(normalized);
-    // Invalidate image cache because new images may be added
     this.invalidateImageCache();
     return result.lastInsertRowid as number;
   }
@@ -204,19 +211,15 @@ export class DatabaseService {
   async scanFolder(folderPath: string): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
     const normalized = path.resolve(folderPath);
-    // Ensure folder exists
     try {
       await fs.access(normalized);
     } catch {
       throw new Error('Folder does not exist');
     }
-    // Add folder if not exists
     const folderId = await this.addFolder(normalized);
-    
-    // Recursively find image files
-    const imageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.heic']);
+
     const imageFiles: string[] = [];
-    
+
     async function walk(dir: string): Promise<void> {
       const entries = await fs.readdir(dir, { withFileTypes: true });
       for (const entry of entries) {
@@ -225,18 +228,17 @@ export class DatabaseService {
           await walk(fullPath);
         } else if (entry.isFile()) {
           const ext = path.extname(entry.name).toLowerCase();
-          if (imageExts.has(ext)) {
+          if (IMAGE_EXTENSIONS.has(ext)) {
             imageFiles.push(fullPath);
           }
         }
       }
     }
-    
+
     console.log(`Scanning folder ${normalized} for images...`);
     await walk(normalized);
     console.log(`Found ${imageFiles.length} image files`);
-    
-    // Process each image
+
     let processed = 0;
     for (const file of imageFiles) {
       try {
@@ -246,13 +248,12 @@ export class DatabaseService {
         console.error(`Failed to process ${file}:`, error);
       }
     }
-    
-    // Update folder's last_scanned timestamp
+
     const stmt = this.db.getDatabase().prepare(`
       UPDATE folders SET last_scanned = datetime('now') WHERE path = ?
     `);
     stmt.run(normalized);
-    
+
     console.log(`Scan completed: ${processed} images processed`);
     return folderId;
   }
@@ -282,7 +283,7 @@ export class DatabaseService {
       ) s ON s.folder_id = f.id
       ORDER BY f.created_at DESC
     `);
-    const rows = stmt.all() as any[];
+    const rows = stmt.all() as (Folder & { image_count: number; total_size: number })[];
     return rows.map(row => ({
       ...row,
       folder_name: path.basename(row.path) || row.path,
@@ -364,13 +365,11 @@ export class DatabaseService {
     this.invalidateImageCache();
   }
 
-  // Tags
   async getAllTags(): Promise<Tag[]> {
     if (!this.db) throw new Error('Database not initialized');
     return this.db.getAllTags() as Tag[];
   }
 
-  // Suggestions
   async getSuggestions(imageId: number): Promise<TagSuggestion[]> {
     if (!this.suggestionEngine) throw new Error('Suggestion engine not initialized');
     return this.suggestionEngine.generateSuggestionsForImage(imageId);
@@ -381,7 +380,6 @@ export class DatabaseService {
     this.suggestionEngine.dismissSuggestion(imageId, tagId);
   }
 
-  // Collections
   async getCollections(): Promise<Collection[]> {
     if (!this.organizer) throw new Error('Organizer not initialized');
     return this.organizer.getAllCollections();
@@ -401,7 +399,7 @@ export class DatabaseService {
     if (!this.db) return;
     const db = this.db.getDatabase();
     const version = db.pragma('user_version', { simple: true }) as number;
-    if (version >= 1) return; // already migrated
+    if (version >= 1) return;
 
     console.log('[migration] fixing image dimensions for EXIF rotation...');
     const rows = db.prepare('SELECT id, file_path, width, height FROM images').all() as Array<{ id: number; file_path: string; width: number | null; height: number | null }>;
@@ -413,51 +411,36 @@ export class DatabaseService {
           db.prepare('UPDATE images SET width = ?, height = ? WHERE id = ?').run(exif.width, exif.height, row.id);
           fixed++;
         }
-      } catch {}
+      } catch (err) {
+        console.warn(`Failed to fix dimensions for ${row.file_path}:`, err);
+      }
     }
     db.pragma(`user_version = 1`);
     this.invalidateImageCache();
     console.log(`[migration] fixed dimensions for ${fixed}/${rows.length} images`);
   }
 
-  // Helper to get database instance (for watcher)
   getDatabase(): DatabaseManager | null {
     return this.db;
   }
 
-  // Process an image file and add to database
   async addImage(filePath: string): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
     if (!this.embedder) throw new Error('Embedder not initialized');
 
     const normalizedPath = path.resolve(filePath);
     const fileName = path.basename(filePath);
-    
-    // Get file stats
+
     const stats = await fs.stat(filePath);
-    const fileSize = stats.size;
-    
-    // Determine MIME type based on extension
     const ext = path.extname(filePath).toLowerCase();
-    const mimeType = {
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.png': 'image/png',
-      '.gif': 'image/gif',
-      '.bmp': 'image/bmp',
-      '.webp': 'image/webp',
-      '.tiff': 'image/tiff',
-      '.heic': 'image/heic',
-    }[ext] || null;
-    
-    // Extract EXIF metadata
+    const mimeType = MIME_TYPES[ext] || null;
+
     const exifData = await extractExif(filePath);
-    
-    // Prepare image object for insertion (excluding id, created_at, modified_at)
+
     const imageData: Omit<Image, 'id' | 'created_at' | 'modified_at'> = {
       file_path: normalizedPath,
       file_name: fileName,
-      file_size: fileSize,
+      file_size: stats.size,
       mime_type: mimeType,
       width: exifData.width,
       height: exifData.height,
@@ -470,23 +453,17 @@ export class DatabaseService {
       favorite: false,
       hidden: false,
     };
-    
-    // Insert image into database
+
     const imageId = this.db.insertImage(imageData);
-    
-    // Generate embedding and insert into vector table
+
     try {
       const embedding = await this.embedder.embedImage(filePath);
       this.db.insertEmbedding(imageId, embedding);
     } catch (error) {
       console.error(`Failed to generate embedding for ${filePath}:`, error);
-      // Continue without embedding
     }
-    
-    // Invalidate cache since new image added
-    this.invalidateImageCache();
 
-    console.log(`Added image ${imageId}: ${filePath}`);
+    this.invalidateImageCache();
     return imageId;
   }
 

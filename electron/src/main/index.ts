@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, net } from 'electron';
+import { app, BrowserWindow, protocol, net } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -36,21 +36,18 @@ function createWindow() {
 }
 
 async function initializeServices() {
-  // Database path in user data directory
   const dbPath = path.join(app.getPath('userData'), 'sortie.db');
-  console.log('Database path:', dbPath);
-  
+
   dbService = new DatabaseService();
   dbService.initialize(dbPath);
-  
+
   watcherService = new WatcherService();
   watcherService.setDatabaseService(dbService);
-  
+
   await dbService.fixImageDimensions();
 
   setupIpcHandlers(dbService, watcherService, dbPath);
 
-  // Start watching existing folders
   const folders = await dbService.getFolders();
   for (const folder of folders) {
     if (folder.watched) {
@@ -77,7 +74,6 @@ app.whenReady().then(async () => {
     const cachePath = path.join(thumbDir, `${hash}_${width}.jpg`);
 
     try {
-      // Check if cached thumbnail is fresh
       const srcStat = fs.statSync(filePath);
       let useCached = false;
       try {
@@ -118,7 +114,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  // Cleanup
   watcherService?.stopAll();
   dbService?.close();
 });

@@ -12,12 +12,11 @@ export function setupIpcHandlers(dbService: DatabaseService, watcherService: Wat
     return result.filePaths[0];
   });
 
-  // Image operations
-  ipcMain.handle('get-images', async (event, { limit, offset }: { limit?: number; offset?: number } = {}) => {
+  ipcMain.handle('get-images', async (_event, { limit, offset }: { limit?: number; offset?: number } = {}) => {
     return await dbService.getImages(limit, offset);
   });
 
-  ipcMain.handle('search-images', async (event, { query, limit }: { query: string; limit?: number }) => {
+  ipcMain.handle('search-images', async (_event, { query, limit }: { query: string; limit?: number }) => {
     return await dbService.searchImages(query, limit);
   });
 
@@ -29,19 +28,17 @@ export function setupIpcHandlers(dbService: DatabaseService, watcherService: Wat
     return await dbService.getFavoriteImages(limit, offset);
   });
 
-  ipcMain.handle('filter-images', async (event, { tags, limit, offset }: { tags: string[]; limit?: number; offset?: number }) => {
+  ipcMain.handle('filter-images', async (_event, { tags, limit, offset }: { tags: string[]; limit?: number; offset?: number }) => {
     return await dbService.getImagesByTags(tags, limit, offset);
   });
 
-  ipcMain.handle('add-folder', async (event, { path }: { path: string }) => {
+  ipcMain.handle('add-folder', async (_event, { path }: { path: string }) => {
     const folderId = await dbService.addFolder(path);
-    // Start watching the folder
     await watcherService.watchFolder(path);
     return folderId;
   });
 
-  ipcMain.handle('scan-folder', async (event, { path }: { path: string }) => {
-    // TODO: implement actual scanning using pipeline
+  ipcMain.handle('scan-folder', async (_event, { path }: { path: string }) => {
     const folderId = await dbService.scanFolder(path);
     return folderId;
   });
@@ -64,27 +61,25 @@ export function setupIpcHandlers(dbService: DatabaseService, watcherService: Wat
     return await dbService.getAllTags();
   });
 
-  ipcMain.handle('update-image-tags', async (event, { imageId, tags }: { imageId: number; tags: string[] }) => {
+  ipcMain.handle('update-image-tags', async (_event, { imageId, tags }: { imageId: number; tags: string[] }) => {
     await dbService.updateImageTags(imageId, tags);
     return { success: true };
   });
 
-  // Suggestions
-  ipcMain.handle('get-suggestions', async (event, { imageId }: { imageId: number }) => {
+  ipcMain.handle('get-suggestions', async (_event, { imageId }: { imageId: number }) => {
     return await dbService.getSuggestions(imageId);
   });
 
-  ipcMain.handle('dismiss-suggestion', async (event, { imageId, tagId }: { imageId: number; tagId: number }) => {
+  ipcMain.handle('dismiss-suggestion', async (_event, { imageId, tagId }: { imageId: number; tagId: number }) => {
     await dbService.dismissSuggestion(imageId, tagId);
     return { success: true };
   });
 
-  // Collections
   ipcMain.handle('get-collections', async () => {
     return await dbService.getCollections();
   });
 
-  ipcMain.handle('create-collection', async (event, { name, description }: { name: string; description?: string }) => {
+  ipcMain.handle('create-collection', async (_event, { name, description }: { name: string; description?: string }) => {
     const collectionId = await dbService.createCollection(name, description);
     return { collectionId };
   });
@@ -94,18 +89,16 @@ export function setupIpcHandlers(dbService: DatabaseService, watcherService: Wat
     return { collectionIds };
   });
 
-  // Watcher control
-  ipcMain.handle('watch-folder', async (event, { path }: { path: string }) => {
+  ipcMain.handle('watch-folder', async (_event, { path }: { path: string }) => {
     await watcherService.watchFolder(path);
     return { watching: true };
   });
 
-  ipcMain.handle('unwatch-folder', async (event, { path }: { path: string }) => {
+  ipcMain.handle('unwatch-folder', async (_event, { path }: { path: string }) => {
     watcherService.stopWatching(path);
     return { watching: false };
   });
 
-  // Image management
   ipcMain.handle('hide-image', async (_event, { imageId }: { imageId: number }) => {
     await dbService.hideImage(imageId);
     return { success: true };
@@ -121,7 +114,6 @@ export function setupIpcHandlers(dbService: DatabaseService, watcherService: Wat
     return { success: true };
   });
 
-  // System
   ipcMain.handle('get-database-path', async () => {
     return dbPath;
   });

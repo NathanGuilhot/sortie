@@ -15,6 +15,14 @@ export interface CollectionImage {
   added_at: string;
 }
 
+interface CollectionDbRow {
+  id: number;
+  name: string;
+  description: string | null;
+  cluster_id: number | null;
+  created_at: string;
+}
+
 export class Organizer {
   private db: DatabaseManager;
   private suggestions: SuggestionEngine;
@@ -25,9 +33,8 @@ export class Organizer {
   }
 
   /**
-   * Create collections based on clustering of images
-   * @param collectionNamePrefix prefix for collection names (default "Cluster")
-   * @returns array of created collection IDs
+   * Create collections based on clustering of image embeddings.
+   * @param collectionNamePrefix prefix for auto-generated collection names (default "Cluster")
    */
   async createCollectionsFromClusters(collectionNamePrefix = 'Cluster'): Promise<number[]> {
     const embeddingsRows = await this.suggestions.getAllEmbeddings();
@@ -42,12 +49,10 @@ export class Organizer {
     const createdIds: number[] = [];
     const db = this.db.getDatabase();
 
-    // For each cluster, create a collection
     for (let c = 0; c < k; c++) {
       const clusterImageIds = imageIds.filter((_, idx) => assignments[idx] === c);
       if (clusterImageIds.length === 0) continue;
 
-      // Generate collection name
       const name = `${collectionNamePrefix} ${c + 1}`;
       const description = `Automatically created from cluster ${c + 1} containing ${clusterImageIds.length} images`;
 
@@ -59,7 +64,6 @@ export class Organizer {
       const collectionId = result.lastInsertRowid as number;
       createdIds.push(collectionId);
 
-      // Insert images into collection
       const insertImage = db.prepare(`
         INSERT OR IGNORE INTO collection_images (collection_id, image_id)
         VALUES (?, ?)
@@ -71,43 +75,20 @@ export class Organizer {
     return createdIds;
   }
 
-  /**
-   * Get collections for an image
-   */
   getImageCollections(imageId: number): Collection[] {
     const db = this.db.getDatabase();
-    const rows = db.prepare(`
+    return db.prepare(`
       SELECT c.* FROM collections c
       JOIN collection_images ci ON c.id = ci.collection_id
       WHERE ci.image_id = ?
-    `).all(imageId) as any[];
-    return rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      cluster_id: row.cluster_id,
-      created_at: row.created_at
-    }));
+    `).all(imageId) as CollectionDbRow[];
   }
 
-  /**
-   * Get all collections
-   */
   getAllCollections(): Collection[] {
     const db = this.db.getDatabase();
-    const rows = db.prepare('SELECT * FROM collections ORDER BY created_at DESC').all() as any[];
-    return rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      cluster_id: row.cluster_id,
-      created_at: row.created_at
-    }));
+    return db.prepare('SELECT * FROM collections ORDER BY created_at DESC').all() as CollectionDbRow[];
   }
 
-  /**
-   * Create a new collection
-   */
   createCollection(name: string, description?: string): number {
     const db = this.db.getDatabase();
     const stmt = db.prepare(
@@ -117,28 +98,19 @@ export class Organizer {
     return result.lastInsertRowid as number;
   }
 
-  /**
-   * Get images in a collection
-   */
   getCollectionImages(collectionId: number): number[] {
     const db = this.db.getDatabase();
     const rows = db.prepare(`
       SELECT image_id FROM collection_images WHERE collection_id = ?
-    `).all(collectionId) as any[];
+    `).all(collectionId) as Array<{ image_id: number }>;
     return rows.map(row => row.image_id);
   }
 
-  /**
-   * Delete a collection (cascade via foreign key)
-   */
   deleteCollection(collectionId: number): void {
     const db = this.db.getDatabase();
     db.prepare('DELETE FROM collections WHERE id = ?').run(collectionId);
   }
 
-  /**
-   * Add image to collection
-   */
   addImageToCollection(collectionId: number, imageId: number): void {
     const db = this.db.getDatabase();
     db.prepare(`
@@ -147,18 +119,10 @@ export class Organizer {
     `).run(collectionId, imageId);
   }
 
-  /**
-   * Remove image from collection
-   */
   removeImageFromCollection(collectionId: number, imageId: number): void {
     const db = this.db.getDatabase();
     db.prepare(`
       DELETE FROM collection_images WHERE collection_id = ? AND image_id = ?
     `).run(collectionId, imageId);
   }
-
-  /**
-   * Create folder grouping (virtual) - not implemented yet
-   */
-  // TODO: implement folder grouping based on tags or dates
 }

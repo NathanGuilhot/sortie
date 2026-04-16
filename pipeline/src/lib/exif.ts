@@ -17,9 +17,7 @@ export interface ExifData {
 
 export async function extractExif(imagePath: string): Promise<ExifData> {
   try {
-    // Extract EXIF metadata using exifr
     const exif = await exifr.parse(imagePath, {
-      // Request specific fields we need
       tiff: true,
       exif: true,
       gps: true,
@@ -27,7 +25,6 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
       translateValues: true,
     });
 
-    // Get image dimensions using sharp
     const metadata = await sharp(imagePath).metadata();
 
     // EXIF orientations 5-8 involve a 90°/270° rotation, swapping width/height.
@@ -37,19 +34,16 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
     const width = needsSwap ? (metadata.height || null) : (metadata.width || null);
     const height = needsSwap ? (metadata.width || null) : (metadata.height || null);
 
-    // Parse GPS coordinates if available
     let latitude: number | null = null;
     let longitude: number | null = null;
     if (exif?.latitude && exif?.longitude) {
       latitude = exif.latitude;
       longitude = exif.longitude;
     } else if (exif?.GPSLatitude && exif?.GPSLongitude) {
-      // Some formats store GPS differently
       latitude = exif.GPSLatitude;
       longitude = exif.GPSLongitude;
     }
 
-    // Parse capture date
     let capturedAt: Date | null = null;
     if (exif?.DateTimeOriginal) {
       capturedAt = new Date(exif.DateTimeOriginal);
@@ -59,15 +53,12 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
       capturedAt = new Date(exif.ModifyDate);
     }
 
-    // Parse camera info
     const cameraMake = exif?.Make || exif?.make || null;
     const cameraModel = exif?.Model || exif?.model || null;
-    
-    // Parse exposure settings
+
     const aperture = exif?.FNumber || exif?.ApertureValue || exif?.fNumber || null;
     const iso = exif?.ISO || exif?.ISOSpeedRatings || null;
-    
-    // Parse exposure time (could be fraction or decimal)
+
     let exposureTime: string | null = null;
     if (exif?.ExposureTime) {
       if (typeof exif.ExposureTime === 'number') {
@@ -82,8 +73,7 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
     } else if (exif?.ShutterSpeedValue) {
       exposureTime = exif.ShutterSpeedValue.toString();
     }
-    
-    // Parse focal length (could be string with "mm" or number)
+
     let focalLength: number | null = null;
     if (exif?.FocalLength) {
       if (typeof exif.FocalLength === 'string') {
@@ -111,7 +101,6 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
     };
   } catch (error) {
     console.warn(`Failed to extract EXIF from ${imagePath}:`, error);
-    // Fallback to just getting dimensions
     try {
       const metadata = await sharp(imagePath).metadata();
       const needsSwap = metadata.orientation && metadata.orientation >= 5;

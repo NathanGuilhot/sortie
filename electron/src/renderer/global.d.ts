@@ -1,5 +1,3 @@
-// Global TypeScript declarations for Sortie Electron app
-
 import { TagSuggestion, Collection } from 'pipeline';
 import { FolderWithStats } from 'shared';
 

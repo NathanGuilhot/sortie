@@ -9,14 +9,11 @@ export { Organizer, Collection } from './lib/organizer';
 
 export async function initializePipeline() {
   const dbPath = process.env.DATABASE_PATH || './sortie.db';
-  const db = new DatabaseManager(dbPath);
-  console.log('Pipeline initialized with database:', dbPath);
-  return db;
+  return new DatabaseManager(dbPath);
 }
 
 if (require.main === module) {
   initializePipeline().then((db) => {
-    console.log('Sortie pipeline ready');
     db.close();
   });
 }

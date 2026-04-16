@@ -22,7 +22,6 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
   const rafRef = useRef(0);
   const loadingMore = useRef(false);
 
-  // Fetch initial images
   useEffect(() => {
     fetchImages();
   }, []);
@@ -80,7 +79,6 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
     return Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, fit));
   }, [layoutWidth]);
 
-  // Compute layout
   const layout = useMemo(
     () => computeMasonryLayout(images, layoutWidth, columns, GAP, padding),
     [images, layoutWidth, columns],
