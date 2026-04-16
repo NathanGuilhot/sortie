@@ -27,6 +27,7 @@ interface ImageStore {
   fetchSuggestions: (imageId: number) => Promise<void>;
   dismissSuggestion: (imageId: number, tagId: number) => Promise<void>;
   clearSuggestions: () => void;
+  fetchFavorites: (limit?: number, offset?: number) => Promise<void>;
   hideImage: (imageId: number) => Promise<void>;
   updateImageMetadata: (imageId: number, metadata: { description?: string; favorite?: boolean; captured_at?: string | null; city?: string | null; country?: string | null }) => Promise<void>;
 }
@@ -117,6 +118,15 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     }
   },
   clearSuggestions: () => set({ suggestions: [], suggestionsError: null }),
+  fetchFavorites: async (limit = 100, offset = 0) => {
+    set({ loading: true, error: null });
+    try {
+      const fetched = await window.sortieAPI.getFavoriteImages(limit, offset);
+      set({ images: fetched, loading: false, hasMore: fetched.length >= limit });
+    } catch (error: any) {
+      set({ error: error.message, loading: false });
+    }
+  },
   hideImage: async (imageId: number) => {
     try {
       await window.sortieAPI.hideImage(imageId);

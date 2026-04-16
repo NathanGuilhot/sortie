@@ -1,4 +1,4 @@
-import { CLIP_EMBEDDING_DIM, CLIP_INPUT_SIZE } from 'shared';
+import { CLIP_INPUT_SIZE } from 'shared';
 import sharp from 'sharp';
 
 export class ClipEmbedder {
@@ -64,21 +64,21 @@ export class ClipEmbedder {
       return this.normalizeEmbedding(embedding);
     } catch (error) {
       console.error(`Failed to embed image ${imagePath}:`, error);
-      // Return zero vector as fallback
-      return Array(CLIP_EMBEDDING_DIM).fill(0);
+      throw new Error(`Image embedding failed for ${imagePath}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   async embedText(text: string): Promise<number[]> {
     await this.initialize();
     try {
-      const textInputs = this.tokenizer(text, { padding: true, truncation: true });
+      const prompt = `a photo of ${text}`;
+      const textInputs = this.tokenizer(prompt, { padding: true, truncation: true });
       const { text_embeds } = await this.textModel(textInputs);
       const embedding = Array.from(text_embeds.data as Float32Array);
       return this.normalizeEmbedding(embedding);
     } catch (error) {
       console.error(`Failed to embed text "${text}":`, error);
-      return Array(CLIP_EMBEDDING_DIM).fill(0);
+      throw new Error(`Text embedding failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

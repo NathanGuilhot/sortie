@@ -8,6 +8,12 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   searchImages: (query: string, limit?: number) =>
     ipcRenderer.invoke('search-images', { query, limit }),
 
+  findSimilarImages: (imageId: number, limit?: number) =>
+    ipcRenderer.invoke('find-similar-images', { imageId, limit }),
+
+  getFavoriteImages: (limit?: number, offset?: number) =>
+    ipcRenderer.invoke('get-favorite-images', { limit, offset }),
+
   filterImages: (tags: string[], limit?: number, offset?: number) =>
     ipcRenderer.invoke('filter-images', { tags, limit, offset }),
 
@@ -19,6 +25,12 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   getFolders: () =>
     ipcRenderer.invoke('get-folders'),
+
+  getFoldersWithStats: () =>
+    ipcRenderer.invoke('get-folders-with-stats'),
+
+  removeFolder: (path: string) =>
+    ipcRenderer.invoke('remove-folder', { path }),
 
   getAllTags: () =>
     ipcRenderer.invoke('get-all-tags'),

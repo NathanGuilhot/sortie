@@ -50,6 +50,12 @@ export interface Folder {
   created_at: string;
 }
 
+export interface FolderWithStats extends Folder {
+  image_count: number;
+  total_size: number;
+  folder_name: string;
+}
+
 export interface DismissedSuggestion {
   image_id: number;
   tag_id: number;

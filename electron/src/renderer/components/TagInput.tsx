@@ -82,51 +82,78 @@ export function TagInput({
         allowDeleteFromEmptyInput={true}
         minQueryLength={1}
         classNames={{
-          tags: 'tags-container',
-          tagInput: 'tag-input',
-          tag: 'tag bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium mr-2 mb-2',
-          remove: 'tag-remove ml-1 text-blue-600 hover:text-blue-800',
-          suggestions: 'suggestions-list bg-white border border-gray-300 rounded shadow-lg mt-1',
-          activeSuggestion: 'bg-blue-50',
+          tags: 'flex flex-wrap gap-1.5 items-center',
+          tagInput: 'inline-flex',
+          tag: 'inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors',
+          remove: 'ml-0.5 text-gray-400 hover:text-gray-600 cursor-pointer transition-colors',
+          suggestions: 'absolute z-20 mt-1 bg-white rounded-xl border border-gray-200/60 shadow-xl shadow-black/5 overflow-hidden',
+          activeSuggestion: 'bg-gray-50',
         }}
       />
 
       <style>{`
-        .tags-container {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-        }
-        .tag-input {
-          display: inline-block;
-          min-width: 150px;
-        }
-        :global(.ReactTags__tagInputField) {
-          border: 1px solid #d1d5db;
-          border-radius: 0.375rem;
-          padding: 0.5rem 0.75rem;
+        .tag-input-wrapper .ReactTags__tagInputField {
+          background: rgb(249 250 251);
+          border: 1px solid rgb(229 231 235);
+          border-radius: 0.5rem;
+          padding: 0.375rem 0.75rem;
+          font-size: 0.875rem;
+          color: rgb(17 24 39);
           width: 100%;
-          margin-top: 0.5rem;
-        }
-        :global(.ReactTags__tagInputField:focus) {
+          margin-top: 0.375rem;
           outline: none;
-          ring: 2px solid #3b82f6;
-          border-color: #3b82f6;
+          transition: all 0.2s;
         }
-        :global(.ReactTags__suggestions) {
-          position: absolute;
-          z-index: 10;
+        .tag-input-wrapper .ReactTags__tagInputField::placeholder {
+          color: rgb(156 163 175);
         }
-        :global(.ReactTags__suggestions li) {
-          padding: 0.5rem 0.75rem;
+        .tag-input-wrapper .ReactTags__tagInputField:focus {
+          background: white;
+          border-color: rgb(209 213 219);
+        }
+        .tag-input-wrapper .ReactTags__suggestions ul {
+          list-style: none;
+          margin: 0;
+          padding: 0.25rem 0;
+        }
+        .tag-input-wrapper .ReactTags__suggestions li {
+          padding: 0.375rem 0.75rem;
+          font-size: 0.8125rem;
+          color: rgb(75 85 99);
+          cursor: pointer;
+          transition: background-color 0.15s;
+        }
+        .tag-input-wrapper .ReactTags__suggestions li:hover {
+          background-color: rgb(249 250 251);
+        }
+        .tag-input-wrapper .ReactTags__suggestions li mark {
+          background: rgb(254 249 195);
+          color: rgb(75 85 99);
+          font-weight: 600;
+          border-radius: 2px;
+          padding: 0 1px;
+        }
+        .tag-input-wrapper .ReactTags__activeSuggestion {
+          background-color: rgb(249 250 251);
+        }
+        .tag-input-wrapper .ReactTags__remove {
+          border: none;
+          background: none;
+          font-size: 0;
+          line-height: 0;
+          padding: 0;
+          margin-left: 2px;
           cursor: pointer;
         }
-        :global(.ReactTags__suggestions li mark) {
-          background: yellow;
-          font-weight: bold;
+        .tag-input-wrapper .ReactTags__remove::after {
+          content: "\\00d7";
+          font-size: 14px;
+          line-height: 1;
+          color: rgb(156 163 175);
+          transition: color 0.15s;
         }
-        :global(.ReactTags__activeSuggestion) {
-          background-color: #eff6ff;
+        .tag-input-wrapper .ReactTags__remove:hover::after {
+          color: rgb(75 85 99);
         }
       `}</style>
     </div>

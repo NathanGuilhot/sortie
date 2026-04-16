@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SearchBar } from './components/SearchBar';
 import { MasonryGrid } from './components/MasonryGrid';
 import { MetadataModal } from './components/MetadataModal';
@@ -6,23 +6,10 @@ import { FolderScanner } from './components/FolderScanner';
 import { useImageStore } from './stores/imageStore';
 
 function App() {
-  const { images, selectedImage, setSelectedImage } = useImageStore();
+  const { selectedImage, setSelectedImage } = useImageStore();
   const [activeView, setActiveView] = useState<'gallery' | 'folders'>('gallery');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const currentIndex = useMemo(
-    () => selectedImage ? images.findIndex(img => img.id === selectedImage.id) : -1,
-    [selectedImage, images]
-  );
-  const hasPrev = currentIndex > 0;
-  const hasNext = currentIndex >= 0 && currentIndex < images.length - 1;
-  const handlePrev = useCallback(() => {
-    if (hasPrev) setSelectedImage(images[currentIndex - 1]);
-  }, [hasPrev, currentIndex, images, setSelectedImage]);
-  const handleNext = useCallback(() => {
-    if (hasNext) setSelectedImage(images[currentIndex + 1]);
-  }, [hasNext, currentIndex, images, setSelectedImage]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -85,19 +72,10 @@ function App() {
         {/* Floating search bar — gallery only */}
         {activeView === 'gallery' && <SearchBar inputRef={searchInputRef} />}
 
-        {/* Header — folders only */}
-        {activeView === 'folders' && (
-          <header className="bg-white shadow">
-            <div className="px-6 py-4">
-              <h1 className="text-2xl font-bold text-gray-900">Folder Management</h1>
-            </div>
-          </header>
-        )}
-
         {/* Content area */}
         <main className="flex-1 overflow-hidden">
           {activeView === 'gallery' && (
-            <div ref={scrollContainerRef} className="h-full overflow-y-auto pt-16">
+            <div ref={scrollContainerRef} className="h-full overflow-y-auto pt-16 pb-10">
               <MasonryGrid scrollContainerRef={scrollContainerRef} />
             </div>
           )}
@@ -105,28 +83,21 @@ function App() {
             <MetadataModal
               image={selectedImage}
               onClose={() => setSelectedImage(null)}
-              onPrev={handlePrev}
-              onNext={handleNext}
-              hasPrev={hasPrev}
-              hasNext={hasNext}
+              onNavigate={(img) => setSelectedImage(img)}
             />
           )}
-          {activeView === 'folders' && (
-            <div className="p-6">
-              <FolderScanner />
-            </div>
-          )}
+          {activeView === 'folders' && <FolderScanner />}
         </main>
 
         {/* Status bar */}
-        <footer className="bg-white border-t border-gray-200 px-4 py-2 text-sm text-gray-500">
+        <footer className="fixed bottom-0 left-16 right-0 z-20 bg-white/80 backdrop-blur-lg border-t border-gray-200/60 px-4 py-2 text-sm text-gray-500">
           <div className="flex justify-between items-center">
             <div>
               {activeView === 'gallery' && (
                 <span>Click an image to edit metadata</span>
               )}
               {activeView === 'folders' && (
-                <span>Add folders to start organizing your photos</span>
+                <span>Manage your photo folders</span>
               )}
             </div>
             <div />

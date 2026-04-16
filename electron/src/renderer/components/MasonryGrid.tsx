@@ -1,147 +1,19 @@
-import { useEffect, useState, useRef, useMemo, memo, RefObject } from 'react';
+import { useEffect, useState, useRef, useMemo, RefObject } from 'react';
 import { useImageStore } from '../stores/imageStore';
-import { Image } from 'shared';
+import { computeMasonryLayout, MasonryImage } from './masonry-utils';
 
 const OVERSCAN = 500;
 const GAP = 8;
 
-interface Position {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface LayoutResult {
-  positions: Position[];
-  totalHeight: number;
-}
-
-function computeMasonryLayout(
-  images: Image[],
-  containerWidth: number,
-  columnCount: number,
-  gap: number,
-  offset: number = 0,
-): LayoutResult {
-  if (containerWidth <= 0 || images.length === 0) {
-    return { positions: [], totalHeight: 0 };
-  }
-
-  const colWidth = (containerWidth - (columnCount - 1) * gap) / columnCount;
-  const columnHeights = new Array(columnCount).fill(0);
-  const positions: Position[] = [];
-
-  for (const image of images) {
-    // Pick the shortest column
-    let minCol = 0;
-    for (let c = 1; c < columnCount; c++) {
-      if (columnHeights[c] < columnHeights[minCol]) minCol = c;
-    }
-
-    const aspect = image.width && image.height ? image.height / image.width : 0.75;
-    const renderedHeight = colWidth * aspect;
-
-    positions.push({
-      x: minCol * (colWidth + gap) + offset,
-      y: columnHeights[minCol] + offset,
-      width: colWidth,
-      height: renderedHeight,
-    });
-
-    columnHeights[minCol] += renderedHeight + gap;
-  }
-
-  return {
-    positions,
-    totalHeight: Math.max(...columnHeights) + offset,
-  };
-}
-
-// --- MasonryImage ---
-
-const MasonryImage = memo(function MasonryImage({
-  image,
-  position,
-  columnWidth,
-  onClick,
-}: {
-  image: Image;
-  position: Position;
-  columnWidth: number;
-  onClick: () => void;
-}) {
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(false);
-
-  const thumbWidth = Math.ceil(columnWidth * (window.devicePixelRatio || 1));
-  const src = `sortie-thumb://${image.file_path}?w=${thumbWidth}`;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: position.y,
-        left: position.x,
-        width: position.width,
-        height: position.height,
-        borderRadius: 4,
-        overflow: 'hidden',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        cursor: 'pointer',
-        backgroundColor: '#f3f4f6',
-      }}
-      onClick={onClick}
-    >
-      <img
-        src={src}
-        alt={image.file_name}
-        title={image.description || image.file_name}
-        style={{
-          display: 'block',
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          opacity: loaded ? 1 : 0,
-          transition: 'opacity 0.3s ease',
-        }}
-        onLoad={() => setLoaded(true)}
-        onError={() => setError(true)}
-      />
-      {image.embedded === false && loaded && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 6,
-            right: 6,
-            width: 20,
-            height: 20,
-            borderRadius: '50%',
-            backgroundColor: 'rgba(239, 68, 68, 0.9)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-          }}
-          title="No embedding — won't appear in search results"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </div>
-      )}
-    </div>
-  );
-});
-
-// --- MasonryGrid ---
+const MIN_COL_WIDTH = 220;
+const MIN_COLUMNS = 2;
+const MAX_COLUMNS = 5;
 
 interface MasonryGridProps {
-  columns?: number;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
-export function MasonryGrid({ columns = 3, scrollContainerRef }: MasonryGridProps) {
+export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
   const { images, loading, error, fetchImages, hasMore, setSelectedImage } = useImageStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -199,9 +71,16 @@ export function MasonryGrid({ columns = 3, scrollContainerRef }: MasonryGridProp
     };
   }, [scrollContainerRef]);
 
-  // Compute layout
+  // Compute responsive column count
   const padding = 16; // p-4 = 16px
   const layoutWidth = containerWidth; // contentRect already excludes CSS padding
+  const columns = useMemo(() => {
+    if (layoutWidth <= 0) return MIN_COLUMNS;
+    const fit = Math.floor((layoutWidth + GAP) / (MIN_COL_WIDTH + GAP));
+    return Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, fit));
+  }, [layoutWidth]);
+
+  // Compute layout
   const layout = useMemo(
     () => computeMasonryLayout(images, layoutWidth, columns, GAP, padding),
     [images, layoutWidth, columns],

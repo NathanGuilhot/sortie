@@ -14,11 +14,11 @@ export function SearchBar({ inputRef }: SearchBarProps) {
     searchQuery, setSearchQuery,
     dateRange, setDateRange,
     tagFilters, setTagFilters,
-    showAIResults, setShowAIResults,
     showHidden, setShowHidden,
+    showFavoritesOnly, setShowFavoritesOnly,
     clearFilters,
   } = useUIStore();
-  const { searchImages, fetchImages, filterByTags, loading } = useImageStore();
+  const { searchImages, fetchImages, filterByTags, fetchFavorites, loading } = useImageStore();
 
   const [localQuery, setLocalQuery] = useState(searchQuery);
   const [isFocused, setIsFocused] = useState(false);
@@ -27,7 +27,7 @@ export function SearchBar({ inputRef }: SearchBarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const hasActiveFilters = tagFilters.length > 0 || dateRange.start !== null || dateRange.end !== null || !showAIResults || showHidden;
+  const hasActiveFilters = tagFilters.length > 0 || dateRange.start !== null || dateRange.end !== null || showHidden || showFavoritesOnly;
 
   // Debounce search query to store
   useEffect(() => {
@@ -41,12 +41,24 @@ export function SearchBar({ inputRef }: SearchBarProps) {
 
   // React to tag filter changes
   useEffect(() => {
+    if (showFavoritesOnly) return; // favorites filter takes precedence
     if (tagFilters.length > 0) {
       filterByTags(tagFilters);
     } else if (!localQuery.trim()) {
       fetchImages();
     }
   }, [tagFilters]);
+
+  // React to favorites filter changes
+  useEffect(() => {
+    if (showFavoritesOnly) {
+      fetchFavorites();
+    } else if (tagFilters.length > 0) {
+      filterByTags(tagFilters);
+    } else if (!localQuery.trim()) {
+      fetchImages();
+    }
+  }, [showFavoritesOnly]);
 
   // Click-outside dismissal
   useEffect(() => {
@@ -108,7 +120,8 @@ export function SearchBar({ inputRef }: SearchBarProps) {
     });
   };
 
-  const showDropdown = isFocused || showAdvanced;
+  const showSuggestions = isFocused && !localQuery;
+  const showDropdown = showSuggestions || showAdvanced;
 
   return (
     <div
@@ -118,7 +131,7 @@ export function SearchBar({ inputRef }: SearchBarProps) {
       {/* Input bar */}
       <div
         className={`
-          flex items-center px-4 py-2.5 rounded-2xl border transition-all duration-200
+          flex items-center h-11 px-4 rounded-2xl border transition-all duration-200
           ${isFocused
             ? 'bg-white shadow-xl border-gray-300'
             : 'bg-white/80 backdrop-blur-lg shadow-lg shadow-black/5 border-gray-200/60'
@@ -246,15 +259,32 @@ export function SearchBar({ inputRef }: SearchBarProps) {
 
               {/* Toggle filters */}
               <div className="flex gap-4">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="h-3.5 w-3.5 text-blue-600 rounded border-gray-300"
-                    checked={showAIResults}
-                    onChange={(e) => setShowAIResults(e.target.checked)}
-                  />
-                  <span className="text-xs text-gray-600">AI suggestions</span>
-                </label>
+                <button
+                  onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                  className="flex items-center gap-1.5 cursor-pointer"
+                  title="Favorites only"
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${
+                      showFavoritesOnly
+                        ? 'bg-rose-500/90'
+                        : 'bg-gray-200 hover:bg-gray-300'
+                    }`}
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill={showFavoritesOnly ? 'white' : 'none'}
+                      stroke={showFavoritesOnly ? 'none' : 'currentColor'}
+                      strokeWidth={showFavoritesOnly ? 0 : 2}
+                      className={showFavoritesOnly ? '' : 'text-gray-500'}
+                    >
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-600">Favorites</span>
+                </button>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"

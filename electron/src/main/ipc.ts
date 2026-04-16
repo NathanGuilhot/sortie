@@ -21,6 +21,14 @@ export function setupIpcHandlers(dbService: DatabaseService, watcherService: Wat
     return await dbService.searchImages(query, limit);
   });
 
+  ipcMain.handle('find-similar-images', async (_event, { imageId, limit }: { imageId: number; limit?: number }) => {
+    return await dbService.findSimilarImages(imageId, limit);
+  });
+
+  ipcMain.handle('get-favorite-images', async (_event, { limit, offset }: { limit?: number; offset?: number } = {}) => {
+    return await dbService.getFavoriteImages(limit, offset);
+  });
+
   ipcMain.handle('filter-images', async (event, { tags, limit, offset }: { tags: string[]; limit?: number; offset?: number }) => {
     return await dbService.getImagesByTags(tags, limit, offset);
   });
@@ -40,6 +48,16 @@ export function setupIpcHandlers(dbService: DatabaseService, watcherService: Wat
 
   ipcMain.handle('get-folders', async () => {
     return await dbService.getFolders();
+  });
+
+  ipcMain.handle('get-folders-with-stats', async () => {
+    return await dbService.getFoldersWithStats();
+  });
+
+  ipcMain.handle('remove-folder', async (_event, { path }: { path: string }) => {
+    watcherService.stopWatching(path);
+    await dbService.removeFolder(path);
+    return { success: true };
   });
 
   ipcMain.handle('get-all-tags', async () => {

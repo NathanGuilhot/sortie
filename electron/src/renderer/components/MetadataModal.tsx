@@ -1,27 +1,61 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Image } from 'shared';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Image, SearchResult } from 'shared';
 import { MetadataEditor } from './MetadataEditor';
+import { SimilarityGrid } from './SimilarityGrid';
 
 interface MetadataModalProps {
   image: Image;
   onClose: () => void;
-  onPrev: () => void;
-  onNext: () => void;
-  hasPrev: boolean;
-  hasNext: boolean;
+  onNavigate: (image: Image) => void;
 }
 
-export function MetadataModal({ image, onClose, onPrev, onNext, hasPrev, hasNext }: MetadataModalProps) {
+export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps) {
   const [showMetadata, setShowMetadata] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [similarImages, setSimilarImages] = useState<SearchResult[]>([]);
+  const cache = useRef(new Map<number, SearchResult[]>());
 
   // Reset image loaded state when image changes
   useEffect(() => {
     setImageLoaded(false);
   }, [image.id]);
 
+  // Fetch similar images
+  useEffect(() => {
+    const cached = cache.current.get(image.id);
+    if (cached) {
+      setSimilarImages(cached);
+      return;
+    }
+
+    let cancelled = false;
+    setSimilarImages([]);
+
+    window.sortieAPI.findSimilarImages(image.id, 20).then((results) => {
+      if (cancelled) return;
+      cache.current.set(image.id, results);
+      // Cap cache size
+      if (cache.current.size > 50) {
+        const first = cache.current.keys().next().value;
+        if (first !== undefined) cache.current.delete(first);
+      }
+      setSimilarImages(results);
+    });
+
+    return () => { cancelled = true; };
+  }, [image.id]);
+
+  // Split into left/right (interleaved so both sides have equally similar images)
+  const leftImages = useMemo(
+    () => similarImages.filter((_, i) => i % 2 === 0),
+    [similarImages],
+  );
+  const rightImages = useMemo(
+    () => similarImages.filter((_, i) => i % 2 !== 0),
+    [similarImages],
+  );
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // Skip shortcuts when typing in an input
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
@@ -31,17 +65,17 @@ export function MetadataModal({ image, onClose, onPrev, onNext, hasPrev, hasNext
         break;
       case 'ArrowLeft':
         e.preventDefault();
-        onPrev();
+        if (leftImages.length > 0) onNavigate(leftImages[0]);
         break;
       case 'ArrowRight':
         e.preventDefault();
-        onNext();
+        if (rightImages.length > 0) onNavigate(rightImages[0]);
         break;
       case 'i':
         setShowMetadata(prev => !prev);
         break;
     }
-  }, [onClose, onPrev, onNext]);
+  }, [onClose, onNavigate, leftImages, rightImages]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -87,55 +121,54 @@ export function MetadataModal({ image, onClose, onPrev, onNext, hasPrev, hasNext
         </div>
       </div>
 
-      {/* Image area */}
-      <div className="absolute inset-0 top-14 flex items-center justify-center p-8">
-        <img
-          src={`sortie-file://${image.file_path}`}
-          alt={image.file_name}
-          className={`max-w-full max-h-full object-contain transition-opacity duration-200 ${
-            imageLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
-          style={showMetadata ? { maxWidth: 'calc(100% - 24rem)' } : undefined}
-          onLoad={() => setImageLoaded(true)}
-          draggable={false}
-        />
-      </div>
-
-      {/* Prev arrow */}
-      {hasPrev && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onPrev(); }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 text-white/70 hover:bg-black/60 hover:text-white transition-colors"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-      )}
-
-      {/* Next arrow */}
-      {hasNext && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onNext(); }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 text-white/70 hover:bg-black/60 hover:text-white transition-colors"
-          style={showMetadata ? { right: '25rem' } : undefined}
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      )}
-
-      {/* Metadata panel */}
-      {showMetadata && (
+      {/* Three-panel layout */}
+      <div className="absolute inset-0 top-14 flex">
+        {/* Left sidebar — similar images */}
         <div
-          className="absolute top-0 right-0 bottom-0 w-96 bg-white/95 backdrop-blur-sm shadow-2xl z-20 overflow-y-auto animate-slide-in-right"
-          style={{ scrollbarWidth: 'none', overscrollBehavior: 'contain' }}
+          className="w-[200px] flex-shrink-0 overflow-y-auto p-2 flex items-center"
+          style={{ scrollbarWidth: 'thin', overscrollBehavior: 'contain' }}
           onClick={(e) => e.stopPropagation()}
         >
-          <MetadataEditor image={image} onClose={() => setShowMetadata(false)} />
+          <div className="w-full">
+            <SimilarityGrid images={leftImages} onImageClick={onNavigate} columns={2} />
+          </div>
         </div>
-      )}
+
+        {/* Center image */}
+        <div className="flex-1 flex items-center justify-center p-4 min-w-0">
+          <img
+            src={`sortie-file://${image.file_path}`}
+            alt={image.file_name}
+            className={`max-w-full max-h-full object-contain transition-opacity duration-200 ${
+              imageLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
+            onLoad={() => setImageLoaded(true)}
+            draggable={false}
+          />
+        </div>
+
+        {/* Right sidebar — similar images */}
+        <div
+          className="w-[200px] flex-shrink-0 overflow-y-auto p-2 flex items-center"
+          style={{ scrollbarWidth: 'thin', overscrollBehavior: 'contain' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-full">
+            <SimilarityGrid images={rightImages} onImageClick={onNavigate} columns={2} />
+          </div>
+        </div>
+
+        {/* Metadata panel — overlaid on the right */}
+        {showMetadata && (
+          <div
+            className="absolute top-0 right-0 bottom-0 w-96 bg-white/95 backdrop-blur-sm shadow-2xl overflow-y-auto animate-slide-in-right"
+            style={{ scrollbarWidth: 'none', overscrollBehavior: 'contain' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MetadataEditor image={image} onClose={() => setShowMetadata(false)} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { DatabaseManager, ClipEmbedder, SuggestionEngine, Organizer, TagSuggestion, Collection, extractExif } from 'pipeline';
-import { Image, Tag, Folder, SearchResult } from 'shared';
+import { Image, Tag, Folder, FolderWithStats, SearchResult } from 'shared';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -50,6 +50,23 @@ export class DatabaseService {
     this.imageCache.clear();
   }
 
+  async getFavoriteImages(limit: number = 100, offset: number = 0): Promise<Image[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    const stmt = this.db.getDatabase().prepare(`
+      SELECT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
+      FROM images i
+      WHERE i.favorite = 1 AND i.hidden = 0
+      ORDER BY i.captured_at DESC, i.created_at DESC
+      LIMIT ? OFFSET ?
+    `);
+    const rows = stmt.all(limit, offset) as any[];
+    const images: Image[] = rows.map(row => ({ ...row, embedded: !!row.embedded }));
+    for (const image of images) {
+      image.tags = this.db!.getImageTags(image.id) as Tag[];
+    }
+    return images;
+  }
+
   async getImagesByTags(tagNames: string[], limit: number = 100, offset: number = 0): Promise<Image[]> {
     if (!this.db) throw new Error('Database not initialized');
     if (tagNames.length === 0) return this.getImages(limit, offset);
@@ -77,11 +94,11 @@ export class DatabaseService {
   async searchImages(query: string, limit: number = 50): Promise<SearchResult[]> {
     if (!this.db) throw new Error('Database not initialized');
     if (!this.embedder) throw new Error('Embedder not initialized');
-    
+
     // Generate embedding for query
     const embedding = await this.embedder.embedText(query);
-    
-    // Search using vector similarity
+
+    // Search using vector similarity (vec0 defaults to L2 distance)
     const stmt = this.db.getDatabase().prepare(`
       SELECT sub.rowid, sub.distance
       FROM (
@@ -93,24 +110,77 @@ export class DatabaseService {
       ORDER BY sub.distance
     `);
     const results = stmt.all(JSON.stringify(embedding), limit) as Array<{ rowid: number, distance: number }>;
-    
+
     // Get full image details
     const imageIds = results.map(r => r.rowid);
     if (imageIds.length === 0) return [];
-    
+
     const placeholders = imageIds.map(() => '?').join(',');
     const imageStmt = this.db.getDatabase().prepare(`
       SELECT * FROM images WHERE id IN (${placeholders})
     `);
     const images = imageStmt.all(...imageIds) as Image[];
-    
-    // Map distances
+
+    // Map distances and sort by distance (IN query doesn't preserve order)
     const distanceMap = new Map(results.map(r => [r.rowid, r.distance]));
-    return images.map(img => ({
+    const searchResults = images.map(img => ({
       ...img,
       distance: distanceMap.get(img.id),
       tags: this.db!.getImageTags(img.id) as Tag[],
     }));
+    searchResults.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+
+    return searchResults;
+  }
+
+  async findSimilarImages(imageId: number, limit: number = 20): Promise<SearchResult[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db.getDatabase();
+
+    // Get the source image's embedding
+    const embRow = db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(imageId) as { embedding: Buffer } | undefined;
+    if (!embRow) return [];
+
+    // Convert Buffer to JSON array for MATCH operator
+    const buf = embRow.embedding;
+    const floats = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+    const embJson = JSON.stringify(Array.from(floats));
+
+    // Vector similarity search (request extra to account for self-match)
+    const stmt = db.prepare(`
+      SELECT sub.rowid, sub.distance
+      FROM (
+        SELECT v.rowid, v.distance
+        FROM vec_images v
+        WHERE v.embedding MATCH ? AND k = ?
+      ) sub
+      INNER JOIN images i ON i.id = sub.rowid AND i.hidden = 0
+      WHERE sub.rowid != ?
+      ORDER BY sub.distance
+    `);
+    const results = stmt.all(embJson, limit + 1, imageId) as Array<{ rowid: number; distance: number }>;
+
+    // Get full image details
+    const imageIds = results.map(r => r.rowid);
+    if (imageIds.length === 0) return [];
+
+    const placeholders = imageIds.map(() => '?').join(',');
+    const imageStmt = db.prepare(`
+      SELECT * FROM images WHERE id IN (${placeholders})
+    `);
+    const images = imageStmt.all(...imageIds) as Image[];
+
+    // Map distances and preserve order
+    const distanceMap = new Map(results.map(r => [r.rowid, r.distance]));
+    const resultImages = images.map(img => ({
+      ...img,
+      distance: distanceMap.get(img.id),
+      tags: this.db!.getImageTags(img.id) as Tag[],
+    }));
+
+    // Sort by distance (the IN query doesn't preserve order)
+    resultImages.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+    return resultImages;
   }
 
   async addFolder(folderPath: string): Promise<number> {
@@ -193,6 +263,37 @@ export class DatabaseService {
       SELECT * FROM folders ORDER BY created_at DESC
     `);
     return stmt.all() as Folder[];
+  }
+
+  async getFoldersWithStats(): Promise<FolderWithStats[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    const stmt = this.db.getDatabase().prepare(`
+      SELECT f.*,
+        COALESCE(s.image_count, 0) AS image_count,
+        COALESCE(s.total_size, 0) AS total_size
+      FROM folders f
+      LEFT JOIN (
+        SELECT fo.id AS folder_id,
+          COUNT(i.id) AS image_count,
+          SUM(i.file_size) AS total_size
+        FROM folders fo
+        LEFT JOIN images i ON i.file_path LIKE fo.path || '/%' AND i.hidden = 0
+        GROUP BY fo.id
+      ) s ON s.folder_id = f.id
+      ORDER BY f.created_at DESC
+    `);
+    const rows = stmt.all() as any[];
+    return rows.map(row => ({
+      ...row,
+      folder_name: path.basename(row.path) || row.path,
+    }));
+  }
+
+  async removeFolder(folderPath: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const normalized = path.resolve(folderPath);
+    this.db.getDatabase().prepare('DELETE FROM folders WHERE path = ?').run(normalized);
+    this.invalidateImageCache();
   }
 
   async updateImageTags(imageId: number, tagNames: string[]): Promise<void> {

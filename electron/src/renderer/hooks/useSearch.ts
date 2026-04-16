@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 
 export function useSearch() {
   const { searchImages, searchResults, loading, error } = useImageStore();
-  const { searchQuery, dateRange, tagFilters, showAIResults, showHidden } = useUIStore();
+  const { searchQuery, dateRange, tagFilters, showHidden } = useUIStore();
 
   const search = useCallback(() => {
     if (searchQuery.trim() === '') {
@@ -22,7 +22,6 @@ export function useSearch() {
     query: searchQuery,
     dateRange,
     tagFilters,
-    showAIResults,
     showHidden,
   };
 }
