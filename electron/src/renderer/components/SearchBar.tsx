@@ -11,11 +11,16 @@ const SUGGESTIONS = ['landscape', 'portrait', 'sunset', 'beach', 'family', 'vaca
 
 export function SearchBar({ inputRef }: SearchBarProps) {
   const {
-    searchQuery, setSearchQuery,
-    dateRange, setDateRange,
-    tagFilters, setTagFilters,
-    showHidden, setShowHidden,
-    showFavoritesOnly, setShowFavoritesOnly,
+    searchQuery,
+    setSearchQuery,
+    dateRange,
+    setDateRange,
+    tagFilters,
+    setTagFilters,
+    showHidden,
+    setShowHidden,
+    showFavoritesOnly,
+    setShowFavoritesOnly,
     clearFilters,
   } = useUIStore();
   const { searchImages, fetchImages, filterByTags, fetchFavorites, loading } = useImageStore();
@@ -27,7 +32,12 @@ export function SearchBar({ inputRef }: SearchBarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const hasActiveFilters = tagFilters.length > 0 || dateRange.start !== null || dateRange.end !== null || showHidden || showFavoritesOnly;
+  const hasActiveFilters =
+    tagFilters.length > 0 ||
+    dateRange.start !== null ||
+    dateRange.end !== null ||
+    showHidden ||
+    showFavoritesOnly;
 
   // Debounce search query to store
   useEffect(() => {
@@ -43,21 +53,23 @@ export function SearchBar({ inputRef }: SearchBarProps) {
   useEffect(() => {
     if (showFavoritesOnly) return; // favorites filter takes precedence
     if (tagFilters.length > 0) {
-      filterByTags(tagFilters);
+      void filterByTags(tagFilters);
     } else if (!localQuery.trim()) {
-      fetchImages();
+      void fetchImages();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tagFilters]);
 
   // React to favorites filter changes
   useEffect(() => {
     if (showFavoritesOnly) {
-      fetchFavorites();
+      void fetchFavorites();
     } else if (tagFilters.length > 0) {
-      filterByTags(tagFilters);
+      void filterByTags(tagFilters);
     } else if (!localQuery.trim()) {
-      fetchImages();
+      void fetchImages();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showFavoritesOnly]);
 
   // Click-outside dismissal
@@ -74,14 +86,14 @@ export function SearchBar({ inputRef }: SearchBarProps) {
 
   const handleSearch = useCallback(() => {
     if (localQuery.trim()) {
-      searchImages(localQuery);
+      void searchImages(localQuery);
     }
   }, [localQuery, searchImages]);
 
   const handleClear = useCallback(() => {
     setLocalQuery('');
     clearFilters();
-    fetchImages();
+    void fetchImages();
     inputRef?.current?.focus();
   }, [clearFilters, fetchImages, inputRef]);
 
@@ -108,7 +120,7 @@ export function SearchBar({ inputRef }: SearchBarProps) {
   const handleSuggestionClick = (term: string) => {
     setLocalQuery(term);
     setSearchQuery(term);
-    searchImages(term);
+    void searchImages(term);
     setIsFocused(false);
   };
 
@@ -132,18 +144,29 @@ export function SearchBar({ inputRef }: SearchBarProps) {
       <div
         className={`
           flex items-center h-11 px-4 rounded-2xl border transition-all duration-200
-          ${isFocused
-            ? 'bg-white shadow-xl border-gray-300'
-            : 'bg-white/80 backdrop-blur-lg shadow-lg shadow-black/5 border-gray-200/60'
+          ${
+            isFocused
+              ? 'bg-white shadow-xl border-gray-300'
+              : 'bg-white/80 backdrop-blur-lg shadow-lg shadow-black/5 border-gray-200/60'
           }
         `}
       >
-        <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        <svg
+          className="w-4 h-4 text-gray-400 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
         </svg>
 
         <input
-          ref={inputRef as any}
+          ref={inputRef as React.RefObject<HTMLInputElement>}
           type="text"
           className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 placeholder-gray-400 ml-3"
           placeholder="Search photos..."
@@ -164,7 +187,12 @@ export function SearchBar({ inputRef }: SearchBarProps) {
             className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0 ml-1"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         )}
@@ -180,7 +208,12 @@ export function SearchBar({ inputRef }: SearchBarProps) {
             }`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+              />
             </svg>
             {hasActiveFilters && (
               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full" />
@@ -218,7 +251,9 @@ export function SearchBar({ inputRef }: SearchBarProps) {
 
           {/* Advanced filters */}
           {showAdvanced && (
-            <div className={`px-4 py-3 space-y-3 ${isFocused && !localQuery ? 'border-t border-gray-100' : ''}`}>
+            <div
+              className={`px-4 py-3 space-y-3 ${isFocused && !localQuery ? 'border-t border-gray-100' : ''}`}
+            >
               {/* Tag filters */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">
@@ -233,9 +268,7 @@ export function SearchBar({ inputRef }: SearchBarProps) {
 
               {/* Date range */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  Date range
-                </label>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Date range</label>
                 <div className="flex gap-2">
                   <input
                     type="date"
@@ -262,9 +295,7 @@ export function SearchBar({ inputRef }: SearchBarProps) {
                 >
                   <div
                     className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${
-                      showFavoritesOnly
-                        ? 'bg-rose-500/90'
-                        : 'bg-gray-200 hover:bg-gray-300'
+                      showFavoritesOnly ? 'bg-rose-500/90' : 'bg-gray-200 hover:bg-gray-300'
                     }`}
                   >
                     <svg

@@ -17,6 +17,7 @@ export interface ExifData {
 
 export async function extractExif(imagePath: string): Promise<ExifData> {
   try {
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
     const exif = await exifr.parse(imagePath, {
       tiff: true,
       exif: true,
@@ -31,8 +32,8 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
     // sharp returns raw pixel dimensions, but browsers auto-rotate based on EXIF,
     // so we store the display dimensions to match what the browser will render.
     const needsSwap = metadata.orientation && metadata.orientation >= 5;
-    const width = needsSwap ? (metadata.height || null) : (metadata.width || null);
-    const height = needsSwap ? (metadata.width || null) : (metadata.height || null);
+    const width = needsSwap ? metadata.height || null : metadata.width || null;
+    const height = needsSwap ? metadata.width || null : metadata.height || null;
 
     let latitude: number | null = null;
     let longitude: number | null = null;
@@ -53,11 +54,11 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
       capturedAt = new Date(exif.ModifyDate);
     }
 
-    const cameraMake = exif?.Make || exif?.make || null;
-    const cameraModel = exif?.Model || exif?.model || null;
+    const cameraMake: string | null = exif?.Make || exif?.make || null;
+    const cameraModel: string | null = exif?.Model || exif?.model || null;
 
-    const aperture = exif?.FNumber || exif?.ApertureValue || exif?.fNumber || null;
-    const iso = exif?.ISO || exif?.ISOSpeedRatings || null;
+    const aperture: number | null = exif?.FNumber || exif?.ApertureValue || exif?.fNumber || null;
+    const iso: number | null = exif?.ISO || exif?.ISOSpeedRatings || null;
 
     let exposureTime: string | null = null;
     if (exif?.ExposureTime) {
@@ -68,16 +69,16 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
           exposureTime = `${exif.ExposureTime}`;
         }
       } else {
-        exposureTime = exif.ExposureTime.toString();
+        exposureTime = String(exif.ExposureTime);
       }
     } else if (exif?.ShutterSpeedValue) {
-      exposureTime = exif.ShutterSpeedValue.toString();
+      exposureTime = String(exif.ShutterSpeedValue);
     }
 
     let focalLength: number | null = null;
     if (exif?.FocalLength) {
       if (typeof exif.FocalLength === 'string') {
-        const match = exif.FocalLength.match(/(\d+(?:\.\d+)?)/);
+        const match = (exif.FocalLength as string).match(/(\d+(?:\.\d+)?)/);
         focalLength = match ? parseFloat(match[1]) : null;
       } else if (typeof exif.FocalLength === 'number') {
         focalLength = exif.FocalLength;
@@ -94,11 +95,12 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
       height,
       cameraMake,
       cameraModel,
-      aperture: aperture ? parseFloat(aperture.toString()) : null,
+      aperture: aperture ? parseFloat(String(aperture)) : null,
       exposureTime,
       iso,
       focalLength,
     };
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
   } catch (error) {
     console.warn(`Failed to extract EXIF from ${imagePath}:`, error);
     try {
@@ -108,8 +110,8 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
         capturedAt: null,
         latitude: null,
         longitude: null,
-        width: needsSwap ? (metadata.height || null) : (metadata.width || null),
-        height: needsSwap ? (metadata.width || null) : (metadata.height || null),
+        width: needsSwap ? metadata.height || null : metadata.width || null,
+        height: needsSwap ? metadata.width || null : metadata.height || null,
         cameraMake: null,
         cameraModel: null,
         aperture: null,

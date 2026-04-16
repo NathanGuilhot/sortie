@@ -23,13 +23,17 @@ export class WatcherService {
       ignoreInitial: true,
       awaitWriteFinish: {
         stabilityThreshold: 2000,
-        pollInterval: 100
-      }
+        pollInterval: 100,
+      },
     });
 
     watcher
-      .on('add', (filePath) => this.onFileAdded(filePath))
-      .on('unlink', (filePath) => this.onFileRemoved(filePath))
+      .on('add', (filePath) => {
+        void this.onFileAdded(filePath);
+      })
+      .on('unlink', (filePath) => {
+        void this.onFileRemoved(filePath);
+      })
       .on('error', (error) => console.error('Watcher error:', error));
 
     this.watchers.set(folderPath, watcher);
@@ -38,13 +42,13 @@ export class WatcherService {
   stopWatching(folderPath: string) {
     const watcher = this.watchers.get(folderPath);
     if (watcher) {
-      watcher.close();
+      void watcher.close();
       this.watchers.delete(folderPath);
     }
   }
 
   stopAll() {
-    this.watchers.forEach(watcher => watcher.close());
+    this.watchers.forEach((watcher) => void watcher.close());
     this.watchers.clear();
   }
 

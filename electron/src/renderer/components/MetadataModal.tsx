@@ -16,9 +16,11 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
   const cache = useRef(new Map<number, SearchResult[]>());
 
   // Reset image loaded state when image changes
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional reset on prop change */
   useEffect(() => {
     setImageLoaded(false);
   }, [image.id]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Fetch similar images
   useEffect(() => {
@@ -31,7 +33,7 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
     let cancelled = false;
     setSimilarImages([]);
 
-    window.sortieAPI.findSimilarImages(image.id, 20).then((results) => {
+    void window.sortieAPI.findSimilarImages(image.id, 20).then((results: SearchResult[]) => {
       if (cancelled) return;
       cache.current.set(image.id, results);
       // Cap cache size
@@ -42,40 +44,39 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
       setSimilarImages(results);
     });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [image.id]);
 
   // Split into left/right (interleaved so both sides have equally similar images)
-  const leftImages = useMemo(
-    () => similarImages.filter((_, i) => i % 2 === 0),
-    [similarImages],
-  );
-  const rightImages = useMemo(
-    () => similarImages.filter((_, i) => i % 2 !== 0),
-    [similarImages],
-  );
+  const leftImages = useMemo(() => similarImages.filter((_, i) => i % 2 === 0), [similarImages]);
+  const rightImages = useMemo(() => similarImages.filter((_, i) => i % 2 !== 0), [similarImages]);
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    const tag = (e.target as HTMLElement).tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
-    switch (e.key) {
-      case 'Escape':
-        onClose();
-        break;
-      case 'ArrowLeft':
-        e.preventDefault();
-        if (leftImages.length > 0) onNavigate(leftImages[0]);
-        break;
-      case 'ArrowRight':
-        e.preventDefault();
-        if (rightImages.length > 0) onNavigate(rightImages[0]);
-        break;
-      case 'i':
-        setShowMetadata(prev => !prev);
-        break;
-    }
-  }, [onClose, onNavigate, leftImages, rightImages]);
+      switch (e.key) {
+        case 'Escape':
+          onClose();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (leftImages.length > 0) onNavigate(leftImages[0]);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (rightImages.length > 0) onNavigate(rightImages[0]);
+          break;
+        case 'i':
+          setShowMetadata((prev) => !prev);
+          break;
+      }
+    },
+    [onClose, onNavigate, leftImages, rightImages],
+  );
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -85,26 +86,28 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
   return (
     <div className="fixed inset-0 z-50 animate-fade-in">
       {/* Dark backdrop */}
-      <div
-        className="absolute inset-0 bg-black/90"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/90" onClick={onClose} />
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-10">
-        <span className="text-white/80 text-sm truncate max-w-md">
-          {image.file_name}
-        </span>
+        <span className="text-white/80 text-sm truncate max-w-md">{image.file_name}</span>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowMetadata(prev => !prev)}
+            onClick={() => setShowMetadata((prev) => !prev)}
             className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
-              showMetadata ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white hover:bg-white/10'
+              showMetadata
+                ? 'bg-white/20 text-white'
+                : 'text-white/60 hover:text-white hover:bg-white/10'
             }`}
             title="Toggle details (i)"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
           </button>
           <button
@@ -113,7 +116,12 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
             title="Close (Esc)"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>

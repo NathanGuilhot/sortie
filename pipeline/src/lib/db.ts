@@ -28,6 +28,7 @@ export class DatabaseManager {
     this.setupPragmas();
     this.setupExtensions();
     this.setupSchema();
+    this.runMigrations();
   }
 
   private setupPragmas() {
@@ -38,7 +39,9 @@ export class DatabaseManager {
 
   private setupExtensions() {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
       const { load } = require('sqlite-vec');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       load(this.db);
     } catch (err) {
       console.warn('sqlite-vec extension not available:', err);
@@ -177,13 +180,45 @@ export class DatabaseManager {
     `);
   }
 
+  private runMigrations() {
+    const version = this.db.pragma('user_version', { simple: true }) as number;
+
+    if (version < 2) {
+      const columns = this.db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>;
+      const colNames = new Set(columns.map((c) => c.name));
+
+      if (!colNames.has('file_hash')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN file_hash TEXT');
+      }
+      if (!colNames.has('dhash')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN dhash TEXT');
+      }
+
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_file_hash ON images(file_hash)');
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_dhash ON images(dhash)');
+
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS dismissed_duplicates (
+          image_id_1 INTEGER NOT NULL,
+          image_id_2 INTEGER NOT NULL,
+          dismissed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (image_id_1, image_id_2),
+          FOREIGN KEY (image_id_1) REFERENCES images(id) ON DELETE CASCADE,
+          FOREIGN KEY (image_id_2) REFERENCES images(id) ON DELETE CASCADE
+        )
+      `);
+
+      this.db.pragma('user_version = 2');
+    }
+  }
+
   insertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): number {
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO images (
         file_path, file_name, file_size, mime_type, width, height,
         captured_at, latitude, longitude, city, country, description,
-        favorite, hidden
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        favorite, hidden, file_hash, dhash
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const result = stmt.run(
       image.file_path,
@@ -199,7 +234,9 @@ export class DatabaseManager {
       image.country,
       image.description,
       image.favorite ? 1 : 0,
-      image.hidden ? 1 : 0
+      image.hidden ? 1 : 0,
+      image.file_hash ?? null,
+      image.dhash ?? null,
     );
     return result.lastInsertRowid as number;
   }
@@ -219,15 +256,21 @@ export class DatabaseManager {
     return this.db;
   }
 
-  getAllEmbeddings(): Array<{rowid: number, embedding: number[]}> {
-    const rows = this.db.prepare('SELECT rowid, embedding FROM vec_images').all() as EmbeddingDbRow[];
-    return rows.map(row => {
+  getAllEmbeddings(): Array<{ rowid: number; embedding: number[] }> {
+    const rows = this.db
+      .prepare('SELECT rowid, embedding FROM vec_images')
+      .all() as EmbeddingDbRow[];
+    return rows.map((row) => {
       let embedding: number[];
       if (Buffer.isBuffer(row.embedding)) {
-        const floatArray = new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.embedding.byteLength / 4);
+        const floatArray = new Float32Array(
+          row.embedding.buffer,
+          row.embedding.byteOffset,
+          row.embedding.byteLength / 4,
+        );
         embedding = Array.from(floatArray);
       } else if (typeof row.embedding === 'string') {
-        embedding = JSON.parse(row.embedding);
+        embedding = JSON.parse(row.embedding) as number[];
       } else {
         embedding = row.embedding;
       }
@@ -236,22 +279,32 @@ export class DatabaseManager {
   }
 
   getImageTags(imageId: number): TagDbRow[] {
-    return this.db.prepare(`
+    return this.db
+      .prepare(
+        `
       SELECT t.* FROM tags t
       JOIN image_tags it ON t.id = it.tag_id
       WHERE it.image_id = ?
-    `).all(imageId) as TagDbRow[];
+    `,
+      )
+      .all(imageId) as TagDbRow[];
   }
 
   getDismissedSuggestions(imageId: number): DismissedDbRow[] {
-    return this.db.prepare('SELECT * FROM dismissed_suggestions WHERE image_id = ?').all(imageId) as DismissedDbRow[];
+    return this.db
+      .prepare('SELECT * FROM dismissed_suggestions WHERE image_id = ?')
+      .all(imageId) as DismissedDbRow[];
   }
 
   dismissSuggestion(imageId: number, tagId: number): void {
-    this.db.prepare(`
+    this.db
+      .prepare(
+        `
       INSERT OR REPLACE INTO dismissed_suggestions (image_id, tag_id)
       VALUES (?, ?)
-    `).run(imageId, tagId);
+    `,
+      )
+      .run(imageId, tagId);
   }
 
   getAllTags(): TagDbRow[] {

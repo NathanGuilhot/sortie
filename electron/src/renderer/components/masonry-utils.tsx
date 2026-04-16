@@ -25,7 +25,7 @@ export function computeMasonryLayout(
   }
 
   const colWidth = (containerWidth - (columnCount - 1) * gap) / columnCount;
-  const columnHeights = new Array(columnCount).fill(0);
+  const columnHeights = Array.from<number>({ length: columnCount }).fill(0);
   const positions: Position[] = [];
 
   for (const image of images) {
@@ -139,7 +139,14 @@ export const MasonryImage = memo(function MasonryImage({
           }}
           title="No embedding — won't appear in search results"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5}>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            strokeWidth={2.5}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </div>

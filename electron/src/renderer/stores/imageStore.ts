@@ -19,7 +19,16 @@ interface ImageStore {
   filterByTags: (tags: string[], limit?: number, offset?: number) => Promise<void>;
   fetchFavorites: (limit?: number, offset?: number) => Promise<void>;
   hideImage: (imageId: number) => Promise<void>;
-  updateImageMetadata: (imageId: number, metadata: { description?: string; favorite?: boolean; captured_at?: string | null; city?: string | null; country?: string | null }) => Promise<void>;
+  updateImageMetadata: (
+    imageId: number,
+    metadata: {
+      description?: string;
+      favorite?: boolean;
+      captured_at?: string | null;
+      city?: string | null;
+      country?: string | null;
+    },
+  ) => Promise<void>;
 }
 
 export const useImageStore = create<ImageStore>((set, get) => ({
@@ -44,8 +53,9 @@ export const useImageStore = create<ImageStore>((set, get) => ({
       } else {
         set({ images: fetched, loading: false, hasMore });
       }
-    } catch (error: any) {
-      set({ error: error.message, loading: false });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message, loading: false });
     }
   },
   searchImages: async (query: string, limit = 50) => {
@@ -53,8 +63,9 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     try {
       const results = await window.sortieAPI.searchImages(query, limit);
       set({ searchResults: results, images: results, loading: false });
-    } catch (error: any) {
-      set({ error: error.message, loading: false });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message, loading: false });
     }
   },
   filterByTags: async (tags: string[], limit = 100, offset = 0) => {
@@ -66,8 +77,9 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     try {
       const images = await window.sortieAPI.filterImages(tags, limit, offset);
       set({ images, loading: false });
-    } catch (error: any) {
-      set({ error: error.message, loading: false });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message, loading: false });
     }
   },
   updateImageTags: async (imageId: number, tags: string[]) => {
@@ -76,8 +88,9 @@ export const useImageStore = create<ImageStore>((set, get) => ({
       await window.sortieAPI.updateImageTags(imageId, tags);
       await get().fetchImages();
       set({ loading: false });
-    } catch (error: any) {
-      set({ error: error.message, loading: false });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message, loading: false });
     }
   },
   fetchFavorites: async (limit = 100, offset = 0) => {
@@ -85,27 +98,39 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     try {
       const fetched = await window.sortieAPI.getFavoriteImages(limit, offset);
       set({ images: fetched, loading: false, hasMore: fetched.length >= limit });
-    } catch (error: any) {
-      set({ error: error.message, loading: false });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message, loading: false });
     }
   },
   hideImage: async (imageId: number) => {
     try {
       await window.sortieAPI.hideImage(imageId);
       set((state) => ({
-        images: state.images.filter(img => img.id !== imageId),
+        images: state.images.filter((img) => img.id !== imageId),
         selectedImage: state.selectedImage?.id === imageId ? null : state.selectedImage,
       }));
-    } catch (error: any) {
-      set({ error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message });
     }
   },
-  updateImageMetadata: async (imageId: number, metadata: { description?: string; favorite?: boolean; captured_at?: string | null; city?: string | null; country?: string | null }) => {
+  updateImageMetadata: async (
+    imageId: number,
+    metadata: {
+      description?: string;
+      favorite?: boolean;
+      captured_at?: string | null;
+      city?: string | null;
+      country?: string | null;
+    },
+  ) => {
     try {
       await window.sortieAPI.updateImageMetadata(imageId, metadata);
       await get().fetchImages();
-    } catch (error: any) {
-      set({ error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message });
     }
   },
 }));

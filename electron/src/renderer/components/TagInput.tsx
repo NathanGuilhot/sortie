@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
 import { WithContext as ReactTags, Tag } from 'react-tag-input';
 import { useTagStore } from '../stores/tagStore';
 
@@ -20,53 +20,68 @@ export function TagInput({
   selectedTags,
   onChange,
   placeholder = 'Add tags...',
-  allowNew = true,
+  allowNew: _allowNew = true,
 }: TagInputProps) {
   const { tags, fetchTags } = useTagStore();
-  const [suggestions, setSuggestions] = useState<Tag[]>([]);
 
   // Load tags for autocomplete
   useEffect(() => {
-    fetchTags();
+    void fetchTags();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Convert tags to suggestions format
-  useEffect(() => {
-    const tagSuggestions = tags.map(tag => ({
-      id: tag.id.toString(),
-      text: tag.name,
-      className: '',
-    }));
-    setSuggestions(tagSuggestions);
-  }, [tags]);
+  const suggestions = useMemo(
+    () =>
+      tags.map((tag) => ({
+        id: tag.id.toString(),
+        text: tag.name,
+        className: '',
+      })),
+    [tags],
+  );
 
-  const handleDelete = useCallback((tagIndex: number) => {
-    const newTags = selectedTags.filter((_, i) => i !== tagIndex);
-    onChange(newTags);
-  }, [selectedTags, onChange]);
+  const handleDelete = useCallback(
+    (tagIndex: number) => {
+      const newTags = selectedTags.filter((_, i) => i !== tagIndex);
+      onChange(newTags);
+    },
+    [selectedTags, onChange],
+  );
 
-  const handleAddition = useCallback((newTag: Tag) => {
-    const tagText = newTag.text.trim();
-    if (tagText && !selectedTags.includes(tagText)) {
-      onChange([...selectedTags, tagText]);
-    }
-  }, [selectedTags, onChange]);
+  const handleAddition = useCallback(
+    (newTag: Tag) => {
+      const tagText = newTag.text.trim();
+      if (tagText && !selectedTags.includes(tagText)) {
+        onChange([...selectedTags, tagText]);
+      }
+    },
+    [selectedTags, onChange],
+  );
 
-  const handleDrag = useCallback((tag: Tag, currPos: number, newPos: number) => {
-    const newTags = [...selectedTags];
-    newTags.splice(currPos, 1);
-    newTags.splice(newPos, 0, tag.text);
-    onChange(newTags);
-  }, [selectedTags, onChange]);
+  const handleDrag = useCallback(
+    (tag: Tag, currPos: number, newPos: number) => {
+      const newTags = [...selectedTags];
+      newTags.splice(currPos, 1);
+      newTags.splice(newPos, 0, tag.text);
+      onChange(newTags);
+    },
+    [selectedTags, onChange],
+  );
 
-  const handleTagClick = useCallback((index: number) => {
-    handleDelete(index);
-  }, [handleDelete]);
+  const handleTagClick = useCallback(
+    (index: number) => {
+      handleDelete(index);
+    },
+    [handleDelete],
+  );
 
   return (
     <div className="tag-input-wrapper">
       <ReactTags
-        tags={selectedTags.map(tag => ({ id: tag, text: tag, className: '' })) as any}
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
+        tags={selectedTags.map((tag) => ({ id: tag, text: tag, className: '' })) as any}
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
         suggestions={suggestions as any}
         delimiters={delimiters}
         handleDelete={handleDelete}
@@ -86,7 +101,8 @@ export function TagInput({
           tagInput: 'inline-flex',
           tag: 'inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors',
           remove: 'ml-0.5 text-gray-400 hover:text-gray-600 cursor-pointer transition-colors',
-          suggestions: 'absolute z-20 mt-1 bg-white rounded-xl border border-gray-200/60 shadow-xl shadow-black/5 overflow-hidden',
+          suggestions:
+            'absolute z-20 mt-1 bg-white rounded-xl border border-gray-200/60 shadow-xl shadow-black/5 overflow-hidden',
           activeSuggestion: 'bg-gray-50',
         }}
       />

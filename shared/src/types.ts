@@ -17,7 +17,22 @@ export interface Image {
   favorite: boolean;
   hidden: boolean;
   embedded?: boolean;
+  file_hash?: string | null;
+  dhash?: string | null;
   tags?: Tag[];
+}
+
+export interface DuplicateGroup {
+  groupId: number;
+  images: Image[];
+  matchType: 'exact' | 'visual';
+}
+
+export interface DuplicateScanProgress {
+  phase: 'hashing' | 'comparing' | 'done';
+  current: number;
+  total: number;
+  currentFile?: string;
 }
 
 export interface Tag {

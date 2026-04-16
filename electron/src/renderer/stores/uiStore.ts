@@ -25,11 +25,12 @@ export const useUIStore = create<UIStore>((set) => ({
   setTagFilters: (tags) => set({ tagFilters: tags }),
   setShowHidden: (show) => set({ showHidden: show }),
   setShowFavoritesOnly: (show) => set({ showFavoritesOnly: show }),
-  clearFilters: () => set({
-    searchQuery: '',
-    dateRange: { start: null, end: null },
-    tagFilters: [],
-    showHidden: false,
-    showFavoritesOnly: false,
-  }),
+  clearFilters: () =>
+    set({
+      searchQuery: '',
+      dateRange: { start: null, end: null },
+      tagFilters: [],
+      showHidden: false,
+      showFavoritesOnly: false,
+    }),
 }));

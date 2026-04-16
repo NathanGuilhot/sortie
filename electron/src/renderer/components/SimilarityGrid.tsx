@@ -30,9 +30,7 @@ export function SimilarityGrid({ images, onImageClick, columns = 2 }: Similarity
     [images, containerWidth, columns],
   );
 
-  const columnWidth = containerWidth > 0
-    ? (containerWidth - (columns - 1) * GAP) / columns
-    : 0;
+  const columnWidth = containerWidth > 0 ? (containerWidth - (columns - 1) * GAP) / columns : 0;
 
   return (
     <div

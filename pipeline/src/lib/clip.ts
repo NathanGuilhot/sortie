@@ -12,22 +12,34 @@ export class ClipEmbedder {
   async initialize() {
     if (this.isInitialized) return;
     try {
-      const dynamicImport = new Function('specifier', 'return import(specifier)') as
-        <T = unknown>(specifier: string) => Promise<T>;
-      const transformers = await dynamicImport<typeof import('@xenova/transformers')>(
-        '@xenova/transformers',
-      );
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval
+      const dynamicImport = new Function('specifier', 'return import(specifier)') as <T = unknown>(
+        specifier: string,
+      ) => Promise<T>;
+      const transformers =
+        await dynamicImport<typeof import('@xenova/transformers')>('@xenova/transformers');
       this.transformersModule = transformers;
-      const { AutoProcessor, CLIPVisionModelWithProjection, CLIPTextModelWithProjection, AutoTokenizer } = transformers;
+      const {
+        AutoProcessor,
+        CLIPVisionModelWithProjection,
+        CLIPTextModelWithProjection,
+        AutoTokenizer,
+      } = transformers;
 
       this.tokenizer = await AutoTokenizer.from_pretrained('Xenova/clip-vit-base-patch32');
       this.processor = await AutoProcessor.from_pretrained('Xenova/clip-vit-base-patch32');
-      this.visionModel = await CLIPVisionModelWithProjection.from_pretrained('Xenova/clip-vit-base-patch32', {
-        quantized: true,
-      });
-      this.textModel = await CLIPTextModelWithProjection.from_pretrained('Xenova/clip-vit-base-patch32', {
-        quantized: true,
-      });
+      this.visionModel = await CLIPVisionModelWithProjection.from_pretrained(
+        'Xenova/clip-vit-base-patch32',
+        {
+          quantized: true,
+        },
+      );
+      this.textModel = await CLIPTextModelWithProjection.from_pretrained(
+        'Xenova/clip-vit-base-patch32',
+        {
+          quantized: true,
+        },
+      );
       this.isInitialized = true;
     } catch (error) {
       console.error('Failed to load CLIP model:', error);
@@ -35,7 +47,8 @@ export class ClipEmbedder {
     }
   }
 
-  private async preprocessImage(imagePath: string): Promise<any> {
+  /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+  private async preprocessImage(imagePath: string): Promise<unknown> {
     const image = await sharp(imagePath)
       .resize(CLIP_INPUT_SIZE, CLIP_INPUT_SIZE, { fit: 'cover' })
       .toFormat('png')
@@ -54,7 +67,10 @@ export class ClipEmbedder {
       return normalizeVector(embedding);
     } catch (error) {
       console.error(`Failed to embed image ${imagePath}:`, error);
-      throw new Error(`Image embedding failed for ${imagePath}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Image embedding failed for ${imagePath}: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
     }
   }
 
@@ -68,9 +84,13 @@ export class ClipEmbedder {
       return normalizeVector(embedding);
     } catch (error) {
       console.error(`Failed to embed text "${text}":`, error);
-      throw new Error(`Text embedding failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Text embedding failed: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
     }
   }
+  /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 
   async embedImagesBatch(imagePaths: string[]): Promise<number[][]> {
     await this.initialize();

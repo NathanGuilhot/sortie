@@ -34,30 +34,32 @@ export class SuggestionEngine {
     const cached = this.embeddingCache.get(imageId);
     if (cached) return cached;
     const db = this.db.getDatabase();
-    const row = db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(imageId) as { embedding: string } | undefined;
+    const row = db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(imageId) as
+      | { embedding: string }
+      | undefined;
     if (!row) return [];
-    const embedding = JSON.parse(row.embedding);
+    const embedding = JSON.parse(row.embedding) as number[];
     this.embeddingCache.set(imageId, embedding);
     return embedding;
   }
 
   getImageTags(imageId: number): Tag[] {
     const rows = this.db.getImageTags(imageId);
-    return rows.map(row => ({
+    return rows.map((row) => ({
       id: row.id,
       name: row.name,
       category: row.category as Tag['category'],
       color: row.color,
-      created_at: row.created_at
+      created_at: row.created_at,
     }));
   }
 
   getDismissedSuggestions(imageId: number): DismissedSuggestion[] {
     const rows = this.db.getDismissedSuggestions(imageId);
-    return rows.map(row => ({
+    return rows.map((row) => ({
       image_id: row.image_id,
       tag_id: row.tag_id,
-      dismissed_at: row.dismissed_at
+      dismissed_at: row.dismissed_at,
     }));
   }
 
@@ -72,12 +74,12 @@ export class SuggestionEngine {
 
   getAllTags(): Tag[] {
     const rows = this.db.getAllTags();
-    return rows.map(row => ({
+    return rows.map((row) => ({
       id: row.id,
       name: row.name,
       category: row.category as Tag['category'],
       color: row.color,
-      created_at: row.created_at
+      created_at: row.created_at,
     }));
   }
 
@@ -91,15 +93,17 @@ export class SuggestionEngine {
     if (!k) {
       k = Math.max(2, Math.min(20, Math.floor(Math.sqrt(n / 2))));
     }
-    const result = kmeans(embeddings, k);
+    const result = kmeans(embeddings, k) as { indexes: number[] };
     return result.indexes;
   }
 
   computeCentroids(embeddings: number[][], assignments: number[]): number[][] {
     const k = Math.max(...assignments) + 1;
     const dim = embeddings[0].length;
-    const sums: number[][] = Array(k).fill(null).map(() => Array(dim).fill(0));
-    const counts: number[] = Array(k).fill(0);
+    const sums: number[][] = Array.from({ length: k }, () =>
+      Array.from<number>({ length: dim }).fill(0),
+    );
+    const counts: number[] = Array.from<number>({ length: k }).fill(0);
     for (let i = 0; i < embeddings.length; i++) {
       const cluster = assignments[i];
       counts[cluster]++;
@@ -110,9 +114,9 @@ export class SuggestionEngine {
     const centroids: number[][] = [];
     for (let c = 0; c < k; c++) {
       if (counts[c] === 0) {
-        centroids.push(Array(dim).fill(0));
+        centroids.push(Array.from<number>({ length: dim }).fill(0));
       } else {
-        centroids.push(sums[c].map(val => val / counts[c]));
+        centroids.push(sums[c].map((val) => val / counts[c]));
       }
     }
     return centroids;
@@ -126,10 +130,10 @@ export class SuggestionEngine {
   generateSuggestions(
     imageIds: number[],
     _embeddings: number[][],
-    assignments: number[]
+    assignments: number[],
   ): Map<number, TagSuggestion[]> {
     const k = Math.max(...assignments) + 1;
-    const clusterImages: number[][] = Array(k).fill(null).map(() => []);
+    const clusterImages: number[][] = Array.from({ length: k }, () => [] as number[]);
     for (let i = 0; i < imageIds.length; i++) {
       const cluster = assignments[i];
       clusterImages[cluster].push(imageIds[i]);
@@ -152,19 +156,19 @@ export class SuggestionEngine {
       const imageId = imageIds[i];
       const cluster = assignments[i];
       const tagCounts = clusterTags.get(cluster)!;
-      const imageTags = this.getImageTags(imageId).map(t => t.id);
-      const dismissed = this.getDismissedSuggestions(imageId).map(d => d.tag_id);
+      const imageTags = this.getImageTags(imageId).map((t) => t.id);
+      const dismissed = this.getDismissedSuggestions(imageId).map((d) => d.tag_id);
 
       const candidateTags: TagSuggestion[] = [];
       for (const [tagId, count] of tagCounts) {
         if (count >= 2 && !imageTags.includes(tagId) && !dismissed.includes(tagId)) {
-          const tag = this.getAllTags().find(t => t.id === tagId);
+          const tag = this.getAllTags().find((t) => t.id === tagId);
           if (tag) {
             candidateTags.push({
               tagId,
               tagName: tag.name,
               confidence: count / clusterImages[cluster].length,
-              source: 'cluster'
+              source: 'cluster',
             });
           }
         }
@@ -180,8 +184,8 @@ export class SuggestionEngine {
     if (embeddingsRows.length === 0) {
       return new Map();
     }
-    const imageIds = embeddingsRows.map(row => row.rowid);
-    const embeddings = embeddingsRows.map(row => row.embedding);
+    const imageIds = embeddingsRows.map((row) => row.rowid);
+    const embeddings = embeddingsRows.map((row) => row.embedding);
     const assignments = this.clusterEmbeddings(embeddings);
     return this.generateSuggestions(imageIds, embeddings, assignments);
   }
@@ -195,10 +199,10 @@ export class SuggestionEngine {
     if (targetEmbedding.length === 0) return [];
 
     const allRows = await this.getAllEmbeddings();
-    const otherRows = allRows.filter(row => row.rowid !== imageId);
+    const otherRows = allRows.filter((row) => row.rowid !== imageId);
     if (otherRows.length === 0) return [];
 
-    const similarities: { imageId: number, similarity: number }[] = [];
+    const similarities: { imageId: number; similarity: number }[] = [];
     for (const row of otherRows) {
       const sim = this.cosineSimilarity(targetEmbedding, row.embedding);
       similarities.push({ imageId: row.rowid, similarity: sim });
@@ -214,19 +218,19 @@ export class SuggestionEngine {
       }
     }
 
-    const imageTags = this.getImageTags(imageId).map(t => t.id);
-    const dismissed = this.getDismissedSuggestions(imageId).map(d => d.tag_id);
+    const imageTags = this.getImageTags(imageId).map((t) => t.id);
+    const dismissed = this.getDismissedSuggestions(imageId).map((d) => d.tag_id);
     const allTags = this.getAllTags();
     const candidates: TagSuggestion[] = [];
     for (const [tagId, count] of tagCounts) {
       if (!imageTags.includes(tagId) && !dismissed.includes(tagId)) {
-        const tag = allTags.find(t => t.id === tagId);
+        const tag = allTags.find((t) => t.id === tagId);
         if (tag) {
           candidates.push({
             tagId,
             tagName: tag.name,
             confidence: count / nearest.length,
-            source: 'similarity'
+            source: 'similarity',
           });
         }
       }
@@ -236,7 +240,9 @@ export class SuggestionEngine {
   }
 
   private cosineSimilarity(a: number[], b: number[]): number {
-    let dot = 0, normA = 0, normB = 0;
+    let dot = 0,
+      normA = 0,
+      normB = 0;
     for (let i = 0; i < a.length; i++) {
       dot += a[i] * b[i];
       normA += a[i] * a[i];

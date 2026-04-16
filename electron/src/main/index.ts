@@ -28,10 +28,10 @@ function createWindow() {
   });
 
   if (process.env.NODE_ENV === 'development') {
-    mainWindow.loadURL('http://localhost:5173');
+    void mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    void mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 }
 
@@ -51,12 +51,12 @@ async function initializeServices() {
   const folders = await dbService.getFolders();
   for (const folder of folders) {
     if (folder.watched) {
-      watcherService.watchFolder(folder.path);
+      void watcherService.watchFolder(folder.path);
     }
   }
 }
 
-app.whenReady().then(async () => {
+void app.whenReady().then(async () => {
   const thumbDir = path.join(app.getPath('userData'), 'thumbs');
   fs.mkdirSync(thumbDir, { recursive: true });
 
@@ -79,7 +79,9 @@ app.whenReady().then(async () => {
       try {
         const cacheStat = fs.statSync(cachePath);
         useCached = cacheStat.mtimeMs >= srcStat.mtimeMs;
-      } catch {}
+      } catch {
+        // cache miss, will regenerate
+      }
 
       if (!useCached) {
         console.log(`[thumb] generating ${width}px thumbnail for ${path.basename(filePath)}`);

@@ -23,7 +23,8 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
   const loadingMore = useRef(false);
 
   useEffect(() => {
-    fetchImages();
+    void fetchImages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Track container width via ResizeObserver
@@ -84,9 +85,7 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
     [images, layoutWidth, columns],
   );
 
-  const columnWidth = layoutWidth > 0
-    ? (layoutWidth - (columns - 1) * GAP) / columns
-    : 0;
+  const columnWidth = layoutWidth > 0 ? (layoutWidth - (columns - 1) * GAP) / columns : 0;
 
   // Determine visible items (virtualization)
   const visibleIndices = useMemo(() => {
@@ -108,7 +107,7 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
     const bottomEdge = scrollTop + viewportHeight + OVERSCAN;
     if (layout.totalHeight > 0 && bottomEdge >= layout.totalHeight) {
       loadingMore.current = true;
-      fetchImages(100, images.length, true).finally(() => {
+      void fetchImages(100, images.length, true).finally(() => {
         loadingMore.current = false;
       });
     }
@@ -150,15 +149,16 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
         minHeight: content ? undefined : layout.totalHeight + padding,
       }}
     >
-      {content ?? visibleIndices.map((i) => (
-        <MasonryImage
-          key={images[i].id}
-          image={images[i]}
-          position={layout.positions[i]}
-          columnWidth={columnWidth}
-          onClick={() => setSelectedImage(images[i])}
-        />
-      ))}
+      {content ??
+        visibleIndices.map((i) => (
+          <MasonryImage
+            key={images[i].id}
+            image={images[i]}
+            position={layout.positions[i]}
+            columnWidth={columnWidth}
+            onClick={() => setSelectedImage(images[i])}
+          />
+        ))}
     </div>
   );
 }

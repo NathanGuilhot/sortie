@@ -19,10 +19,21 @@
     "dist:mac": "yarn workspace electron run dist:mac",
     "dist:win": "yarn workspace electron run dist:win",
     "dist:linux": "yarn workspace electron run dist:linux",
-    "package": "yarn workspace electron run package"
+    "package": "yarn workspace electron run package",
+    "lint": "eslint shared/src pipeline/src electron/src",
+    "lint:fix": "eslint --fix shared/src pipeline/src electron/src",
+    "format": "prettier --write \"shared/src/**/*.ts\" \"pipeline/src/**/*.ts\" \"electron/src/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"shared/src/**/*.ts\" \"pipeline/src/**/*.ts\" \"electron/src/**/*.{ts,tsx}\""
   },
   "devDependencies": {
-    "typescript": "^5.0.0"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.2.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "prettier": "^3.8.3",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.58.2"
   },
   "engines": {
     "node": ">=18"

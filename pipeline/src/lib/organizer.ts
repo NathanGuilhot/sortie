@@ -41,8 +41,8 @@ export class Organizer {
     if (embeddingsRows.length === 0) {
       return [];
     }
-    const imageIds = embeddingsRows.map(row => row.rowid);
-    const embeddings = embeddingsRows.map(row => row.embedding);
+    const imageIds = embeddingsRows.map((row) => row.rowid);
+    const embeddings = embeddingsRows.map((row) => row.embedding);
     const assignments = this.suggestions.clusterEmbeddings(embeddings);
     const k = Math.max(...assignments) + 1;
 
@@ -77,22 +77,28 @@ export class Organizer {
 
   getImageCollections(imageId: number): Collection[] {
     const db = this.db.getDatabase();
-    return db.prepare(`
+    return db
+      .prepare(
+        `
       SELECT c.* FROM collections c
       JOIN collection_images ci ON c.id = ci.collection_id
       WHERE ci.image_id = ?
-    `).all(imageId) as CollectionDbRow[];
+    `,
+      )
+      .all(imageId) as CollectionDbRow[];
   }
 
   getAllCollections(): Collection[] {
     const db = this.db.getDatabase();
-    return db.prepare('SELECT * FROM collections ORDER BY created_at DESC').all() as CollectionDbRow[];
+    return db
+      .prepare('SELECT * FROM collections ORDER BY created_at DESC')
+      .all() as CollectionDbRow[];
   }
 
   createCollection(name: string, description?: string): number {
     const db = this.db.getDatabase();
     const stmt = db.prepare(
-      'INSERT INTO collections (name, description, cluster_id) VALUES (?, ?, NULL)'
+      'INSERT INTO collections (name, description, cluster_id) VALUES (?, ?, NULL)',
     );
     const result = stmt.run(name, description || null);
     return result.lastInsertRowid as number;
@@ -100,10 +106,14 @@ export class Organizer {
 
   getCollectionImages(collectionId: number): number[] {
     const db = this.db.getDatabase();
-    const rows = db.prepare(`
+    const rows = db
+      .prepare(
+        `
       SELECT image_id FROM collection_images WHERE collection_id = ?
-    `).all(collectionId) as Array<{ image_id: number }>;
-    return rows.map(row => row.image_id);
+    `,
+      )
+      .all(collectionId) as Array<{ image_id: number }>;
+    return rows.map((row) => row.image_id);
   }
 
   deleteCollection(collectionId: number): void {
@@ -113,16 +123,20 @@ export class Organizer {
 
   addImageToCollection(collectionId: number, imageId: number): void {
     const db = this.db.getDatabase();
-    db.prepare(`
+    db.prepare(
+      `
       INSERT OR IGNORE INTO collection_images (collection_id, image_id)
       VALUES (?, ?)
-    `).run(collectionId, imageId);
+    `,
+    ).run(collectionId, imageId);
   }
 
   removeImageFromCollection(collectionId: number, imageId: number): void {
     const db = this.db.getDatabase();
-    db.prepare(`
+    db.prepare(
+      `
       DELETE FROM collection_images WHERE collection_id = ? AND image_id = ?
-    `).run(collectionId, imageId);
+    `,
+    ).run(collectionId, imageId);
   }
 }

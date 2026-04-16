@@ -22,7 +22,7 @@ export const useTagStore = create<TagStore>((set) => ({
     set({ loading: true, error: null });
     try {
       const allTags = await window.sortieAPI.getAllTags();
-      const tags: Tag[] = allTags.map(t => ({
+      const tags: Tag[] = allTags.map((t) => ({
         id: t.id,
         name: t.name,
         category: (t.category || 'user') as Tag['category'],
@@ -30,8 +30,9 @@ export const useTagStore = create<TagStore>((set) => ({
         created_at: t.created_at,
       }));
       set({ tags, loading: false });
-    } catch (error: any) {
-      set({ error: error.message, loading: false });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message, loading: false });
     }
   },
 }));
