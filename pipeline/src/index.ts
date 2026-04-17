@@ -12,6 +12,8 @@ export {
   hammingDistance,
   DHASH_DUPLICATE_THRESHOLD,
 } from './lib/dhash';
+export { FaceDetector, DetectedFace } from './lib/face';
+export { FaceMatcher, MatchResult } from './lib/face-matcher';
 
 export async function initializePipeline() {
   const dbPath = process.env.DATABASE_PATH || './sortie.db';

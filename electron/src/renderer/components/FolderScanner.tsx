@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FolderWithStats } from 'shared';
+import { CopyText } from './CopyText';
 
 function formatRelativeTime(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -237,7 +238,7 @@ export function FolderScanner() {
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-1">No folders yet</h3>
             <p className="text-sm text-gray-500 mb-6 text-center max-w-sm">
-              Add a folder to start scanning and organizing your photos with AI tags and search.
+              Add a folder to get started.
             </p>
             <button
               onClick={() => void handleAddFolder()}
@@ -268,9 +269,9 @@ export function FolderScanner() {
                     <h3 className="text-sm font-semibold text-gray-900 truncate">
                       {folder.folder_name}
                     </h3>
-                    <p className="text-xs text-gray-400 truncate mt-0.5" title={folder.path}>
+                    <CopyText value={folder.path} className="text-xs text-gray-400 truncate mt-0.5 block" title={folder.path}>
                       {folder.path}
-                    </p>
+                    </CopyText>
                   </div>
                   {removingFolder === folder.path ? (
                     <div className="flex items-center gap-1 ml-2 shrink-0">
@@ -360,17 +361,17 @@ export function FolderScanner() {
                     className="flex items-center gap-2 text-xs cursor-pointer"
                   >
                     <div
-                      className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${
-                        folder.watched ? 'bg-green-500' : 'bg-gray-300'
+                      className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
+                        folder.watched ? 'bg-blue-500' : 'bg-gray-300'
                       }`}
                     >
                       <div
-                        className={`absolute top-[2px] w-[14px] h-[14px] bg-white rounded-full shadow transition-transform duration-200 ${
-                          folder.watched ? 'translate-x-[16px]' : 'translate-x-[2px]'
+                        className={`absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform duration-200 ${
+                          folder.watched ? 'translate-x-[19px]' : 'translate-x-[3px]'
                         }`}
                       />
                     </div>
-                    <span className={folder.watched ? 'text-green-700' : 'text-gray-500'}>
+                    <span className={folder.watched ? 'text-blue-700' : 'text-gray-500'}>
                       {folder.watched ? 'Watching' : 'Paused'}
                     </span>
                   </button>

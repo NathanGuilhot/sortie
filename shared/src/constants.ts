@@ -10,6 +10,12 @@ export const CATEGORY_COLORS: Record<string, string> = {
   camera: '#8B5CF6',
 };
 
+export const FACE_DETECTION_MAX_DIM = 1024;
+export const FACE_EMBEDDING_DIM = 128;
+export const FACE_MATCH_THRESHOLD = 0.75;
+export const FACE_MIN_CONFIDENCE = 0.5;
+export const FACE_MIN_SIZE_RATIO = 0.02;
+
 export const SUPPORTED_IMAGE_EXTENSIONS = [
   '.jpg',
   '.jpeg',

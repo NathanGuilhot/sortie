@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Image, SearchResult } from 'shared';
+import { Image, SearchResult, Face } from 'shared';
 import { MetadataEditor } from './MetadataEditor';
+import { CopyText } from './CopyText';
 import { SimilarityGrid } from './SimilarityGrid';
+import { useImageStore } from '../stores/imageStore';
 
 interface MetadataModalProps {
   image: Image;
@@ -10,9 +12,13 @@ interface MetadataModalProps {
 }
 
 export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps) {
+  const images = useImageStore((s) => s.images);
   const [showMetadata, setShowMetadata] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [similarImages, setSimilarImages] = useState<SearchResult[]>([]);
+  const [faces, setFaces] = useState<Face[]>([]);
+  const [showFaces, setShowFaces] = useState(true);
+  const imgRef = useRef<HTMLImageElement>(null);
   const cache = useRef(new Map<number, SearchResult[]>());
 
   // Reset image loaded state when image changes
@@ -49,6 +55,12 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
     };
   }, [image.id]);
 
+  // Fetch faces for this image
+  useEffect(() => {
+    setFaces([]);
+    void window.sortieAPI.getImageFaces(image.id).then((f) => setFaces(f));
+  }, [image.id]);
+
   // Split into left/right (interleaved so both sides have equally similar images)
   const leftImages = useMemo(() => similarImages.filter((_, i) => i % 2 === 0), [similarImages]);
   const rightImages = useMemo(() => similarImages.filter((_, i) => i % 2 !== 0), [similarImages]);
@@ -62,20 +74,24 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
         case 'Escape':
           onClose();
           break;
-        case 'ArrowLeft':
+        case 'ArrowLeft': {
           e.preventDefault();
-          if (leftImages.length > 0) onNavigate(leftImages[0]);
+          const idx = images.findIndex((img) => img.id === image.id);
+          if (idx > 0) onNavigate(images[idx - 1]);
           break;
-        case 'ArrowRight':
+        }
+        case 'ArrowRight': {
           e.preventDefault();
-          if (rightImages.length > 0) onNavigate(rightImages[0]);
+          const idx = images.findIndex((img) => img.id === image.id);
+          if (idx >= 0 && idx < images.length - 1) onNavigate(images[idx + 1]);
           break;
+        }
         case 'i':
           setShowMetadata((prev) => !prev);
           break;
       }
     },
-    [onClose, onNavigate, leftImages, rightImages],
+    [onClose, onNavigate, images, image.id],
   );
 
   useEffect(() => {
@@ -90,7 +106,7 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-10">
-        <span className="text-white/80 text-sm truncate max-w-md">{image.file_name}</span>
+        <CopyText value={image.file_name} className="text-white/80 text-sm truncate max-w-md">{image.file_name}</CopyText>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowMetadata((prev) => !prev)}
@@ -132,7 +148,7 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
         {/* Left sidebar — similar images */}
         <div
           className="w-[200px] flex-shrink-0 overflow-y-auto p-2 flex items-center"
-          style={{ scrollbarWidth: 'thin', overscrollBehavior: 'contain' }}
+          style={{ overscrollBehavior: 'contain' }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="w-full">
@@ -141,22 +157,47 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
         </div>
 
         {/* Center image */}
-        <div className="flex-1 flex items-center justify-center p-4 min-w-0">
-          <img
-            src={`sortie-file://${image.file_path}`}
-            alt={image.file_name}
-            className={`max-w-full max-h-full object-contain transition-opacity duration-200 ${
-              imageLoaded ? 'opacity-100' : 'opacity-0'
-            }`}
-            onLoad={() => setImageLoaded(true)}
-            draggable={false}
-          />
+        <div className="flex-1 flex items-center justify-center p-4 min-w-0 h-full overflow-hidden">
+          <div className="relative inline-block max-w-full max-h-full">
+            <img
+              ref={imgRef}
+              src={`sortie-file://${image.file_path}`}
+              alt={image.file_name}
+              className={`block max-w-full object-contain transition-opacity duration-200 ${
+                imageLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
+              style={{ maxHeight: 'calc(100vh - 56px - 32px)' }}
+              onLoad={() => setImageLoaded(true)}
+              draggable={false}
+            />
+            {/* Face bounding box overlays */}
+            {showFaces &&
+              imageLoaded &&
+              faces.map((face) => (
+                <div
+                  key={face.id}
+                  className="absolute border-2 border-blue-400/70 rounded-sm pointer-events-none group"
+                  style={{
+                    left: `${face.bbox_x * 100}%`,
+                    top: `${face.bbox_y * 100}%`,
+                    width: `${face.bbox_w * 100}%`,
+                    height: `${face.bbox_h * 100}%`,
+                  }}
+                >
+                  {face.person_name && (
+                    <span className="absolute -bottom-5 left-0 text-[10px] text-blue-300 whitespace-nowrap bg-black/60 px-1 rounded">
+                      {face.person_name}
+                    </span>
+                  )}
+                </div>
+              ))}
+          </div>
         </div>
 
         {/* Right sidebar — similar images */}
         <div
           className="w-[200px] flex-shrink-0 overflow-y-auto p-2 flex items-center"
-          style={{ scrollbarWidth: 'thin', overscrollBehavior: 'contain' }}
+          style={{ overscrollBehavior: 'contain' }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="w-full">
@@ -168,7 +209,7 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
         {showMetadata && (
           <div
             className="absolute top-0 right-0 bottom-0 w-96 bg-white/95 backdrop-blur-sm shadow-2xl overflow-y-auto animate-slide-in-right"
-            style={{ scrollbarWidth: 'none', overscrollBehavior: 'contain' }}
+            style={{ overscrollBehavior: 'contain' }}
             onClick={(e) => e.stopPropagation()}
           >
             <MetadataEditor image={image} onClose={() => setShowMetadata(false)} />

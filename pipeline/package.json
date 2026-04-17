@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "description": "Image processing and embedding pipeline for Sortie",
   "private": true,
-
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
@@ -14,8 +13,12 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
+    "@vladmandic/face-api": "^1.7.15",
     "@xenova/transformers": "^2.0.0",
     "better-sqlite3": "^11.5.0",
+    "canvas": "^3.2.3",
     "chokidar": "^3.6.0",
     "dotenv": "^16.0.0",
     "exifr": "^7.1.3",

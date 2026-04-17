@@ -4,13 +4,19 @@ import { MasonryGrid } from './components/MasonryGrid';
 import { MetadataModal } from './components/MetadataModal';
 import { FolderScanner } from './components/FolderScanner';
 import { CleanupScreen } from './components/CleanupScreen';
+import { PeopleScreen } from './components/PeopleScreen';
 import { useImageStore } from './stores/imageStore';
 import { useUIStore } from './stores/uiStore';
 
 function App() {
-  const { selectedImage, setSelectedImage } = useImageStore();
+  const { selectedImage, setSelectedImage, images } = useImageStore();
   const clearFilters = useUIStore((s) => s.clearFilters);
-  const [activeView, setActiveView] = useState<'gallery' | 'folders' | 'cleanup'>('gallery');
+  const searchQuery = useUIStore((s) => s.searchQuery);
+  const [activeView, setActiveView] = useState<'gallery' | 'folders' | 'cleanup' | 'people'>(() => {
+    const saved = localStorage.getItem('sortie:activeView');
+    if (saved === 'gallery' || saved === 'folders' || saved === 'cleanup' || saved === 'people') return saved;
+    return 'gallery';
+  });
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -27,6 +33,7 @@ function App() {
   }, []);
 
   useEffect(() => {
+    localStorage.setItem('sortie:activeView', activeView);
     if (activeView !== 'gallery') {
       clearFilters();
     }
@@ -96,6 +103,24 @@ function App() {
                 </span>
               </button>
             </li>
+            <li>
+              <button
+                onClick={() => setActiveView('people')}
+                className={`relative group flex items-center justify-center w-full p-2 rounded ${activeView === 'people' ? 'bg-gray-800' : 'hover:bg-gray-800'}`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+                <span className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                  People
+                </span>
+              </button>
+            </li>
           </ul>
         </nav>
 
@@ -125,15 +150,25 @@ function App() {
           )}
           {activeView === 'folders' && <FolderScanner />}
           {activeView === 'cleanup' && <CleanupScreen />}
+          {activeView === 'people' && <PeopleScreen />}
         </main>
 
         {/* Status bar */}
         <footer className="fixed bottom-0 left-16 right-0 z-20 bg-white/80 backdrop-blur-lg border-t border-gray-200/60 px-4 py-2 text-sm text-gray-500">
           <div className="flex justify-between items-center">
             <div>
-              {activeView === 'gallery' && <span>Click an image to edit metadata</span>}
+              {activeView === 'gallery' && (
+                <span>
+                  {images.length > 0
+                    ? searchQuery
+                      ? `${images.length} result${images.length !== 1 ? 's' : ''} for "${searchQuery}"`
+                      : `${images.length} image${images.length !== 1 ? 's' : ''}`
+                    : 'No images found'}
+                </span>
+              )}
               {activeView === 'folders' && <span>Manage your photo folders</span>}
               {activeView === 'cleanup' && <span>Find and remove duplicate images</span>}
+              {activeView === 'people' && <span>Detect and manage people in your photos</span>}
             </div>
             <div />
           </div>

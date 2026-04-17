@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 interface UIStore {
   searchQuery: string;
@@ -6,31 +7,49 @@ interface UIStore {
   tagFilters: string[];
   showHidden: boolean;
   showFavoritesOnly: boolean;
+  personFilter: number | null;
   setSearchQuery: (query: string) => void;
   setDateRange: (range: { start: Date | null; end: Date | null }) => void;
   setTagFilters: (tags: string[]) => void;
   setShowHidden: (show: boolean) => void;
   setShowFavoritesOnly: (show: boolean) => void;
+  setPersonFilter: (personId: number | null) => void;
   clearFilters: () => void;
 }
 
-export const useUIStore = create<UIStore>((set) => ({
-  searchQuery: '',
-  dateRange: { start: null, end: null },
-  tagFilters: [],
-  showHidden: false,
-  showFavoritesOnly: false,
-  setSearchQuery: (query) => set({ searchQuery: query }),
-  setDateRange: (range) => set({ dateRange: range }),
-  setTagFilters: (tags) => set({ tagFilters: tags }),
-  setShowHidden: (show) => set({ showHidden: show }),
-  setShowFavoritesOnly: (show) => set({ showFavoritesOnly: show }),
-  clearFilters: () =>
-    set({
+export const useUIStore = create<UIStore>()(
+  persist(
+    (set) => ({
       searchQuery: '',
       dateRange: { start: null, end: null },
       tagFilters: [],
       showHidden: false,
       showFavoritesOnly: false,
+      personFilter: null,
+      setSearchQuery: (query) => set({ searchQuery: query }),
+      setDateRange: (range) => set({ dateRange: range }),
+      setTagFilters: (tags) => set({ tagFilters: tags }),
+      setShowHidden: (show) => set({ showHidden: show }),
+      setShowFavoritesOnly: (show) => set({ showFavoritesOnly: show }),
+      setPersonFilter: (personId) => set({ personFilter: personId }),
+      clearFilters: () =>
+        set({
+          searchQuery: '',
+          dateRange: { start: null, end: null },
+          tagFilters: [],
+          showHidden: false,
+          showFavoritesOnly: false,
+          personFilter: null,
+        }),
     }),
-}));
+    {
+      name: 'sortie:ui-filters',
+      partialize: (state) => ({
+        searchQuery: state.searchQuery,
+        tagFilters: state.tagFilters,
+        showFavoritesOnly: state.showFavoritesOnly,
+        personFilter: state.personFilter,
+      }),
+    },
+  ),
+);

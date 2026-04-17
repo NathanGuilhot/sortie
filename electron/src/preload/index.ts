@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   removeFolder: (path: string) => ipcRenderer.invoke('remove-folder', { path }),
 
   getAllTags: () => ipcRenderer.invoke('get-all-tags'),
+  getTagsWithCounts: () => ipcRenderer.invoke('get-tags-with-counts'),
 
   updateImageTags: (imageId: number, tags: string[]) =>
     ipcRenderer.invoke('update-image-tags', { imageId, tags }),
@@ -94,6 +95,47 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   // File actions
   revealInFinder: (filePath: string) => ipcRenderer.invoke('reveal-in-finder', { filePath }),
   backfillExif: () => ipcRenderer.invoke('backfill-exif'),
+
+  // Face Detection / People
+  getPersons: () => ipcRenderer.invoke('get-persons'),
+
+  getPersonImages: (personId: number, limit?: number, offset?: number) =>
+    ipcRenderer.invoke('get-person-images', { personId, limit, offset }),
+
+  renamePerson: (personId: number, name: string) =>
+    ipcRenderer.invoke('rename-person', { personId, name }),
+
+  mergePersons: (keepPersonId: number, mergePersonId: number) =>
+    ipcRenderer.invoke('merge-persons', { keepPersonId, mergePersonId }),
+
+  splitFaceFromPerson: (faceId: number) =>
+    ipcRenderer.invoke('split-face-from-person', { faceId }),
+
+  getImageFaces: (imageId: number) => ipcRenderer.invoke('get-image-faces', { imageId }),
+
+  setPersonThumbnail: (personId: number, faceId: number) =>
+    ipcRenderer.invoke('set-person-thumbnail', { personId, faceId }),
+
+  processFaces: () => ipcRenderer.invoke('process-faces'),
+  resetFaceData: () => ipcRenderer.invoke('reset-face-data'),
+
+  filterImagesByPerson: (personId: number, limit?: number, offset?: number) =>
+    ipcRenderer.invoke('filter-images-by-person', { personId, limit, offset }),
+
+  deletePerson: (personId: number) => ipcRenderer.invoke('delete-person', { personId }),
+
+  onFaceScanProgress: (
+    callback: (progress: { current: number; total: number; currentFile: string }) => void,
+  ) => {
+    const handler = (
+      _event: unknown,
+      progress: { current: number; total: number; currentFile: string },
+    ) => callback(progress);
+    ipcRenderer.on('face-scan-progress', handler);
+    return () => {
+      ipcRenderer.removeListener('face-scan-progress', handler);
+    };
+  },
 
   // System
   resetDatabase: () => ipcRenderer.invoke('reset-database'),

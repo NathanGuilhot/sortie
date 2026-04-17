@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Image } from 'shared';
+import { Image, Face } from 'shared';
 import { TagInput } from './TagInput';
+import { CopyText } from './CopyText';
 import { useImageStore } from '../stores/imageStore';
 
 interface TagSuggestion {
@@ -62,6 +63,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
   );
   const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
   const [tagCategories, setTagCategories] = useState<Map<string, string>>(new Map());
+  const [faces, setFaces] = useState<Face[]>([]);
 
   // Reset form when image changes
   useEffect(() => {
@@ -98,6 +100,21 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     };
   }, [image?.id]);
 
+  // Fetch faces for this image
+  useEffect(() => {
+    if (!image) {
+      setFaces([]);
+      return;
+    }
+    let cancelled = false;
+    void window.sortieAPI.getImageFaces(image.id).then((results: Face[]) => {
+      if (!cancelled) setFaces(results);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [image?.id]);
+
   const resetForm = () => {
     setTags([]);
     setDate('');
@@ -118,6 +135,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
         : [location.trim(), ''];
       await updateImageMetadata(image.id, {
         description: description || undefined,
+        favorite: isFavorite,
         captured_at: date ? new Date(date).toISOString() : null,
         city: city || undefined,
         country: country || undefined,
@@ -176,6 +194,17 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
 
   if (!image) return null;
 
+  const originalTags = image.tags?.map((t) => t.name) || [];
+  const originalDate = image.captured_at ? new Date(image.captured_at).toISOString().split('T')[0] : '';
+  const originalLocation = [image.city, image.country].filter(Boolean).join(', ') || '';
+  const originalDescription = image.description || '';
+  const isDirty =
+    isFavorite !== (image.favorite || false) ||
+    description !== originalDescription ||
+    date !== originalDate ||
+    location !== originalLocation ||
+    JSON.stringify([...tags].sort()) !== JSON.stringify([...originalTags].sort());
+
   const hasCamera =
     image.camera_make || image.camera_model || image.aperture || image.iso || image.exposure_time || image.focal_length;
 
@@ -199,15 +228,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
         <h2 className="text-base font-semibold text-gray-900">Details</h2>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => {
-              const newValue = !isFavorite;
-              setIsFavorite(newValue);
-              void updateImageMetadata(image.id, { favorite: newValue }).then(() => {
-                const updatedImages = useImageStore.getState().images;
-                const updated = updatedImages.find((img) => img.id === image.id);
-                if (updated) setSelectedImage(updated);
-              });
-            }}
+            onClick={() => setIsFavorite(!isFavorite)}
             className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
               isFavorite
                 ? 'text-rose-500 hover:text-rose-600 bg-rose-50'
@@ -260,7 +281,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-gray-800 truncate">{image.file_name}</div>
+            <CopyText value={image.file_name} className="text-sm font-medium text-gray-800 truncate block">{image.file_name}</CopyText>
             <div className="text-xs text-gray-400">
               {image.width} &times; {image.height}
               {image.file_size ? ` \u00b7 ${(image.file_size / 1024 / 1024).toFixed(1)} MB` : ''}
@@ -281,9 +302,9 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             </svg>
           </button>
         </div>
-        <div className="mt-1.5 text-[11px] text-gray-300 truncate pl-[42px]" title={image.file_path}>
+        <CopyText value={image.file_path} className="mt-1.5 text-[11px] text-gray-300 truncate pl-[42px] block" title={image.file_path}>
           {image.file_path}
-        </div>
+        </CopyText>
       </div>
 
       {/* [C] Editable fields */}
@@ -326,13 +347,13 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
               {suggestions.map((s) => (
                 <span
                   key={s.tagId}
-                  className="group inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium border border-dashed border-purple-300 text-purple-600 rounded-full bg-purple-50/50 transition-colors"
+                  className="group inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium border border-dashed border-blue-300 text-blue-600 rounded-full bg-blue-50/50 transition-colors"
                   style={{ opacity: 0.5 + s.confidence * 0.5 }}
                 >
                   {s.tagName}
                   <button
                     onClick={() => handleAcceptSuggestion(s)}
-                    className="text-purple-400 hover:text-emerald-500 transition-colors"
+                    className="w-6 h-6 flex items-center justify-center rounded-full text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                     title="Accept"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -346,7 +367,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
                   </button>
                   <button
                     onClick={() => handleDismissSuggestion(s)}
-                    className="text-purple-400 hover:text-red-500 transition-colors"
+                    className="w-6 h-6 flex items-center justify-center rounded-full text-blue-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                     title="Dismiss"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -360,6 +381,49 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
                   </button>
                 </span>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Detected Faces */}
+        {faces.length > 0 && (
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+              Faces ({faces.length})
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {faces.map((face) => {
+                const params = new URLSearchParams({
+                  path: image?.file_path || '',
+                  x: String(face.bbox_x),
+                  y: String(face.bbox_y),
+                  w: String(face.bbox_w),
+                  h: String(face.bbox_h),
+                  size: '80',
+                });
+                return (
+                  <div key={face.id} className="flex flex-col items-center gap-1">
+                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-gray-200">
+                      <img
+                        src={`sortie-face://${face.id}?${params.toString()}`}
+                        alt={face.person_name || 'Unknown'}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <span className="text-[10px] text-gray-500 truncate max-w-[60px]">
+                      {face.person_name || `#${face.person_id ?? '?'}`}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -436,18 +500,20 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
       <div className="mb-6">
         <button
           onClick={() => void handleSave()}
-          disabled={isSaving}
+          disabled={isSaving || (!isDirty && !saveSuccess)}
           className={`w-full px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
             saveSuccess
-              ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-              : 'bg-gray-900 text-white hover:bg-gray-800 shadow-sm'
+              ? 'bg-blue-50 text-blue-600 border border-blue-200'
+              : isDirty
+                ? 'bg-gray-900 text-white hover:bg-gray-800 shadow-sm'
+                : 'bg-gray-100 text-gray-400 border border-gray-200'
           }`}
         >
           <span className="flex items-center justify-center gap-2">
             {isSaving && (
               <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             )}
-            {isSaving ? 'Saving...' : saveSuccess ? 'Saved' : 'Save changes'}
+            {isSaving ? 'Saving...' : saveSuccess ? 'Saved' : isDirty ? 'Save changes' : 'No changes'}
             {saveSuccess && (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -468,10 +534,10 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
           <DisclosureSection title="Camera">
             <div className="space-y-1">
               {cameraName && (
-                <div className="text-sm font-medium text-gray-700">{cameraName}</div>
+                <CopyText value={cameraName} className="text-sm font-medium text-gray-700 block">{cameraName}</CopyText>
               )}
               {cameraSettings && (
-                <div className="text-xs text-gray-500 font-mono">{cameraSettings}</div>
+                <CopyText value={cameraSettings} className="text-xs text-gray-500 font-mono block">{cameraSettings}</CopyText>
               )}
             </div>
           </DisclosureSection>
@@ -501,9 +567,9 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             {image.latitude != null && image.longitude != null && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-400">Coordinates</span>
-                <span className="inline-flex px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-[11px]">
+                <CopyText value={`${image.latitude.toFixed(4)}, ${image.longitude.toFixed(4)}`} className="inline-flex px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-[11px]">
                   {image.latitude.toFixed(4)}, {image.longitude.toFixed(4)}
-                </span>
+                </CopyText>
               </div>
             )}
           </div>
@@ -513,9 +579,9 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             disabled={embeddingStatus === 'loading'}
             className={`mt-3 w-full px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               embeddingStatus === 'success'
-                ? 'border-emerald-200 text-emerald-600 bg-emerald-50'
+                ? 'border-blue-200 text-blue-600 bg-blue-50'
                 : embeddingStatus === 'error'
-                  ? 'border-red-200 text-red-500 bg-red-50'
+                  ? 'border-gray-300 text-red-500 bg-gray-50'
                   : 'border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-100'
             }`}
           >

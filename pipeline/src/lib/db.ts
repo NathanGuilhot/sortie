@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { Image } from 'shared';
+import { Image, Face, Person, FACE_EMBEDDING_DIM } from 'shared';
 
 interface EmbeddingDbRow {
   rowid: number;
@@ -18,6 +18,34 @@ interface DismissedDbRow {
   image_id: number;
   tag_id: number;
   dismissed_at: string;
+}
+
+interface FaceDbRow {
+  id: number;
+  image_id: number;
+  person_id: number | null;
+  bbox_x: number;
+  bbox_y: number;
+  bbox_w: number;
+  bbox_h: number;
+  confidence: number;
+  created_at: string;
+  person_name?: string | null;
+  image_path?: string;
+}
+
+interface PersonDbRow {
+  id: number;
+  name: string | null;
+  thumbnail_face_id: number | null;
+  face_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface VecMatchRow {
+  rowid: number;
+  distance: number;
 }
 
 export class DatabaseManager {
@@ -236,6 +264,60 @@ export class DatabaseManager {
 
       this.db.pragma('user_version = 3');
     }
+
+    if (version < 4) {
+      const columns = this.db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>;
+      const colNames = new Set(columns.map((c) => c.name));
+
+      if (!colNames.has('faces_scanned')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN faces_scanned BOOLEAN DEFAULT 0');
+      }
+
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS persons (
+          id INTEGER PRIMARY KEY,
+          name TEXT,
+          thumbnail_face_id INTEGER,
+          face_count INTEGER DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS faces (
+          id INTEGER PRIMARY KEY,
+          image_id INTEGER NOT NULL,
+          person_id INTEGER,
+          bbox_x REAL NOT NULL,
+          bbox_y REAL NOT NULL,
+          bbox_w REAL NOT NULL,
+          bbox_h REAL NOT NULL,
+          confidence REAL NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
+          FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE SET NULL
+        )
+      `);
+
+      this.db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS vec_faces USING vec0(
+          embedding float[${FACE_EMBEDDING_DIM}]
+        )
+      `);
+
+      this.db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS vec_persons USING vec0(
+          embedding float[${FACE_EMBEDDING_DIM}]
+        )
+      `);
+
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_faces_image ON faces(image_id)');
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_faces_person ON faces(person_id)');
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_persons_name ON persons(name)');
+
+      this.db.pragma('user_version = 4');
+    }
   }
 
   insertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): number {
@@ -342,5 +424,194 @@ export class DatabaseManager {
 
   getAllTags(): TagDbRow[] {
     return this.db.prepare('SELECT * FROM tags').all() as TagDbRow[];
+  }
+
+  getTagsWithCounts(): Array<TagDbRow & { usage_count: number }> {
+    return this.db
+      .prepare(
+        `
+      SELECT t.*, COUNT(it.image_id) AS usage_count
+      FROM tags t
+      LEFT JOIN image_tags it ON t.id = it.tag_id
+      GROUP BY t.id
+      ORDER BY usage_count DESC
+    `,
+      )
+      .all() as Array<TagDbRow & { usage_count: number }>;
+  }
+
+  // --- Face / Person methods ---
+
+  insertFace(face: {
+    image_id: number;
+    person_id: number | null;
+    bbox_x: number;
+    bbox_y: number;
+    bbox_w: number;
+    bbox_h: number;
+    confidence: number;
+  }): number {
+    const stmt = this.db.prepare(`
+      INSERT INTO faces (image_id, person_id, bbox_x, bbox_y, bbox_w, bbox_h, confidence)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(
+      face.image_id,
+      face.person_id,
+      face.bbox_x,
+      face.bbox_y,
+      face.bbox_w,
+      face.bbox_h,
+      face.confidence,
+    );
+    return result.lastInsertRowid as number;
+  }
+
+  insertFaceEmbedding(faceRowid: number, embedding: number[]): void {
+    this.db
+      .prepare('INSERT OR REPLACE INTO vec_faces (rowid, embedding) VALUES (?, ?)')
+      .run(BigInt(faceRowid), new Float32Array(embedding));
+  }
+
+  getFaceEmbedding(faceId: number): number[] | null {
+    const row = this.db
+      .prepare('SELECT embedding FROM vec_faces WHERE rowid = ?')
+      .get(BigInt(faceId)) as { embedding: Buffer | number[] } | undefined;
+    if (!row) return null;
+    if (Buffer.isBuffer(row.embedding)) {
+      return Array.from(
+        new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.embedding.byteLength / 4),
+      );
+    }
+    return row.embedding;
+  }
+
+  insertPerson(name?: string | null): number {
+    const stmt = this.db.prepare('INSERT INTO persons (name) VALUES (?)');
+    const result = stmt.run(name ?? null);
+    return result.lastInsertRowid as number;
+  }
+
+  insertPersonEmbedding(personRowid: number, embedding: number[]): void {
+    // vec0 virtual tables don't support REPLACE — delete first, then insert
+    try {
+      this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?').run(BigInt(personRowid));
+    } catch {
+      // row may not exist yet
+    }
+    this.db
+      .prepare('INSERT INTO vec_persons (rowid, embedding) VALUES (?, ?)')
+      .run(BigInt(personRowid), new Float32Array(embedding));
+  }
+
+  findNearestPerson(embedding: number[], limit: number = 1): VecMatchRow[] {
+    const stmt = this.db.prepare(`
+      SELECT rowid, distance FROM vec_persons
+      WHERE embedding MATCH ? AND k = ?
+      ORDER BY distance
+    `);
+    return stmt.all(new Float32Array(embedding), limit) as VecMatchRow[];
+  }
+
+  getAllPersons(): Person[] {
+    return this.db
+      .prepare('SELECT * FROM persons WHERE face_count > 0 ORDER BY face_count DESC')
+      .all() as PersonDbRow[] as Person[];
+  }
+
+  getPersonById(personId: number): Person | null {
+    return (
+      (this.db.prepare('SELECT * FROM persons WHERE id = ?').get(personId) as PersonDbRow | undefined as
+        | Person
+        | undefined) ?? null
+    );
+  }
+
+  getImageFaces(imageId: number): Face[] {
+    return this.db
+      .prepare(
+        `SELECT f.*, p.name AS person_name, i.file_path AS image_path
+         FROM faces f
+         LEFT JOIN persons p ON f.person_id = p.id
+         LEFT JOIN images i ON f.image_id = i.id
+         WHERE f.image_id = ?`,
+      )
+      .all(imageId) as FaceDbRow[] as Face[];
+  }
+
+  getPersonFaces(personId: number): Face[] {
+    return this.db
+      .prepare(
+        `SELECT f.*, p.name AS person_name, i.file_path AS image_path
+         FROM faces f
+         LEFT JOIN persons p ON f.person_id = p.id
+         LEFT JOIN images i ON f.image_id = i.id
+         WHERE f.person_id = ?`,
+      )
+      .all(personId) as FaceDbRow[] as Face[];
+  }
+
+  updateFacePerson(faceId: number, personId: number | null): void {
+    this.db.prepare('UPDATE faces SET person_id = ? WHERE id = ?').run(personId, faceId);
+  }
+
+  updatePersonName(personId: number, name: string): void {
+    this.db
+      .prepare("UPDATE persons SET name = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(name, personId);
+  }
+
+  updatePersonThumbnail(personId: number, faceId: number): void {
+    this.db
+      .prepare("UPDATE persons SET thumbnail_face_id = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(faceId, personId);
+  }
+
+  updatePersonFaceCount(personId: number): void {
+    this.db
+      .prepare(
+        `UPDATE persons SET
+           face_count = (SELECT COUNT(*) FROM faces WHERE person_id = ?),
+           updated_at = datetime('now')
+         WHERE id = ?`,
+      )
+      .run(personId, personId);
+  }
+
+  deletePerson(personId: number): void {
+    this.db.prepare('UPDATE faces SET person_id = NULL WHERE person_id = ?').run(personId);
+    try {
+      this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?').run(BigInt(personId));
+    } catch {
+      // vec_persons row may not exist
+    }
+    this.db.prepare('DELETE FROM persons WHERE id = ?').run(personId);
+  }
+
+  markImageFacesScanned(imageId: number): void {
+    this.db.prepare('UPDATE images SET faces_scanned = 1 WHERE id = ?').run(imageId);
+  }
+
+  getUnscannedFaceImages(): Array<{ id: number; file_path: string }> {
+    return this.db
+      .prepare('SELECT id, file_path FROM images WHERE faces_scanned = 0 AND hidden = 0')
+      .all() as Array<{ id: number; file_path: string }>;
+  }
+
+  cleanupOrphanedPersons(): void {
+    const orphans = this.db
+      .prepare(
+        `SELECT id FROM persons
+         WHERE id NOT IN (SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL)`,
+      )
+      .all() as Array<{ id: number }>;
+    for (const { id } of orphans) {
+      try {
+        this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?').run(BigInt(id));
+      } catch {
+        // may not exist
+      }
+      this.db.prepare('DELETE FROM persons WHERE id = ?').run(id);
+    }
   }
 }

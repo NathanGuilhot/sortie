@@ -1,5 +1,6 @@
-import { useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo, useState } from 'react';
 import { WithContext as ReactTags, Tag } from 'react-tag-input';
+import Fuse from 'fuse.js';
 import { useTagStore } from '../stores/tagStore';
 
 const KeyCodes = {
@@ -18,13 +19,19 @@ interface TagInputProps {
 }
 
 const CATEGORY_CLASSES: Record<string, string> = {
-  ai: 'bg-purple-100 text-purple-700 hover:bg-purple-200',
-  location: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
-  camera: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
+  ai: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+  location: 'bg-gray-200 text-gray-700 hover:bg-gray-300',
+  camera: 'bg-gray-100 text-gray-600 hover:bg-gray-200',
 };
 
 const DEFAULT_TAG_CLASS =
   'bg-gray-100 hover:bg-gray-200 text-gray-700';
+
+const CATEGORY_DOT: Record<string, string> = {
+  ai: 'bg-blue-400',
+  location: 'bg-gray-500',
+  camera: 'bg-gray-400',
+};
 
 export function TagInput({
   selectedTags,
@@ -34,22 +41,110 @@ export function TagInput({
   tagCategories,
 }: TagInputProps) {
   const { tags, fetchTags } = useTagStore();
+  const [inputValue, setInputValue] = useState('');
+  const [nearDuplicates, setNearDuplicates] = useState<string[]>([]);
 
-  // Load tags for autocomplete
   useEffect(() => {
     void fetchTags();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Convert tags to suggestions format
+  // Build suggestion objects with extra metadata encoded as strings
   const suggestions = useMemo(
     () =>
       tags.map((tag) => ({
         id: tag.id.toString(),
         text: tag.name,
         className: '',
+        usageCount: tag.usage_count.toString(),
+        category: tag.category || '',
       })),
     [tags],
+  );
+
+  // Fuse.js index for fuzzy matching
+  const fuse = useMemo(
+    () =>
+      new Fuse(suggestions, {
+        keys: ['text'],
+        threshold: 0.4,
+        distance: 100,
+        includeScore: true,
+        minMatchCharLength: 1,
+      }),
+    [suggestions],
+  );
+
+  // Tight fuse for near-duplicate detection
+  const tightFuse = useMemo(
+    () =>
+      new Fuse(tags.map((t) => t.name), {
+        threshold: 0.3,
+        distance: 50,
+        includeScore: true,
+        minMatchCharLength: 2,
+      }),
+    [tags],
+  );
+
+  const handleFilterSuggestions = useCallback(
+    (query: string, suggestions: Tag[]) => {
+      if (!query || query.length < 1) return suggestions;
+      const results = fuse.search(query);
+      return results.map((r) => r.item);
+    },
+    [fuse],
+  );
+
+  const renderSuggestion = useCallback(
+    (item: Tag, _query: string) => {
+      const count = parseInt(item.usageCount || '0', 10);
+      const cat = item.category || null;
+      const dotClass = cat ? CATEGORY_DOT[cat] : null;
+
+      return (
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-1.5 min-w-0">
+            {dotClass && (
+              <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotClass}`} />
+            )}
+            <span className="truncate">{item.text}</span>
+          </div>
+          {count > 0 && (
+            <span className="text-[10px] text-gray-400 ml-2 flex-shrink-0 tabular-nums">
+              {count}
+            </span>
+          )}
+        </div>
+      );
+    },
+    [],
+  );
+
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setInputValue(value);
+      const trimmed = value.trim();
+      if (!trimmed || trimmed.length < 2) {
+        setNearDuplicates([]);
+        return;
+      }
+
+      const lowerValue = trimmed.toLowerCase();
+      const exactExists = tags.some((t) => t.name.toLowerCase() === lowerValue);
+
+      if (!exactExists) {
+        const results = tightFuse.search(trimmed);
+        const close = results
+          .filter((r) => (r.score ?? 1) < 0.3)
+          .slice(0, 3)
+          .map((r) => r.item);
+        setNearDuplicates(close);
+      } else {
+        setNearDuplicates([]);
+      }
+    },
+    [tags, tightFuse],
   );
 
   const handleDelete = useCallback(
@@ -66,6 +161,8 @@ export function TagInput({
       if (tagText && !selectedTags.includes(tagText)) {
         onChange([...selectedTags, tagText]);
       }
+      setInputValue('');
+      setNearDuplicates([]);
     },
     [selectedTags, onChange],
   );
@@ -87,22 +184,34 @@ export function TagInput({
     [handleDelete],
   );
 
+  const handlePickDuplicate = useCallback(
+    (tagName: string) => {
+      if (!selectedTags.includes(tagName)) {
+        onChange([...selectedTags, tagName]);
+      }
+      setInputValue('');
+      setNearDuplicates([]);
+    },
+    [selectedTags, onChange],
+  );
+
   return (
     <div className="tag-input-wrapper">
       <ReactTags
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
         tags={selectedTags.map((tag) => {
           const cat = tagCategories?.get(tag);
           const cls = (cat && CATEGORY_CLASSES[cat]) || DEFAULT_TAG_CLASS;
           return { id: tag, text: tag, className: cls };
-        }) as any}
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-        suggestions={suggestions as any}
+        })}
+        suggestions={suggestions as Tag[]}
         delimiters={delimiters}
         handleDelete={handleDelete}
         handleAddition={handleAddition}
         handleDrag={handleDrag}
         handleTagClick={handleTagClick}
+        handleFilterSuggestions={handleFilterSuggestions}
+        renderSuggestion={renderSuggestion}
+        handleInputChange={handleInputChange}
         inputFieldPosition="inline"
         placeholder={placeholder}
         allowUnique={true}
@@ -121,6 +230,29 @@ export function TagInput({
           activeSuggestion: 'bg-gray-50',
         }}
       />
+
+      {nearDuplicates.length > 0 && inputValue.trim() && (
+        <div className="mt-1.5 px-2.5 py-2 text-xs text-gray-600 bg-gray-50 rounded-lg border border-gray-200 flex items-start gap-1.5">
+          <svg className="w-3.5 h-3.5 text-gray-400 mt-px flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <span>
+            Similar:{' '}
+            {nearDuplicates.map((name, i) => (
+              <span key={name}>
+                {i > 0 && ', '}
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handlePickDuplicate(name)}
+                  className="font-medium underline decoration-gray-300 hover:text-gray-900 transition-colors"
+                >
+                  {name}
+                </button>
+              </span>
+            ))}
+          </span>
+        </div>
+      )}
 
       <style>{`
         .tag-input-wrapper .ReactTags__tagInputField {

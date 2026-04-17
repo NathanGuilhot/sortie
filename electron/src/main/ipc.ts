@@ -82,6 +82,11 @@ export function setupIpcHandlers(
     return { success: true };
   });
 
+  ipcMain.handle('reset-face-data', async () => {
+    await dbService.resetFaceData();
+    return { success: true };
+  });
+
   ipcMain.handle('reset-database', async () => {
     watcherService.stopAll();
     await dbService.resetDatabase();
@@ -90,6 +95,10 @@ export function setupIpcHandlers(
 
   ipcMain.handle('get-all-tags', async () => {
     return await dbService.getAllTags();
+  });
+
+  ipcMain.handle('get-tags-with-counts', async () => {
+    return await dbService.getTagsWithCounts();
   });
 
   ipcMain.handle(
@@ -210,5 +219,80 @@ export function setupIpcHandlers(
   ipcMain.handle('backfill-exif', async () => {
     const filled = await dbService.backfillExifData();
     return { filled };
+  });
+
+  // --- Face Detection / People ---
+
+  ipcMain.handle('get-persons', async () => {
+    return await dbService.getPersons();
+  });
+
+  ipcMain.handle(
+    'get-person-images',
+    async (
+      _event,
+      { personId, limit, offset }: { personId: number; limit?: number; offset?: number },
+    ) => {
+      return await dbService.getPersonImages(personId, limit, offset);
+    },
+  );
+
+  ipcMain.handle(
+    'rename-person',
+    async (_event, { personId, name }: { personId: number; name: string }) => {
+      await dbService.renamePerson(personId, name);
+      return { success: true };
+    },
+  );
+
+  ipcMain.handle(
+    'merge-persons',
+    async (
+      _event,
+      { keepPersonId, mergePersonId }: { keepPersonId: number; mergePersonId: number },
+    ) => {
+      await dbService.mergePersons(keepPersonId, mergePersonId);
+      return { success: true };
+    },
+  );
+
+  ipcMain.handle('split-face-from-person', async (_event, { faceId }: { faceId: number }) => {
+    const newPersonId = await dbService.splitFaceFromPerson(faceId);
+    return { newPersonId };
+  });
+
+  ipcMain.handle('get-image-faces', async (_event, { imageId }: { imageId: number }) => {
+    return await dbService.getImageFaces(imageId);
+  });
+
+  ipcMain.handle(
+    'set-person-thumbnail',
+    async (_event, { personId, faceId }: { personId: number; faceId: number }) => {
+      await dbService.setPersonThumbnail(personId, faceId);
+      return { success: true };
+    },
+  );
+
+  ipcMain.handle('process-faces', async (event) => {
+    const webContents = event.sender;
+    const result = await dbService.processExistingImagesForFaces((progress) => {
+      webContents.send('face-scan-progress', progress);
+    });
+    return result;
+  });
+
+  ipcMain.handle(
+    'filter-images-by-person',
+    async (
+      _event,
+      { personId, limit, offset }: { personId: number; limit?: number; offset?: number },
+    ) => {
+      return await dbService.filterImagesByPerson(personId, limit, offset);
+    },
+  );
+
+  ipcMain.handle('delete-person', async (_event, { personId }: { personId: number }) => {
+    await dbService.deletePerson(personId);
+    return { success: true };
   });
 }

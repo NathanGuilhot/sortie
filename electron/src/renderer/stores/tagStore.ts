@@ -1,11 +1,11 @@
 import { create } from 'zustand';
-import { Tag } from 'shared';
+import { TagWithCount } from 'shared';
 
 interface TagStore {
-  tags: Tag[];
+  tags: TagWithCount[];
   loading: boolean;
   error: string | null;
-  setTags: (tags: Tag[]) => void;
+  setTags: (tags: TagWithCount[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   fetchTags: () => Promise<void>;
@@ -21,13 +21,14 @@ export const useTagStore = create<TagStore>((set) => ({
   fetchTags: async () => {
     set({ loading: true, error: null });
     try {
-      const allTags = await window.sortieAPI.getAllTags();
-      const tags: Tag[] = allTags.map((t) => ({
+      const allTags = await window.sortieAPI.getTagsWithCounts();
+      const tags: TagWithCount[] = allTags.map((t) => ({
         id: t.id,
         name: t.name,
-        category: (t.category || 'user') as Tag['category'],
+        category: (t.category || 'user') as TagWithCount['category'],
         color: t.color,
         created_at: t.created_at,
+        usage_count: t.usage_count,
       }));
       set({ tags, loading: false });
     } catch (error: unknown) {

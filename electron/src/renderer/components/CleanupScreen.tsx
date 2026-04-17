@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCleanupStore } from '../stores/cleanupStore';
+import { CopyText } from './CopyText';
 import { DuplicateGroup, Image } from 'shared';
 
 function formatSize(bytes: number): string {
@@ -40,8 +41,8 @@ function DuplicateGroupCard({
           <span
             className={`px-2 py-0.5 rounded text-xs font-medium ${
               group.matchType === 'exact'
-                ? 'bg-red-100 text-red-700'
-                : 'bg-amber-100 text-amber-700'
+                ? 'bg-rose-100 text-rose-700'
+                : 'bg-gray-100 text-gray-700'
             }`}
           >
             {group.matchType === 'exact' ? 'Exact Match' : 'Visual Match'}
@@ -61,15 +62,35 @@ function DuplicateGroupCard({
         className="grid gap-4"
         style={{ gridTemplateColumns: `repeat(${Math.min(group.images.length, 4)}, 1fr)` }}
       >
-        {group.images.map((img: Image) => (
-          <ImageCard key={img.id} image={img} onKeep={() => onKeep(group, img.id)} />
-        ))}
+        {group.images.map((img: Image) => {
+          const others = group.images.filter((o: Image) => o.id !== img.id);
+          const othersSize = others.reduce((s: number, o: Image) => s + (o.file_size || 0), 0);
+          return (
+            <ImageCard
+              key={img.id}
+              image={img}
+              onKeep={() => onKeep(group, img.id)}
+              deleteCount={others.length}
+              deleteSize={othersSize}
+            />
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function ImageCard({ image, onKeep }: { image: Image; onKeep: () => void }) {
+function ImageCard({
+  image,
+  onKeep,
+  deleteCount,
+  deleteSize,
+}: {
+  image: Image;
+  onKeep: () => void;
+  deleteCount: number;
+  deleteSize: number;
+}) {
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -77,7 +98,7 @@ function ImageCard({ image, onKeep }: { image: Image; onKeep: () => void }) {
       {/* Thumbnail */}
       <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden mb-2">
         <img
-          src={`sortie-thumb://${image.file_path}?w=${Math.ceil(300 * (window.devicePixelRatio || 1))}`}
+          src={`sortie-thumb://${image.file_path}?w=${Math.ceil((300 * (window.devicePixelRatio || 1)) / 100) * 100}`}
           alt={image.file_name}
           className="w-full h-full object-cover"
           loading="lazy"
@@ -86,9 +107,9 @@ function ImageCard({ image, onKeep }: { image: Image; onKeep: () => void }) {
 
       {/* Metadata */}
       <div className="space-y-0.5 mb-2">
-        <p className="text-xs font-medium text-gray-900 truncate" title={image.file_name}>
+        <CopyText value={image.file_name} className="text-xs font-medium text-gray-900 truncate block" title={image.file_name}>
           {image.file_name}
-        </p>
+        </CopyText>
         <div className="flex items-center gap-2 text-xs text-gray-400">
           <span>{formatExt(image.mime_type)}</span>
           {image.width && image.height && (
@@ -113,7 +134,7 @@ function ImageCard({ image, onKeep }: { image: Image; onKeep: () => void }) {
             }}
             className="flex-1 px-2 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors cursor-pointer"
           >
-            Delete others
+            Delete {deleteCount} {deleteCount === 1 ? 'file' : 'files'} ({formatSize(deleteSize)})
           </button>
           <button
             onClick={() => setConfirming(false)}
@@ -292,8 +313,7 @@ export function CleanupScreen() {
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-1">Find duplicate images</h3>
             <p className="text-sm text-gray-500 mb-6 text-center max-w-sm">
-              Scan your library to detect exact and visual duplicates, even across different formats
-              and resolutions.
+              Find exact and visual duplicates.
             </p>
             <button
               onClick={() => void handleScan()}
@@ -315,9 +335,9 @@ export function CleanupScreen() {
         {/* Empty state after scan */}
         {hasScanned && !scanning && duplicateGroups.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-16 h-16 rounded-2xl bg-green-50 flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
               <svg
-                className="w-8 h-8 text-green-500"
+                className="w-8 h-8 text-blue-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"

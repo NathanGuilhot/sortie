@@ -10,14 +10,19 @@ import {
   computeFileHash,
   hammingDistance,
   DHASH_DUPLICATE_THRESHOLD,
+  FaceDetector,
+  FaceMatcher,
 } from 'pipeline';
 import {
   Image,
   Tag,
+  Face,
+  Person,
   Folder,
   FolderWithStats,
   SearchResult,
   DuplicateGroup,
+  FaceScanProgress,
   SUPPORTED_IMAGE_EXTENSIONS,
 } from 'shared';
 import { shell } from 'electron';
@@ -46,13 +51,17 @@ export class DatabaseService {
   private embedder: ClipEmbedder | null = null;
   private suggestionEngine: SuggestionEngine | null = null;
   private organizer: Organizer | null = null;
+  private faceDetector: FaceDetector | null = null;
+  private faceMatcher: FaceMatcher | null = null;
   private imageCache = new Map<string, Image[]>();
 
-  initialize(dbPath: string) {
+  initialize(dbPath: string, faceModelsPath: string, faceCacheDir?: string) {
     this.db = new DatabaseManager(dbPath);
     this.embedder = new ClipEmbedder();
     this.suggestionEngine = new SuggestionEngine(dbPath);
     this.organizer = new Organizer(dbPath);
+    this.faceDetector = new FaceDetector(faceModelsPath, faceCacheDir);
+    this.faceMatcher = new FaceMatcher(this.db);
   }
 
   close() {
@@ -356,11 +365,29 @@ export class DatabaseService {
     this.invalidateImageCache();
   }
 
+  async resetFaceData(): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db.getDatabase();
+
+    const txn = db.transaction(() => {
+      db.prepare('DELETE FROM vec_faces').run();
+      db.prepare('DELETE FROM vec_persons').run();
+      db.prepare('DELETE FROM faces').run();
+      db.prepare('DELETE FROM persons').run();
+      db.prepare('UPDATE images SET faces_scanned = 0').run();
+    });
+    txn();
+  }
+
   async resetDatabase(): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db.getDatabase();
 
     const txn = db.transaction(() => {
+      db.prepare('DELETE FROM vec_faces').run();
+      db.prepare('DELETE FROM vec_persons').run();
+      db.prepare('DELETE FROM faces').run();
+      db.prepare('DELETE FROM persons').run();
       db.prepare('DELETE FROM vec_images').run();
       db.prepare('DELETE FROM images').run();
       db.prepare('DELETE FROM collections').run();
@@ -471,6 +498,11 @@ export class DatabaseService {
     return this.db.getAllTags() as Tag[];
   }
 
+  async getTagsWithCounts(): Promise<Array<Tag & { usage_count: number }>> {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.db.getTagsWithCounts() as Array<Tag & { usage_count: number }>;
+  }
+
   async getSuggestions(imageId: number): Promise<TagSuggestion[]> {
     if (!this.suggestionEngine) throw new Error('Suggestion engine not initialized');
     return this.suggestionEngine.generateSuggestionsForImage(imageId);
@@ -575,6 +607,125 @@ export class DatabaseService {
     return filled;
   }
 
+  // --- Face Detection / People ---
+
+  private async detectFacesForImage(imageId: number, filePath: string): Promise<number> {
+    if (!this.db || !this.faceDetector || !this.faceMatcher) {
+      throw new Error('Face detection is not available');
+    }
+
+    const faces = await this.faceDetector.detectFaces(filePath);
+
+    for (const face of faces) {
+      const faceId = this.db.insertFace({
+        image_id: imageId,
+        person_id: null,
+        bbox_x: face.bbox.x,
+        bbox_y: face.bbox.y,
+        bbox_w: face.bbox.width,
+        bbox_h: face.bbox.height,
+        confidence: face.confidence,
+      });
+      this.db.insertFaceEmbedding(faceId, face.descriptor);
+
+      const match = this.faceMatcher.matchFace(face.descriptor);
+      this.faceMatcher.assignFaceToPerson(faceId, match.personId);
+    }
+
+    this.db.markImageFacesScanned(imageId);
+    return faces.length;
+  }
+
+  async processExistingImagesForFaces(
+    onProgress?: (progress: FaceScanProgress) => void,
+  ): Promise<{ scanned: number; detected: number }> {
+    if (!this.db) throw new Error('Database not initialized');
+    if (!this.faceDetector || !this.faceMatcher) {
+      throw new Error('Face detection is not available. The face-api models may have failed to load.');
+    }
+
+    const images = this.db.getUnscannedFaceImages();
+    let totalFaces = 0;
+
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      try {
+        const count = await this.detectFacesForImage(img.id, img.file_path);
+        totalFaces += count;
+      } catch (error) {
+        console.error(`Failed face detection for ${img.file_path}:`, error);
+        this.db.markImageFacesScanned(img.id);
+      }
+      onProgress?.({ current: i + 1, total: images.length, currentFile: img.file_path });
+
+      // Yield to event loop between images to prevent UI freezes
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    return { scanned: images.length, detected: totalFaces };
+  }
+
+  async getPersons(): Promise<Person[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.db.getAllPersons();
+  }
+
+  async getPersonImages(
+    personId: number,
+    limit: number = 100,
+    offset: number = 0,
+  ): Promise<Image[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    const stmt = this.db.getDatabase().prepare(`
+      SELECT DISTINCT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
+      FROM images i
+      JOIN faces f ON f.image_id = i.id
+      WHERE f.person_id = ? AND i.hidden = 0
+      ORDER BY i.captured_at DESC, i.created_at DESC
+      LIMIT ? OFFSET ?
+    `);
+    const rows = stmt.all(personId, limit, offset) as ImageDbRow[];
+    return rows.map((row) => ({ ...row, embedded: !!row.embedded }));
+  }
+
+  async renamePerson(personId: number, name: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db.updatePersonName(personId, name);
+  }
+
+  async mergePersons(keepPersonId: number, mergePersonId: number): Promise<void> {
+    if (!this.faceMatcher) throw new Error('FaceMatcher not initialized');
+    this.faceMatcher.mergePersons(keepPersonId, mergePersonId);
+  }
+
+  async splitFaceFromPerson(faceId: number): Promise<number> {
+    if (!this.faceMatcher) throw new Error('FaceMatcher not initialized');
+    return this.faceMatcher.splitFaceFromPerson(faceId);
+  }
+
+  async getImageFaces(imageId: number): Promise<Face[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.db.getImageFaces(imageId);
+  }
+
+  async setPersonThumbnail(personId: number, faceId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db.updatePersonThumbnail(personId, faceId);
+  }
+
+  async filterImagesByPerson(
+    personId: number,
+    limit: number = 100,
+    offset: number = 0,
+  ): Promise<Image[]> {
+    return this.getPersonImages(personId, limit, offset);
+  }
+
+  async deletePerson(personId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db.deletePerson(personId);
+  }
+
   getDatabase(): DatabaseManager | null {
     return this.db;
   }
@@ -628,6 +779,12 @@ export class DatabaseService {
       this.db.insertEmbedding(imageId, embedding);
     } catch (error) {
       console.error(`Failed to generate embedding for ${filePath}:`, error);
+    }
+
+    try {
+      await this.detectFacesForImage(imageId, filePath);
+    } catch (error) {
+      console.error(`Failed face detection for ${filePath}:`, error);
     }
 
     this.invalidateImageCache();

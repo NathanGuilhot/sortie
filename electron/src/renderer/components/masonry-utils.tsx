@@ -15,7 +15,7 @@ export const MasonryImage = memo(function MasonryImage({
 }) {
   const [loaded, setLoaded] = useState(false);
 
-  const thumbWidth = Math.ceil(columnWidth * (window.devicePixelRatio || 1));
+  const thumbWidth = Math.ceil((columnWidth * (window.devicePixelRatio || 1)) / 100) * 100;
   const src = `sortie-thumb://${image.file_path}?w=${thumbWidth}`;
 
   return (

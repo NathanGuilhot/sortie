@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, RefObject } from 'react';
+import { Person } from 'shared';
 import { useUIStore } from '../stores/uiStore';
 import { useImageStore } from '../stores/imageStore';
 import { TagInput } from './TagInput';
@@ -22,9 +23,14 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     setShowHidden,
     showFavoritesOnly,
     setShowFavoritesOnly,
+    personFilter,
+    setPersonFilter,
     clearFilters,
   } = useUIStore();
-  const { searchImages, fetchImages, filterByTags, fetchFavorites, loading } = useImageStore();
+  const { searchImages, fetchImages, filterByTags, filterByPerson, fetchFavorites, loading } =
+    useImageStore();
+
+  const [persons, setPersons] = useState<Person[]>([]);
 
   const [localQuery, setLocalQuery] = useState(searchQuery);
   const [isFocused, setIsFocused] = useState(false);
@@ -33,12 +39,30 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
+  // Load persons list for the filter dropdown
+  useEffect(() => {
+    window.sortieAPI.getPersons().then(setPersons).catch(() => {});
+  }, []);
+
+  // React to person filter changes
+  useEffect(() => {
+    if (personFilter !== null) {
+      void filterByPerson(personFilter);
+    } else if (tagFilters.length > 0) {
+      void filterByTags(tagFilters);
+    } else if (!showFavoritesOnly && !localQuery.trim()) {
+      void fetchImages();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personFilter]);
+
   const hasActiveFilters =
     tagFilters.length > 0 ||
     dateRange.start !== null ||
     dateRange.end !== null ||
     showHidden ||
-    showFavoritesOnly;
+    showFavoritesOnly ||
+    personFilter !== null;
 
   // Debounce search query to store
   useEffect(() => {
@@ -271,6 +295,29 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
                   placeholder="Add tags..."
                 />
               </div>
+
+              {/* Person filter */}
+              {persons.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                    Filter by person
+                  </label>
+                  <select
+                    value={personFilter ?? ''}
+                    onChange={(e) =>
+                      setPersonFilter(e.target.value ? Number(e.target.value) : null)
+                    }
+                    className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors"
+                  >
+                    <option value="">All people</option>
+                    {persons.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name || `Person ${p.id}`} ({p.face_count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Date range */}
               <div>

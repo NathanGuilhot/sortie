@@ -18,6 +18,7 @@ interface ImageStore {
   updateImageTags: (imageId: number, tags: string[]) => Promise<void>;
   filterByTags: (tags: string[], limit?: number, offset?: number) => Promise<void>;
   fetchFavorites: (limit?: number, offset?: number) => Promise<void>;
+  filterByPerson: (personId: number, limit?: number, offset?: number) => Promise<void>;
   hideImage: (imageId: number) => Promise<void>;
   updateImageMetadata: (
     imageId: number,
@@ -98,6 +99,16 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     try {
       const fetched = await window.sortieAPI.getFavoriteImages(limit, offset);
       set({ images: fetched, loading: false, hasMore: fetched.length >= limit });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message, loading: false });
+    }
+  },
+  filterByPerson: async (personId: number, limit = 100, offset = 0) => {
+    set({ loading: true, error: null });
+    try {
+      const images = await window.sortieAPI.filterImagesByPerson(personId, limit, offset);
+      set({ images, loading: false, hasMore: images.length >= limit });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       set({ error: message, loading: false });
