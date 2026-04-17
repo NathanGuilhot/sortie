@@ -3,6 +3,7 @@ import { Person } from 'shared';
 import { useUIStore } from '../stores/uiStore';
 import { useImageStore } from '../stores/imageStore';
 import { TagInput } from './TagInput';
+import { buildFaceThumbUrl } from './faceThumb';
 
 interface SearchBarProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
@@ -10,6 +11,64 @@ interface SearchBarProps {
 }
 
 const SUGGESTIONS = ['landscape', 'portrait', 'sunset', 'beach', 'family', 'vacation'];
+
+function PersonFilterChip({
+  person,
+  selected,
+  onToggle,
+}: {
+  person: Person;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!person.thumbnail_face_id) return;
+    let cancelled = false;
+    window.sortieAPI
+      .getPersonImages(person.id, 1)
+      .then(async (images) => {
+        if (cancelled || images.length === 0) return;
+        const faces = await window.sortieAPI.getImageFaces(images[0].id);
+        const personFace = faces.find((f) => f.person_id === person.id);
+        if (!cancelled && personFace) setThumbUrl(buildFaceThumbUrl(personFace));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [person.id, person.thumbnail_face_id]);
+
+  const label = person.name || `Person ${person.id}`;
+
+  return (
+    <button
+      onClick={onToggle}
+      title={`${label} (${person.face_count})`}
+      className={`relative w-10 h-10 rounded-full overflow-hidden transition-all ${
+        selected
+          ? 'ring-2 ring-blue-500 ring-offset-2'
+          : 'ring-1 ring-gray-200 hover:ring-gray-400'
+      }`}
+    >
+      {thumbUrl ? (
+        <img src={thumbUrl} alt={label} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            />
+          </svg>
+        </div>
+      )}
+    </button>
+  );
+}
 
 export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   const {
@@ -302,20 +361,18 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
                   <label className="block text-xs font-medium text-gray-500 mb-1.5">
                     Filter by person
                   </label>
-                  <select
-                    value={personFilter ?? ''}
-                    onChange={(e) =>
-                      setPersonFilter(e.target.value ? Number(e.target.value) : null)
-                    }
-                    className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors"
-                  >
-                    <option value="">All people</option>
+                  <div className="flex flex-wrap gap-2">
                     {persons.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name || `Person ${p.id}`} ({p.face_count})
-                      </option>
+                      <PersonFilterChip
+                        key={p.id}
+                        person={p}
+                        selected={personFilter === p.id}
+                        onToggle={() =>
+                          setPersonFilter(personFilter === p.id ? null : p.id)
+                        }
+                      />
                     ))}
-                  </select>
+                  </div>
                 </div>
               )}
 

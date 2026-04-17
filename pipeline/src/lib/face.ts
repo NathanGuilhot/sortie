@@ -45,16 +45,20 @@ export class FaceDetector {
     if (this.isInitialized) return;
 
     try {
-      // Use CPU backend — WASM OOMs inside Electron's process
       // eslint-disable-next-line @typescript-eslint/no-implied-eval
       const dynamicImport = new Function('specifier', 'return import(specifier)') as <T = unknown>(
         specifier: string,
       ) => Promise<T>;
 
-      // Import TF and force CPU backend before face-api registers its own backend.
-      // The WASM backend OOMs inside Electron, so CPU is the safe choice.
+      // Configure WASM backend paths before importing TF.js
+      const wasmBackend = await dynamicImport<any>('@tensorflow/tfjs-backend-wasm');
+      const wasmDir = path.dirname(
+        require.resolve('@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm.wasm'),
+      );
+      wasmBackend.setWasmPaths(wasmDir + '/');
+
       this.tf = await dynamicImport<any>('@tensorflow/tfjs');
-      await this.tf.setBackend('cpu');
+      await this.tf.setBackend('wasm');
       await this.tf.ready();
 
       this.faceapi = await dynamicImport('@vladmandic/face-api/dist/face-api.node-wasm.js');

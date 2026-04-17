@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Image, SearchResult, Face } from 'shared';
+import { Image, SearchResult } from 'shared';
 import { MetadataEditor } from './MetadataEditor';
 import { CopyText } from './CopyText';
 import { SimilarityGrid } from './SimilarityGrid';
@@ -16,8 +16,6 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
   const [showMetadata, setShowMetadata] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [similarImages, setSimilarImages] = useState<SearchResult[]>([]);
-  const [faces, setFaces] = useState<Face[]>([]);
-  const [showFaces, setShowFaces] = useState(true);
   const imgRef = useRef<HTMLImageElement>(null);
   const cache = useRef(new Map<number, SearchResult[]>());
 
@@ -53,12 +51,6 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
     return () => {
       cancelled = true;
     };
-  }, [image.id]);
-
-  // Fetch faces for this image
-  useEffect(() => {
-    setFaces([]);
-    void window.sortieAPI.getImageFaces(image.id).then((f) => setFaces(f));
   }, [image.id]);
 
   // Split into left/right (interleaved so both sides have equally similar images)
@@ -170,27 +162,6 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
               onLoad={() => setImageLoaded(true)}
               draggable={false}
             />
-            {/* Face bounding box overlays */}
-            {showFaces &&
-              imageLoaded &&
-              faces.map((face) => (
-                <div
-                  key={face.id}
-                  className="absolute border-2 border-blue-400/70 rounded-sm pointer-events-none group"
-                  style={{
-                    left: `${face.bbox_x * 100}%`,
-                    top: `${face.bbox_y * 100}%`,
-                    width: `${face.bbox_w * 100}%`,
-                    height: `${face.bbox_h * 100}%`,
-                  }}
-                >
-                  {face.person_name && (
-                    <span className="absolute -bottom-5 left-0 text-[10px] text-blue-300 whitespace-nowrap bg-black/60 px-1 rounded">
-                      {face.person_name}
-                    </span>
-                  )}
-                </div>
-              ))}
           </div>
         </div>
 
