@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { FaceScanProgress, EmbedderStatus } from 'shared';
 
 contextBridge.exposeInMainWorld('sortieAPI', {
   // Image operations
@@ -7,6 +8,16 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   searchImages: (query: string, limit?: number) =>
     ipcRenderer.invoke('search-images', { query, limit }),
+
+  getEmbedderStatus: (): Promise<EmbedderStatus> => ipcRenderer.invoke('get-embedder-status'),
+
+  onEmbedderStatus: (callback: (status: EmbedderStatus) => void) => {
+    const handler = (_event: unknown, status: EmbedderStatus) => callback(status);
+    ipcRenderer.on('embedder-status', handler);
+    return () => {
+      ipcRenderer.removeListener('embedder-status', handler);
+    };
+  },
 
   findSimilarImages: (imageId: number, limit?: number) =>
     ipcRenderer.invoke('find-similar-images', { imageId, limit }),
@@ -19,7 +30,9 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   addFolder: (path: string) => ipcRenderer.invoke('add-folder', { path }),
 
-  scanFolder: (path: string) => ipcRenderer.invoke('scan-folder', { path }),
+  scanFolder: (path: string, opId: string) => ipcRenderer.invoke('scan-folder', { path, opId }),
+
+  cancelOperation: (opId: string) => ipcRenderer.invoke('cancel-operation', { opId }),
 
   getFolders: () => ipcRenderer.invoke('get-folders'),
 
@@ -57,7 +70,7 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   recomputeEmbedding: (imageId: number) => ipcRenderer.invoke('recompute-embedding', { imageId }),
 
   // Cleanup / Duplicate detection
-  computeMissingHashes: () => ipcRenderer.invoke('compute-missing-hashes'),
+  computeMissingHashes: (opId: string) => ipcRenderer.invoke('compute-missing-hashes', { opId }),
 
   findDuplicateGroups: () => ipcRenderer.invoke('find-duplicate-groups'),
 
@@ -94,7 +107,7 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   // File actions
   revealInFinder: (filePath: string) => ipcRenderer.invoke('reveal-in-finder', { filePath }),
-  backfillExif: () => ipcRenderer.invoke('backfill-exif'),
+  backfillExif: (opId: string) => ipcRenderer.invoke('backfill-exif', { opId }),
 
   // Face Detection / People
   getPersons: () => ipcRenderer.invoke('get-persons'),
@@ -116,7 +129,7 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   setPersonThumbnail: (personId: number, faceId: number) =>
     ipcRenderer.invoke('set-person-thumbnail', { personId, faceId }),
 
-  processFaces: () => ipcRenderer.invoke('process-faces'),
+  processFaces: (opId: string) => ipcRenderer.invoke('process-faces', { opId }),
   resetFaceData: () => ipcRenderer.invoke('reset-face-data'),
 
   filterImagesByPerson: (personId: number, limit?: number, offset?: number) =>
@@ -124,13 +137,8 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   deletePerson: (personId: number) => ipcRenderer.invoke('delete-person', { personId }),
 
-  onFaceScanProgress: (
-    callback: (progress: { current: number; total: number; currentFile: string }) => void,
-  ) => {
-    const handler = (
-      _event: unknown,
-      progress: { current: number; total: number; currentFile: string },
-    ) => callback(progress);
+  onFaceScanProgress: (callback: (progress: FaceScanProgress) => void) => {
+    const handler = (_event: unknown, progress: FaceScanProgress) => callback(progress);
     ipcRenderer.on('face-scan-progress', handler);
     return () => {
       ipcRenderer.removeListener('face-scan-progress', handler);

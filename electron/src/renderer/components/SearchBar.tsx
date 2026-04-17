@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef, RefObject } from 'reac
 import { Person } from 'shared';
 import { useUIStore } from '../stores/uiStore';
 import { useImageStore } from '../stores/imageStore';
+import { useEmbedderStore } from '../stores/embedderStore';
 import { TagInput } from './TagInput';
 import { buildFaceThumbUrl } from './faceThumb';
 
@@ -88,6 +89,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   } = useUIStore();
   const { searchImages, fetchImages, filterByTags, filterByPerson, fetchFavorites, loading } =
     useImageStore();
+  const embedderStatus = useEmbedderStore((s) => s.status);
 
   const [persons, setPersons] = useState<Person[]>([]);
 
@@ -317,6 +319,19 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
           </kbd>
         )}
       </div>
+
+      {/* Embedder status strip */}
+      {embedderStatus.state === 'warming' && (
+        <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 backdrop-blur-lg border border-gray-200/60 shadow text-xs text-gray-500 w-fit mx-auto">
+          <div className="animate-spin rounded-full h-3 w-3 border-2 border-gray-300 border-t-gray-500" />
+          <span>Loading search model…</span>
+        </div>
+      )}
+      {embedderStatus.state === 'error' && (
+        <div className="mt-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs text-red-700 w-fit mx-auto">
+          Search unavailable: {embedderStatus.message}
+        </div>
+      )}
 
       {/* Dropdown panel */}
       {showDropdown && (

@@ -8,6 +8,11 @@ import {
   Person,
   Face,
   FaceScanProgress,
+  FaceScanResult,
+  ScanFolderResult,
+  HashScanResult,
+  BackfillExifResult,
+  EmbedderStatus,
 } from 'shared';
 
 export {};
@@ -18,11 +23,14 @@ declare global {
       // Image operations
       getImages: (limit?: number, offset?: number) => Promise<Image[]>;
       searchImages: (query: string, limit?: number) => Promise<SearchResult[]>;
+      getEmbedderStatus: () => Promise<EmbedderStatus>;
+      onEmbedderStatus: (callback: (status: EmbedderStatus) => void) => () => void;
       findSimilarImages: (imageId: number, limit?: number) => Promise<SearchResult[]>;
       getFavoriteImages: (limit?: number, offset?: number) => Promise<Image[]>;
       filterImages: (tags: string[], limit?: number, offset?: number) => Promise<Image[]>;
       addFolder: (path: string) => Promise<number>;
-      scanFolder: (path: string) => Promise<number>;
+      scanFolder: (path: string, opId: string) => Promise<ScanFolderResult>;
+      cancelOperation: (opId: string) => Promise<{ cancelled: boolean }>;
       getFolders: () => Promise<Folder[]>;
       getFoldersWithStats: () => Promise<FolderWithStats[]>;
       removeFolder: (path: string) => Promise<{ success: boolean }>;
@@ -70,7 +78,7 @@ declare global {
       watchFolder: (path: string) => Promise<{ watching: boolean }>;
       unwatchFolder: (path: string) => Promise<{ watching: boolean }>;
       // Cleanup / Duplicate detection
-      computeMissingHashes: () => Promise<{ computed: number }>;
+      computeMissingHashes: (opId: string) => Promise<HashScanResult>;
       findDuplicateGroups: () => Promise<DuplicateGroup[]>;
       dismissDuplicatePair: (imageId1: number, imageId2: number) => Promise<{ success: boolean }>;
       deleteImage: (imageId: number) => Promise<{ success: boolean }>;
@@ -82,7 +90,7 @@ declare global {
       ) => () => void;
       // File actions
       revealInFinder: (filePath: string) => Promise<{ success: boolean }>;
-      backfillExif: () => Promise<{ filled: number }>;
+      backfillExif: (opId: string) => Promise<BackfillExifResult>;
       // Face Detection / People
       getPersons: () => Promise<Person[]>;
       getPersonImages: (
@@ -101,7 +109,7 @@ declare global {
         personId: number,
         faceId: number,
       ) => Promise<{ success: boolean }>;
-      processFaces: () => Promise<{ scanned: number; detected: number }>;
+      processFaces: (opId: string) => Promise<FaceScanResult>;
       resetFaceData: () => Promise<{ success: boolean }>;
       filterImagesByPerson: (
         personId: number,

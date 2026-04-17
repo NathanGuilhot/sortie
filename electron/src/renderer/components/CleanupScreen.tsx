@@ -162,6 +162,7 @@ export function CleanupScreen() {
     scanning,
     scanProgress,
     scanForDuplicates,
+    cancelScan,
     dismissPair,
     deleteImage,
     setError,
@@ -218,30 +219,30 @@ export function CleanupScreen() {
               <div className="text-xs text-gray-500">Reclaimable</div>
             </div>
           </div>
-          <button
-            onClick={() => void handleScan()}
-            disabled={scanning}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium cursor-pointer disabled:opacity-50"
-          >
-            {scanning ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
-                Scanning...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                Scan for Duplicates
-              </>
-            )}
-          </button>
+          {scanning ? (
+            <button
+              onClick={() => void cancelScan()}
+              className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium cursor-pointer"
+            >
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
+              Cancel
+            </button>
+          ) : (
+            <button
+              onClick={() => void handleScan()}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium cursor-pointer"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              Scan for Duplicates
+            </button>
+          )}
         </div>
 
         {/* Progress bar */}

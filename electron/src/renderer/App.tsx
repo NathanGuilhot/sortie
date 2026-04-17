@@ -7,6 +7,7 @@ import { CleanupScreen } from './components/CleanupScreen';
 import { PeopleScreen } from './components/PeopleScreen';
 import { useImageStore } from './stores/imageStore';
 import { useUIStore } from './stores/uiStore';
+import { useEmbedderStore } from './stores/embedderStore';
 
 function App() {
   const { selectedImage, setSelectedImage, images } = useImageStore();
@@ -19,6 +20,9 @@ function App() {
   });
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const initEmbedder = useEmbedderStore((s) => s.init);
+
+  useEffect(() => initEmbedder(), [initEmbedder]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

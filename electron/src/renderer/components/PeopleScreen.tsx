@@ -266,6 +266,7 @@ export function PeopleScreen() {
     fetchPersons,
     selectPerson,
     scanFaces,
+    cancelScan,
     mergePersons,
     clearScanResult,
     resetFaceData,
@@ -308,17 +309,21 @@ export function PeopleScreen() {
               {totalFaces === 1 ? 'face' : 'faces'} detected
             </p>
           </div>
-          <button
-            onClick={() => void scanFaces()}
-            disabled={scanning}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              scanning
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
-          >
-            {scanning ? 'Scanning...' : 'Scan Faces'}
-          </button>
+          {scanning ? (
+            <button
+              onClick={() => void cancelScan()}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+            >
+              Cancel Scan
+            </button>
+          ) : (
+            <button
+              onClick={() => void scanFaces()}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              Scan Faces
+            </button>
+          )}
         </div>
 
         {/* Merge banner */}

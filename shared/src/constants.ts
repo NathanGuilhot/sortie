@@ -12,8 +12,10 @@ export const CATEGORY_COLORS: Record<string, string> = {
 
 export const FACE_DETECTION_MAX_DIM = 1024;
 export const FACE_EMBEDDING_DIM = 128;
-export const FACE_MATCH_THRESHOLD = 0.75;
-export const FACE_MIN_CONFIDENCE = 0.5;
+// Cosine distance on unit-norm FaceNet descriptors: 0 = identical, 2 = opposite.
+// 0.4 ≈ cos_sim ≥ 0.6 — standard same-person threshold.
+export const FACE_MATCH_THRESHOLD = 0.4;
+export const FACE_MIN_CONFIDENCE = 0.6;
 export const FACE_MIN_SIZE_RATIO = 0.02;
 
 export const SUPPORTED_IMAGE_EXTENSIONS = [

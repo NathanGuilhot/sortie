@@ -1,6 +1,9 @@
-import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
+import { ipcMain, dialog, shell, BrowserWindow, app } from 'electron';
+import path from 'path';
+import fs from 'fs';
 import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
+import { registerOperation, cancelOperation, clearOperation } from './operations';
 
 export function setupIpcHandlers(
   dbService: DatabaseService,
@@ -29,6 +32,8 @@ export function setupIpcHandlers(
       return await dbService.searchImages(query, limit);
     },
   );
+
+  ipcMain.handle('get-embedder-status', () => dbService.getEmbedderStatus());
 
   ipcMain.handle(
     'find-similar-images',
@@ -60,12 +65,25 @@ export function setupIpcHandlers(
     return folderId;
   });
 
-  ipcMain.handle('scan-folder', async (event, { path }: { path: string }) => {
-    const webContents = event.sender;
-    const folderId = await dbService.scanFolder(path, (progress) => {
-      webContents.send('scan-progress', progress);
-    });
-    return folderId;
+  ipcMain.handle(
+    'scan-folder',
+    async (event, { path, opId }: { path: string; opId: string }) => {
+      const webContents = event.sender;
+      const signal = registerOperation(opId);
+      try {
+        return await dbService.scanFolder(
+          path,
+          (progress) => webContents.send('scan-progress', progress),
+          signal,
+        );
+      } finally {
+        clearOperation(opId);
+      }
+    },
+  );
+
+  ipcMain.handle('cancel-operation', async (_event, { opId }: { opId: string }) => {
+    return { cancelled: cancelOperation(opId) };
   });
 
   ipcMain.handle('get-folders', async () => {
@@ -84,6 +102,13 @@ export function setupIpcHandlers(
 
   ipcMain.handle('reset-face-data', async () => {
     await dbService.resetFaceData();
+    // Wipe cached face thumbnails — SQLite reuses row IDs after DELETE so
+    // stale crops would be served for the new face rows.
+    const faceThumbDir = path.join(app.getPath('userData'), 'face-thumbs');
+    try {
+      const files = fs.readdirSync(faceThumbDir);
+      for (const file of files) fs.unlinkSync(path.join(faceThumbDir, file));
+    } catch { /* dir may not exist */ }
     return { success: true };
   });
 
@@ -186,12 +211,17 @@ export function setupIpcHandlers(
   });
 
   // Cleanup / Duplicate detection
-  ipcMain.handle('compute-missing-hashes', async (event) => {
+  ipcMain.handle('compute-missing-hashes', async (event, { opId }: { opId: string }) => {
     const webContents = event.sender;
-    const result = await dbService.computeMissingHashes((progress) => {
-      webContents.send('hash-progress', progress);
-    });
-    return { computed: result };
+    const signal = registerOperation(opId);
+    try {
+      return await dbService.computeMissingHashes(
+        (progress) => webContents.send('hash-progress', progress),
+        signal,
+      );
+    } finally {
+      clearOperation(opId);
+    }
   });
 
   ipcMain.handle('find-duplicate-groups', async () => {
@@ -216,9 +246,13 @@ export function setupIpcHandlers(
     return { success: true };
   });
 
-  ipcMain.handle('backfill-exif', async () => {
-    const filled = await dbService.backfillExifData();
-    return { filled };
+  ipcMain.handle('backfill-exif', async (_event, { opId }: { opId: string }) => {
+    const signal = registerOperation(opId);
+    try {
+      return await dbService.backfillExifData(signal);
+    } finally {
+      clearOperation(opId);
+    }
   });
 
   // --- Face Detection / People ---
@@ -273,12 +307,17 @@ export function setupIpcHandlers(
     },
   );
 
-  ipcMain.handle('process-faces', async (event) => {
+  ipcMain.handle('process-faces', async (event, { opId }: { opId: string }) => {
     const webContents = event.sender;
-    const result = await dbService.processExistingImagesForFaces((progress) => {
-      webContents.send('face-scan-progress', progress);
-    });
-    return result;
+    const signal = registerOperation(opId);
+    try {
+      return await dbService.processExistingImagesForFaces(
+        (progress) => webContents.send('face-scan-progress', progress),
+        signal,
+      );
+    } finally {
+      clearOperation(opId);
+    }
   });
 
   ipcMain.handle(

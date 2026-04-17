@@ -17,6 +17,25 @@ let mainWindow: BrowserWindow | null = null;
 let dbService: DatabaseService | null = null;
 let watcherService: WatcherService | null = null;
 
+function migrateLegacyClipCache(targetDir: string) {
+  try {
+    const legacyDir = path.join(
+      path.dirname(require.resolve('@xenova/transformers/package.json')),
+      '.cache',
+    );
+    if (!fs.existsSync(legacyDir)) return;
+    const entries = fs.readdirSync(legacyDir);
+    for (const entry of entries) {
+      const src = path.join(legacyDir, entry);
+      const dst = path.join(targetDir, entry);
+      if (fs.existsSync(dst)) continue;
+      fs.cpSync(src, dst, { recursive: true });
+    }
+  } catch (error) {
+    console.warn('Legacy CLIP cache migration skipped:', error);
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -45,9 +64,12 @@ async function initializeServices() {
   );
 
   const thumbDir = path.join(app.getPath('userData'), 'thumbs');
+  const clipCacheDir = path.join(app.getPath('userData'), 'models');
+  fs.mkdirSync(clipCacheDir, { recursive: true });
+  migrateLegacyClipCache(clipCacheDir);
 
   dbService = new DatabaseService();
-  dbService.initialize(dbPath, faceModelsPath, thumbDir);
+  dbService.initialize(dbPath, faceModelsPath, thumbDir, clipCacheDir);
 
   watcherService = new WatcherService();
   watcherService.setDatabaseService(dbService);
@@ -55,6 +77,11 @@ async function initializeServices() {
   await dbService.fixImageDimensions();
 
   setupIpcHandlers(dbService, watcherService, dbPath);
+
+  dbService.onEmbedderStatus((status) => {
+    mainWindow?.webContents.send('embedder-status', status);
+  });
+  void dbService.warmupEmbedder();
 
   const folders = await dbService.getFolders();
   for (const folder of folders) {
@@ -120,7 +147,11 @@ void app.whenReady().then(async () => {
     const bh = parseFloat(url.searchParams.get('h') || '0');
     const size = parseInt(url.searchParams.get('size') || '200', 10);
 
-    const cachePath = path.join(faceThumbDir, `${faceId}_${size}.jpg`);
+    // Cache key includes bbox so stale crops are never served after a
+    // face-data reset (SQLite reuses row IDs without AUTOINCREMENT).
+    const bboxKey = `${bx.toFixed(4)}_${by.toFixed(4)}_${bw.toFixed(4)}_${bh.toFixed(4)}`;
+    const cacheHash = crypto.createHash('sha256').update(`${faceId}_${bboxKey}_${filePath}`).digest('hex').slice(0, 16);
+    const cachePath = path.join(faceThumbDir, `${cacheHash}_${size}.jpg`);
 
     try {
       if (fs.existsSync(cachePath)) {

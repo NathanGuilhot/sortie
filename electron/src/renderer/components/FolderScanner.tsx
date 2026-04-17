@@ -28,6 +28,7 @@ export function FolderScanner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scanningFolder, setScanningFolder] = useState<string | null>(null);
+  const [scanOpId, setScanOpId] = useState<string | null>(null);
   const [scanProgress, setScanProgress] = useState<{
     current: number;
     total: number;
@@ -61,35 +62,41 @@ export function FolderScanner() {
       await window.sortieAPI.addFolder(selected);
       await loadFolders();
 
+      const opId = crypto.randomUUID();
       setScanningFolder(selected);
+      setScanOpId(opId);
       setScanProgress(null);
       const unsubscribe = window.sortieAPI.onScanProgress((progress) => {
         setScanProgress(progress);
       });
       try {
-        await window.sortieAPI.scanFolder(selected);
+        await window.sortieAPI.scanFolder(selected, opId);
       } finally {
         unsubscribe();
       }
       setScanningFolder(null);
+      setScanOpId(null);
       setScanProgress(null);
       await loadFolders();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       setScanningFolder(null);
+      setScanOpId(null);
       setScanProgress(null);
     }
   };
 
   const handleScanFolder = async (path: string) => {
+    const opId = crypto.randomUUID();
     setScanningFolder(path);
+    setScanOpId(opId);
     setScanProgress(null);
     const unsubscribe = window.sortieAPI.onScanProgress((progress) => {
       setScanProgress(progress);
     });
     try {
-      await window.sortieAPI.scanFolder(path);
+      await window.sortieAPI.scanFolder(path, opId);
       await loadFolders();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -97,7 +104,18 @@ export function FolderScanner() {
     } finally {
       unsubscribe();
       setScanningFolder(null);
+      setScanOpId(null);
       setScanProgress(null);
+    }
+  };
+
+  const handleCancelScan = async () => {
+    if (!scanOpId) return;
+    try {
+      await window.sortieAPI.cancelOperation(scanOpId);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
     }
   };
 
@@ -376,37 +394,37 @@ export function FolderScanner() {
                     </span>
                   </button>
 
-                  <button
-                    onClick={() => void handleScanFolder(folder.path)}
-                    disabled={scanningFolder === folder.path}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    {scanningFolder === folder.path ? (
-                      <>
-                        <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-300 border-t-blue-600" />
-                        {scanProgress
-                          ? `${scanProgress.current}/${scanProgress.total}`
-                          : 'Scanning...'}
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          className="w-3.5 h-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                          />
-                        </svg>
-                        Scan Now
-                      </>
-                    )}
-                  </button>
+                  {scanningFolder === folder.path ? (
+                    <button
+                      onClick={() => void handleCancelScan()}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                    >
+                      <div className="animate-spin rounded-full h-3 w-3 border-2 border-red-300 border-t-red-600" />
+                      Cancel
+                      {scanProgress ? ` (${scanProgress.current}/${scanProgress.total})` : ''}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => void handleScanFolder(folder.path)}
+                      disabled={scanningFolder !== null}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                      </svg>
+                      Scan Now
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

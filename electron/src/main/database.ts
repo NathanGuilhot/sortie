@@ -23,6 +23,11 @@ import {
   SearchResult,
   DuplicateGroup,
   FaceScanProgress,
+  FaceScanResult,
+  ScanFolderResult,
+  HashScanResult,
+  BackfillExifResult,
+  EmbedderStatus,
   SUPPORTED_IMAGE_EXTENSIONS,
 } from 'shared';
 import { shell } from 'electron';
@@ -54,14 +59,57 @@ export class DatabaseService {
   private faceDetector: FaceDetector | null = null;
   private faceMatcher: FaceMatcher | null = null;
   private imageCache = new Map<string, Image[]>();
+  private embedderStatus: EmbedderStatus = { state: 'idle' };
+  private embedderStatusListeners = new Set<(status: EmbedderStatus) => void>();
 
-  initialize(dbPath: string, faceModelsPath: string, faceCacheDir?: string) {
+  initialize(
+    dbPath: string,
+    faceModelsPath: string,
+    faceCacheDir?: string,
+    clipCacheDir?: string,
+  ) {
     this.db = new DatabaseManager(dbPath);
-    this.embedder = new ClipEmbedder();
+    this.embedder = new ClipEmbedder(clipCacheDir);
     this.suggestionEngine = new SuggestionEngine(dbPath);
     this.organizer = new Organizer(dbPath);
     this.faceDetector = new FaceDetector(faceModelsPath, faceCacheDir);
     this.faceMatcher = new FaceMatcher(this.db);
+  }
+
+  async warmupEmbedder(): Promise<void> {
+    if (!this.embedder) return;
+    if (this.embedderStatus.state === 'ready' || this.embedderStatus.state === 'warming') return;
+    this.setEmbedderStatus({ state: 'warming' });
+    try {
+      await this.embedder.initialize();
+      this.setEmbedderStatus({ state: 'ready' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('CLIP warmup failed:', error);
+      this.setEmbedderStatus({ state: 'error', message });
+    }
+  }
+
+  getEmbedderStatus(): EmbedderStatus {
+    return this.embedderStatus;
+  }
+
+  onEmbedderStatus(listener: (status: EmbedderStatus) => void): () => void {
+    this.embedderStatusListeners.add(listener);
+    return () => {
+      this.embedderStatusListeners.delete(listener);
+    };
+  }
+
+  private setEmbedderStatus(status: EmbedderStatus) {
+    this.embedderStatus = status;
+    for (const listener of this.embedderStatusListeners) {
+      try {
+        listener(status);
+      } catch (error) {
+        console.error('Embedder status listener failed:', error);
+      }
+    }
   }
 
   close() {
@@ -255,7 +303,8 @@ export class DatabaseService {
   async scanFolder(
     folderPath: string,
     onProgress?: (progress: { current: number; total: number; currentFile: string }) => void,
-  ): Promise<number> {
+    signal?: AbortSignal,
+  ): Promise<ScanFolderResult> {
     if (!this.db) throw new Error('Database not initialized');
     const normalized = path.resolve(folderPath);
     try {
@@ -268,8 +317,10 @@ export class DatabaseService {
     const imageFiles: string[] = [];
 
     async function walk(dir: string): Promise<void> {
+      if (signal?.aborted) return;
       const entries = await fs.readdir(dir, { withFileTypes: true });
       for (const entry of entries) {
+        if (signal?.aborted) return;
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
           await walk(fullPath);
@@ -287,7 +338,12 @@ export class DatabaseService {
     console.log(`Found ${imageFiles.length} image files`);
 
     let processed = 0;
+    let cancelled = false;
     for (let i = 0; i < imageFiles.length; i++) {
+      if (signal?.aborted) {
+        cancelled = true;
+        break;
+      }
       const file = imageFiles[i];
       try {
         await this.addImage(file);
@@ -303,8 +359,8 @@ export class DatabaseService {
     `);
     stmt.run(normalized);
 
-    console.log(`Scan completed: ${processed} images processed`);
-    return folderId;
+    console.log(`Scan completed: ${processed} images processed${cancelled ? ' (cancelled)' : ''}`);
+    return { folderId, processed, cancelled };
   }
 
   async getFolders(): Promise<Folder[]> {
@@ -562,8 +618,8 @@ export class DatabaseService {
     console.log(`[migration] fixed dimensions for ${fixed}/${rows.length} images`);
   }
 
-  async backfillExifData(): Promise<number> {
-    if (!this.db) return 0;
+  async backfillExifData(signal?: AbortSignal): Promise<BackfillExifResult> {
+    if (!this.db) return { filled: 0, cancelled: false };
     const db = this.db.getDatabase();
 
     console.log('[migration] backfilling camera EXIF data...');
@@ -574,7 +630,12 @@ export class DatabaseService {
       .all() as Array<{ id: number; file_path: string }>;
 
     let filled = 0;
+    let cancelled = false;
     for (const row of rows) {
+      if (signal?.aborted) {
+        cancelled = true;
+        break;
+      }
       try {
         const exif = await extractExif(row.file_path);
         if (
@@ -603,19 +664,28 @@ export class DatabaseService {
       }
     }
     this.invalidateImageCache();
-    console.log(`[migration] backfilled EXIF for ${filled}/${rows.length} images`);
-    return filled;
+    console.log(`[migration] backfilled EXIF for ${filled}/${rows.length} images${cancelled ? ' (cancelled)' : ''}`);
+    return { filled, cancelled };
   }
 
   // --- Face Detection / People ---
 
-  private async detectFacesForImage(imageId: number, filePath: string): Promise<number> {
+  private async detectFacesForImage(
+    imageId: number,
+    filePath: string,
+  ): Promise<{ count: number; personIds: number[] }> {
     if (!this.db || !this.faceDetector || !this.faceMatcher) {
       throw new Error('Face detection is not available');
     }
 
     const faces = await this.faceDetector.detectFaces(filePath);
+    if (faces.length === 0) {
+      this.db.markImageFacesScanned(imageId);
+      return { count: 0, personIds: [] };
+    }
 
+    // 1. Insert all faces and their embeddings first.
+    const faceIds: number[] = [];
     for (const face of faces) {
       const faceId = this.db.insertFace({
         image_id: imageId,
@@ -627,18 +697,36 @@ export class DatabaseService {
         confidence: face.confidence,
       });
       this.db.insertFaceEmbedding(faceId, face.descriptor);
+      faceIds.push(faceId);
+    }
 
-      const match = this.faceMatcher.matchFace(face.descriptor);
-      this.faceMatcher.assignFaceToPerson(faceId, match.personId);
+    // 2. Optimally assign faces to persons using the Hungarian algorithm.
+    //    This finds the global min-cost pairing so that, e.g., two faces in a
+    //    group photo can't both greedily grab the wrong person.
+    const descriptors = faces.map((f) => f.descriptor);
+    const matches = this.faceMatcher.matchFaces(descriptors);
+
+    // 3. Apply assignments.
+    const usedPersonIds = new Set<number>();
+    for (let i = 0; i < faceIds.length; i++) {
+      this.faceMatcher.assignFaceToPerson(faceIds[i], matches[i].personId);
+      usedPersonIds.add(matches[i].personId);
+    }
+
+    // 4. Recompute centroids once per affected person after all faces in this
+    //    image are assigned, to avoid intra-image centroid drift.
+    for (const personId of usedPersonIds) {
+      this.faceMatcher.updatePersonCentroid(personId);
     }
 
     this.db.markImageFacesScanned(imageId);
-    return faces.length;
+    return { count: faces.length, personIds: [...usedPersonIds] };
   }
 
   async processExistingImagesForFaces(
     onProgress?: (progress: FaceScanProgress) => void,
-  ): Promise<{ scanned: number; detected: number }> {
+    signal?: AbortSignal,
+  ): Promise<FaceScanResult> {
     if (!this.db) throw new Error('Database not initialized');
     if (!this.faceDetector || !this.faceMatcher) {
       throw new Error('Face detection is not available. The face-api models may have failed to load.');
@@ -646,23 +734,40 @@ export class DatabaseService {
 
     const images = this.db.getUnscannedFaceImages();
     let totalFaces = 0;
+    let scanned = 0;
+    let cancelled = false;
 
     for (let i = 0; i < images.length; i++) {
+      if (signal?.aborted) {
+        cancelled = true;
+        break;
+      }
       const img = images[i];
+      let personIds: number[] = [];
       try {
-        const count = await this.detectFacesForImage(img.id, img.file_path);
-        totalFaces += count;
+        const result = await this.detectFacesForImage(img.id, img.file_path);
+        totalFaces += result.count;
+        personIds = result.personIds;
       } catch (error) {
         console.error(`Failed face detection for ${img.file_path}:`, error);
         this.db.markImageFacesScanned(img.id);
       }
-      onProgress?.({ current: i + 1, total: images.length, currentFile: img.file_path });
+      scanned++;
+      const personUpdates = personIds
+        .map((pid) => this.db!.getPersonById(pid))
+        .filter((p): p is Person => p !== null && p !== undefined);
+      onProgress?.({
+        current: i + 1,
+        total: images.length,
+        currentFile: img.file_path,
+        personUpdates,
+      });
 
       // Yield to event loop between images to prevent UI freezes
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
 
-    return { scanned: images.length, detected: totalFaces };
+    return { scanned, detected: totalFaces, cancelled };
   }
 
   async getPersons(): Promise<Person[]> {
@@ -806,7 +911,8 @@ export class DatabaseService {
 
   async computeMissingHashes(
     onProgress?: (progress: { current: number; total: number; currentFile: string }) => void,
-  ): Promise<number> {
+    signal?: AbortSignal,
+  ): Promise<HashScanResult> {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db.getDatabase();
 
@@ -817,7 +923,12 @@ export class DatabaseService {
       .all() as Array<{ id: number; file_path: string }>;
 
     let computed = 0;
+    let cancelled = false;
     for (let i = 0; i < rows.length; i++) {
+      if (signal?.aborted) {
+        cancelled = true;
+        break;
+      }
       const row = rows[i];
       try {
         const [fileHash, dhash] = await Promise.all([
@@ -837,7 +948,7 @@ export class DatabaseService {
     }
 
     this.invalidateImageCache();
-    return computed;
+    return { computed, cancelled };
   }
 
   async findDuplicateGroups(): Promise<DuplicateGroup[]> {

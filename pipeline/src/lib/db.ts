@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { Image, Face, Person, FACE_EMBEDDING_DIM } from 'shared';
+import { Image, Face, Person, FACE_EMBEDDING_DIM, normalizeVector } from 'shared';
 
 interface EmbeddingDbRow {
   rowid: number;
@@ -302,13 +302,13 @@ export class DatabaseManager {
 
       this.db.exec(`
         CREATE VIRTUAL TABLE IF NOT EXISTS vec_faces USING vec0(
-          embedding float[${FACE_EMBEDDING_DIM}]
+          embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
         )
       `);
 
       this.db.exec(`
         CREATE VIRTUAL TABLE IF NOT EXISTS vec_persons USING vec0(
-          embedding float[${FACE_EMBEDDING_DIM}]
+          embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
         )
       `);
 
@@ -316,7 +316,28 @@ export class DatabaseManager {
       this.db.exec('CREATE INDEX IF NOT EXISTS idx_faces_person ON faces(person_id)');
       this.db.exec('CREATE INDEX IF NOT EXISTS idx_persons_name ON persons(name)');
 
-      this.db.pragma('user_version = 4');
+      this.db.pragma('user_version = 5');
+    }
+
+    if (version >= 4 && version < 5) {
+      // Vec tables were created with default (L2) distance. Recreate with cosine
+      // and wipe all persons so clustering is re-run on next scan.
+      this.db.exec('DROP TABLE IF EXISTS vec_faces');
+      this.db.exec('DROP TABLE IF EXISTS vec_persons');
+      this.db.exec(`
+        CREATE VIRTUAL TABLE vec_faces USING vec0(
+          embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
+        )
+      `);
+      this.db.exec(`
+        CREATE VIRTUAL TABLE vec_persons USING vec0(
+          embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
+        )
+      `);
+      this.db.exec('DELETE FROM faces');
+      this.db.exec('DELETE FROM persons');
+      this.db.exec('UPDATE images SET faces_scanned = 0');
+      this.db.pragma('user_version = 5');
     }
   }
 
@@ -470,7 +491,7 @@ export class DatabaseManager {
   insertFaceEmbedding(faceRowid: number, embedding: number[]): void {
     this.db
       .prepare('INSERT OR REPLACE INTO vec_faces (rowid, embedding) VALUES (?, ?)')
-      .run(BigInt(faceRowid), new Float32Array(embedding));
+      .run(BigInt(faceRowid), new Float32Array(normalizeVector(embedding)));
   }
 
   getFaceEmbedding(faceId: number): number[] | null {
@@ -501,7 +522,7 @@ export class DatabaseManager {
     }
     this.db
       .prepare('INSERT INTO vec_persons (rowid, embedding) VALUES (?, ?)')
-      .run(BigInt(personRowid), new Float32Array(embedding));
+      .run(BigInt(personRowid), new Float32Array(normalizeVector(embedding)));
   }
 
   findNearestPerson(embedding: number[], limit: number = 1): VecMatchRow[] {

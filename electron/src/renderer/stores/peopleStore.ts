@@ -10,6 +10,7 @@ interface PeopleStore {
   scanning: boolean;
   scanProgress: FaceScanProgress | null;
   scanResult: FaceScanResult | null;
+  currentOpId: string | null;
 
   fetchPersons: () => Promise<void>;
   selectPerson: (person: Person | null) => void;
@@ -18,6 +19,7 @@ interface PeopleStore {
   mergePersons: (keepPersonId: number, mergePersonId: number) => Promise<void>;
   splitFace: (faceId: number) => Promise<void>;
   scanFaces: () => Promise<void>;
+  cancelScan: () => Promise<void>;
   deletePerson: (personId: number) => Promise<void>;
   setError: (error: string | null) => void;
   clearScanResult: () => void;
@@ -33,6 +35,7 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
   scanning: false,
   scanProgress: null,
   scanResult: null,
+  currentOpId: null,
 
   setError: (error) => set({ error }),
   clearScanResult: () => set({ scanResult: null }),
@@ -112,21 +115,48 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
   },
 
   scanFaces: async () => {
-    set({ scanning: true, error: null, scanResult: null, scanProgress: { current: 0, total: 0, currentFile: '' } });
+    const opId = crypto.randomUUID();
+    set({
+      scanning: true,
+      error: null,
+      scanResult: null,
+      scanProgress: { current: 0, total: 0, currentFile: '' },
+      currentOpId: opId,
+    });
 
     const unsubscribe = window.sortieAPI.onFaceScanProgress((progress) => {
-      set({ scanProgress: progress });
+      set((state) => {
+        if (!progress.personUpdates?.length) {
+          return { scanProgress: progress };
+        }
+        const byId = new Map(state.persons.map((p) => [p.id, p]));
+        for (const updated of progress.personUpdates) {
+          byId.set(updated.id, updated);
+        }
+        return { scanProgress: progress, persons: [...byId.values()] };
+      });
     });
 
     try {
-      const result = await window.sortieAPI.processFaces();
+      const result = await window.sortieAPI.processFaces(opId);
       unsubscribe();
-      set({ scanning: false, scanProgress: null, scanResult: result });
+      set({ scanning: false, scanProgress: null, scanResult: result, currentOpId: null });
       await get().fetchPersons();
     } catch (error: unknown) {
       unsubscribe();
       const message = error instanceof Error ? error.message : String(error);
-      set({ error: message, scanning: false, scanProgress: null });
+      set({ error: message, scanning: false, scanProgress: null, currentOpId: null });
+    }
+  },
+
+  cancelScan: async () => {
+    const opId = get().currentOpId;
+    if (!opId) return;
+    try {
+      await window.sortieAPI.cancelOperation(opId);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message });
     }
   },
 
