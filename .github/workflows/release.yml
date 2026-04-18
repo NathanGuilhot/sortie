@@ -36,7 +36,15 @@ jobs:
 
   release-mac:
     needs: generate-icons
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+          - runner: macos-13
+            arch: x64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -54,14 +62,14 @@ jobs:
 
       - run: yarn build:code
 
-      - run: yarn workspace sortie-desktop run dist:mac --publish always
+      - run: yarn workspace sortie-desktop run dist:mac --${{ matrix.arch }} --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: dist-mac
+          name: dist-mac-${{ matrix.arch }}
           path: electron/out/*.dmg
           if-no-files-found: warn
 
