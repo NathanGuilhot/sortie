@@ -138,8 +138,7 @@ export const useImageStore = create<ImageStore>((set, get) => ({
       if (!updated) return;
       set((state) => ({
         images: state.images.map((img) => (img.id === imageId ? updated : img)),
-        selectedImage:
-          state.selectedImage?.id === imageId ? updated : state.selectedImage,
+        selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
       }));
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -153,8 +152,7 @@ export const useImageStore = create<ImageStore>((set, get) => ({
       if (!updated) return;
       set((state) => ({
         images: state.images.map((img) => (img.id === imageId ? updated : img)),
-        selectedImage:
-          state.selectedImage?.id === imageId ? updated : state.selectedImage,
+        selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
       }));
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -168,8 +166,7 @@ export const useImageStore = create<ImageStore>((set, get) => ({
       if (!updated) return;
       set((state) => ({
         images: state.images.map((img) => (img.id === imageId ? updated : img)),
-        selectedImage:
-          state.selectedImage?.id === imageId ? updated : state.selectedImage,
+        selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
       }));
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -276,8 +273,7 @@ export const useImageStore = create<ImageStore>((set, get) => ({
       if (!updated) return;
       set((state) => ({
         images: state.images.map((img) => (img.id === imageId ? updated : img)),
-        selectedImage:
-          state.selectedImage?.id === imageId ? updated : state.selectedImage,
+        selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
       }));
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

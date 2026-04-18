@@ -244,76 +244,157 @@ export function FolderScanner() {
           }
         />
       ) : (
-          /* Folder card grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {folders.map((folder) => (
-              <div
-                key={folder.id}
-                className={`rounded-lg border p-5 hover:shadow-md transition-shadow duration-150 ${
-                  folder.available
-                    ? 'bg-white border-gray-200'
-                    : 'bg-gray-50 border-gray-200 opacity-75'
-                }`}
-              >
-                {/* Top row: folder name + remove */}
-                <div className="flex items-start justify-between mb-1">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className={`text-sm font-semibold truncate ${
+        /* Folder card grid */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {folders.map((folder) => (
+            <div
+              key={folder.id}
+              className={`rounded-lg border p-5 hover:shadow-md transition-shadow duration-150 ${
+                folder.available
+                  ? 'bg-white border-gray-200'
+                  : 'bg-gray-50 border-gray-200 opacity-75'
+              }`}
+            >
+              {/* Top row: folder name + remove */}
+              <div className="flex items-start justify-between mb-1">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3
+                      className={`text-sm font-semibold truncate ${
                         folder.available ? 'text-gray-900' : 'text-gray-500'
-                      }`}>
-                        {folder.folder_name}
-                      </h3>
-                      {!folder.available && (
-                        <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide rounded bg-amber-100 text-amber-700 border border-amber-200">
-                          Drive offline
-                        </span>
-                      )}
-                    </div>
-                    <CopyText value={folder.path} className="text-xs text-gray-400 truncate mt-0.5 block" title={folder.path}>
-                      {folder.path}
-                    </CopyText>
+                      }`}
+                    >
+                      {folder.folder_name}
+                    </h3>
+                    {!folder.available && (
+                      <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide rounded bg-amber-100 text-amber-700 border border-amber-200">
+                        Drive offline
+                      </span>
+                    )}
                   </div>
-                  {removingFolder === folder.path ? (
-                    <div className="flex items-center gap-1 ml-2 shrink-0">
-                      <button
-                        onClick={() => void handleRemoveFolder(folder.path)}
-                        className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer"
-                      >
-                        Remove
-                      </button>
-                      <button
-                        onClick={() => setRemovingFolder(null)}
-                        className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
+                  <CopyText
+                    value={folder.path}
+                    className="text-xs text-gray-400 truncate mt-0.5 block"
+                    title={folder.path}
+                  >
+                    {folder.path}
+                  </CopyText>
+                </div>
+                {removingFolder === folder.path ? (
+                  <div className="flex items-center gap-1 ml-2 shrink-0">
                     <button
                       onClick={() => void handleRemoveFolder(folder.path)}
-                      className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors ml-2 shrink-0 cursor-pointer"
+                      className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer"
                     >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
+                      Remove
                     </button>
-                  )}
-                </div>
+                    <button
+                      onClick={() => setRemovingFolder(null)}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => void handleRemoveFolder(folder.path)}
+                    className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors ml-2 shrink-0 cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </div>
 
-                {/* Stats row */}
-                <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
+              {/* Stats row */}
+              <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
+                <span className="flex items-center gap-1">
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  {folder.image_count.toLocaleString()} images
+                </span>
+                <span>{formatSize(folder.total_size)}</span>
+                {folder.last_scanned && (
+                  <span>Scanned {formatRelativeTime(folder.last_scanned)}</span>
+                )}
+              </div>
+
+              {/* Scan progress */}
+              {scanningFolder === folder.path && scanProgress && scanProgress.total > 0 && (
+                <div className="mt-3">
+                  <div className="w-full bg-lavender/40 rounded-full h-1.5">
+                    <div
+                      className="bg-ink h-1.5 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${(scanProgress.current / scanProgress.total) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <p
+                    className="text-xs text-gray-400 mt-1 truncate"
+                    title={scanProgress.currentFile}
+                  >
+                    {scanProgress.currentFile.split('/').pop()}
+                  </p>
+                </div>
+              )}
+
+              {/* Bottom row: watch toggle + scan */}
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+                <button
+                  onClick={() => void handleWatchToggle(folder.path, folder.watched)}
+                  disabled={!folder.available}
+                  className="flex items-center gap-2 text-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <div
+                    className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
+                      folder.watched ? 'bg-mint' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform duration-200 ${
+                        folder.watched ? 'translate-x-[19px]' : 'translate-x-[3px]'
+                      }`}
+                    />
+                  </div>
+                  <span className={folder.watched ? 'text-ink' : 'text-gray-500'}>
+                    {folder.watched ? 'Watching' : 'Paused'}
+                  </span>
+                </button>
+
+                {scanningFolder === folder.path ? (
+                  <button
+                    onClick={() => void handleCancelScan()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                  >
+                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-red-300 border-t-red-600" />
+                    Cancel
+                    {scanProgress ? ` (${scanProgress.current}/${scanProgress.total})` : ''}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => void handleScanFolder(folder.path)}
+                    disabled={scanningFolder !== null || !folder.available}
+                    title={!folder.available ? 'Drive offline' : undefined}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-ink hover:bg-lavender/30 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
                     <svg
                       className="w-3.5 h-3.5"
                       fill="none"
@@ -324,165 +405,76 @@ export function FolderScanner() {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={2}
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                       />
                     </svg>
-                    {folder.image_count.toLocaleString()} images
-                  </span>
-                  <span>{formatSize(folder.total_size)}</span>
-                  {folder.last_scanned && (
-                    <span>Scanned {formatRelativeTime(folder.last_scanned)}</span>
-                  )}
-                </div>
-
-                {/* Scan progress */}
-                {scanningFolder === folder.path && scanProgress && scanProgress.total > 0 && (
-                  <div className="mt-3">
-                    <div className="w-full bg-lavender/40 rounded-full h-1.5">
-                      <div
-                        className="bg-ink h-1.5 rounded-full transition-all duration-300"
-                        style={{
-                          width: `${(scanProgress.current / scanProgress.total) * 100}%`,
-                        }}
-                      />
-                    </div>
-                    <p
-                      className="text-xs text-gray-400 mt-1 truncate"
-                      title={scanProgress.currentFile}
-                    >
-                      {scanProgress.currentFile.split('/').pop()}
-                    </p>
-                  </div>
+                    Scan Now
+                  </button>
                 )}
-
-                {/* Bottom row: watch toggle + scan */}
-                <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-                  <button
-                    onClick={() => void handleWatchToggle(folder.path, folder.watched)}
-                    disabled={!folder.available}
-                    className="flex items-center gap-2 text-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <div
-                      className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
-                        folder.watched ? 'bg-mint' : 'bg-gray-300'
-                      }`}
-                    >
-                      <div
-                        className={`absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform duration-200 ${
-                          folder.watched ? 'translate-x-[19px]' : 'translate-x-[3px]'
-                        }`}
-                      />
-                    </div>
-                    <span className={folder.watched ? 'text-ink' : 'text-gray-500'}>
-                      {folder.watched ? 'Watching' : 'Paused'}
-                    </span>
-                  </button>
-
-                  {scanningFolder === folder.path ? (
-                    <button
-                      onClick={() => void handleCancelScan()}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
-                    >
-                      <div className="animate-spin rounded-full h-3 w-3 border-2 border-red-300 border-t-red-600" />
-                      Cancel
-                      {scanProgress ? ` (${scanProgress.current}/${scanProgress.total})` : ''}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => void handleScanFolder(folder.path)}
-                      disabled={scanningFolder !== null || !folder.available}
-                      title={!folder.available ? 'Drive offline' : undefined}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-ink hover:bg-lavender/30 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      <svg
-                        className="w-3.5 h-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                        />
-                      </svg>
-                      Scan Now
-                    </button>
-                  )}
-                </div>
-
-                {/* Face scan exclusion */}
-                <div className="flex items-center mt-3 pt-3 border-t border-gray-100">
-                  <button
-                    onClick={() =>
-                      void handleFaceScanExclusionToggle(
-                        folder.path,
-                        folder.exclude_from_face_scan,
-                      )
-                    }
-                    disabled={!folder.available}
-                    title={
-                      folder.exclude_from_face_scan
-                        ? 'Re-enable face scanning for this folder'
-                        : 'Exclude this folder from face scanning (deletes existing detections)'
-                    }
-                    className="flex items-center gap-2 text-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <div
-                      className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
-                        folder.exclude_from_face_scan ? 'bg-gray-300' : 'bg-mint'
-                      }`}
-                    >
-                      <div
-                        className={`absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform duration-200 ${
-                          folder.exclude_from_face_scan
-                            ? 'translate-x-[3px]'
-                            : 'translate-x-[19px]'
-                        }`}
-                      />
-                    </div>
-                    <span
-                      className={
-                        folder.exclude_from_face_scan ? 'text-gray-500' : 'text-ink'
-                      }
-                    >
-                      {folder.exclude_from_face_scan ? 'Face scan off' : 'Face scan on'}
-                    </span>
-                  </button>
-                </div>
               </div>
-            ))}
-          </div>
-        )}
 
-        {/* Reset database */}
-        <div className="mt-12 pt-6 border-t border-gray-200">
-          {resettingDb ? (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-red-600">Erase all data? This cannot be undone.</span>
-              <button
-                onClick={() => void handleResetDatabase()}
-                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer"
-              >
-                Confirm Reset
-              </button>
-              <button
-                onClick={() => setResettingDb(false)}
-                className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50 cursor-pointer"
-              >
-                Cancel
-              </button>
+              {/* Face scan exclusion */}
+              <div className="flex items-center mt-3 pt-3 border-t border-gray-100">
+                <button
+                  onClick={() =>
+                    void handleFaceScanExclusionToggle(folder.path, folder.exclude_from_face_scan)
+                  }
+                  disabled={!folder.available}
+                  title={
+                    folder.exclude_from_face_scan
+                      ? 'Re-enable face scanning for this folder'
+                      : 'Exclude this folder from face scanning (deletes existing detections)'
+                  }
+                  className="flex items-center gap-2 text-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <div
+                    className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
+                      folder.exclude_from_face_scan ? 'bg-gray-300' : 'bg-mint'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform duration-200 ${
+                        folder.exclude_from_face_scan ? 'translate-x-[3px]' : 'translate-x-[19px]'
+                      }`}
+                    />
+                  </div>
+                  <span className={folder.exclude_from_face_scan ? 'text-gray-500' : 'text-ink'}>
+                    {folder.exclude_from_face_scan ? 'Face scan off' : 'Face scan on'}
+                  </span>
+                </button>
+              </div>
             </div>
-          ) : (
+          ))}
+        </div>
+      )}
+
+      {/* Reset database */}
+      <div className="mt-12 pt-6 border-t border-gray-200">
+        {resettingDb ? (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-red-600">Erase all data? This cannot be undone.</span>
             <button
               onClick={() => void handleResetDatabase()}
-              className="text-xs text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+              className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer"
             >
-              Reset Database
+              Confirm Reset
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => setResettingDb(false)}
+              className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50 cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => void handleResetDatabase()}
+            className="text-xs text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+          >
+            Reset Database
+          </button>
+        )}
+      </div>
     </ScreenShell>
   );
 }

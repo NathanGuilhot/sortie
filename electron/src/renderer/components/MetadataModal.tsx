@@ -13,7 +13,12 @@ interface MetadataModalProps {
   images?: Image[];
 }
 
-export function MetadataModal({ image, onClose, onNavigate, images: imagesProp }: MetadataModalProps) {
+export function MetadataModal({
+  image,
+  onClose,
+  onNavigate,
+  images: imagesProp,
+}: MetadataModalProps) {
   const storeImages = useImageStore((s) => s.images);
   const images = imagesProp ?? storeImages;
   const [showMetadata, setShowMetadata] = useState(false);
@@ -108,7 +113,9 @@ export function MetadataModal({ image, onClose, onNavigate, images: imagesProp }
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-10">
-        <CopyText value={image.file_name} className="text-white/80 text-sm truncate max-w-md">{image.file_name}</CopyText>
+        <CopyText value={image.file_name} className="text-white/80 text-sm truncate max-w-md">
+          {image.file_name}
+        </CopyText>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowMetadata((prev) => !prev)}

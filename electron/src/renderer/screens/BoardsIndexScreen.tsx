@@ -43,7 +43,8 @@ export function BoardsIndexScreen() {
   };
 
   const handleDelete = async (board: Board) => {
-    if (!window.confirm(`Delete board "${board.name}"? Images stay, only the board is removed.`)) return;
+    if (!window.confirm(`Delete board "${board.name}"? Images stay, only the board is removed.`))
+      return;
     await deleteBoard(board.id);
   };
 
@@ -62,7 +63,12 @@ export function BoardsIndexScreen() {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-ink text-white hover:bg-ink/90"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2.5}
+                d="M12 4v16m8-8H4"
+              />
             </svg>
             New board
           </button>
@@ -106,12 +112,24 @@ export function BoardsIndexScreen() {
         {!loading && boards.length === 0 && !creating && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h3l2 2h7a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" />
+              <svg
+                className="w-6 h-6 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M4 6a2 2 0 012-2h3l2 2h7a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
+                />
               </svg>
             </div>
             <p className="text-sm text-gray-600 mb-1">No boards yet</p>
-            <p className="text-xs text-gray-400">Create boards to curate your photos, Pinterest-style.</p>
+            <p className="text-xs text-gray-400">
+              Create boards to curate your photos, Pinterest-style.
+            </p>
           </div>
         )}
 

@@ -70,12 +70,7 @@ export class DatabaseService {
   private embedderStatus: EmbedderStatus = { state: 'idle' };
   private embedderStatusListeners = new Set<(status: EmbedderStatus) => void>();
 
-  initialize(
-    dbPath: string,
-    faceModelsPath: string,
-    faceCacheDir?: string,
-    clipCacheDir?: string,
-  ) {
+  initialize(dbPath: string, faceModelsPath: string, faceCacheDir?: string, clipCacheDir?: string) {
     this.db = new DatabaseManager(dbPath);
     this.embedder = new ClipEmbedder(clipCacheDir);
     this.suggestionEngine = new SuggestionEngine(dbPath);
@@ -391,7 +386,7 @@ export class DatabaseService {
       | undefined;
     if (!row) throw new Error('Folder insert failed');
     if (!available) {
-      db.prepare("UPDATE images SET missing = 1 WHERE file_path LIKE ?").run(normalized + '/%');
+      db.prepare('UPDATE images SET missing = 1 WHERE file_path LIKE ?').run(normalized + '/%');
     }
     this.invalidateImageCache();
     return row.id;
@@ -504,16 +499,16 @@ export class DatabaseService {
     const pattern = normalized + '/%';
 
     const txn = db.transaction(() => {
-      const imageIds = db
-        .prepare("SELECT id FROM images WHERE file_path LIKE ?")
-        .all(pattern) as { id: number }[];
+      const imageIds = db.prepare('SELECT id FROM images WHERE file_path LIKE ?').all(pattern) as {
+        id: number;
+      }[];
 
       if (imageIds.length > 0) {
         const deleteVec = db.prepare('DELETE FROM vec_images WHERE rowid = ?');
         for (const { id } of imageIds) {
           deleteVec.run(id);
         }
-        db.prepare("DELETE FROM images WHERE file_path LIKE ?").run(pattern);
+        db.prepare('DELETE FROM images WHERE file_path LIKE ?').run(pattern);
       }
 
       db.prepare('DELETE FROM folders WHERE path = ?').run(normalized);
@@ -660,11 +655,7 @@ export class DatabaseService {
     return this.queryBoards('t.id = ?', [tagId])[0] ?? null;
   }
 
-  async getBoardImages(
-    tagId: number,
-    limit: number = 100,
-    offset: number = 0,
-  ): Promise<Image[]> {
+  async getBoardImages(tagId: number, limit: number = 100, offset: number = 0): Promise<Image[]> {
     if (!this.db) throw new Error('Database not initialized');
     const rows = this.db
       .getDatabase()
@@ -683,9 +674,7 @@ export class DatabaseService {
   async reorderBoardImages(tagId: number, orderedImageIds: number[]): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db.getDatabase();
-    const stmt = db.prepare(
-      `UPDATE image_tags SET position = ? WHERE tag_id = ? AND image_id = ?`,
-    );
+    const stmt = db.prepare(`UPDATE image_tags SET position = ? WHERE tag_id = ? AND image_id = ?`);
     const txn = db.transaction(() => {
       orderedImageIds.forEach((imageId, index) => {
         stmt.run(index, tagId, imageId);
@@ -700,9 +689,7 @@ export class DatabaseService {
     const db = this.db.getDatabase();
     const txn = db.transaction(() => {
       const { next } = db
-        .prepare(
-          `SELECT COALESCE(MAX(position), -1) + 1 AS next FROM image_tags WHERE tag_id = ?`,
-        )
+        .prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS next FROM image_tags WHERE tag_id = ?`)
         .get(tagId) as { next: number };
       db.prepare(
         `INSERT OR IGNORE INTO image_tags (image_id, tag_id, source, position)
@@ -732,9 +719,11 @@ export class DatabaseService {
        ON CONFLICT(name) DO UPDATE SET category = COALESCE(tags.category, 'user')`,
     );
     insert.run(trimmed, color ?? null);
-    const row = db
-      .prepare(`SELECT id, name, color FROM tags WHERE name = ?`)
-      .get(trimmed) as { id: number; name: string; color: string };
+    const row = db.prepare(`SELECT id, name, color FROM tags WHERE name = ?`).get(trimmed) as {
+      id: number;
+      name: string;
+      color: string;
+    };
     return {
       ...row,
       image_count: 0,
@@ -748,19 +737,13 @@ export class DatabaseService {
     if (!this.db) throw new Error('Database not initialized');
     const trimmed = name.trim();
     if (!trimmed) throw new Error('Board name cannot be empty');
-    this.db
-      .getDatabase()
-      .prepare(`UPDATE tags SET name = ? WHERE id = ?`)
-      .run(trimmed, tagId);
+    this.db.getDatabase().prepare(`UPDATE tags SET name = ? WHERE id = ?`).run(trimmed, tagId);
     this.invalidateMetadataCaches();
   }
 
   async setBoardColor(tagId: number, color: string): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    this.db
-      .getDatabase()
-      .prepare(`UPDATE tags SET color = ? WHERE id = ?`)
-      .run(color, tagId);
+    this.db.getDatabase().prepare(`UPDATE tags SET color = ? WHERE id = ?`).run(color, tagId);
   }
 
   async deleteBoard(tagId: number): Promise<void> {
@@ -807,9 +790,9 @@ export class DatabaseService {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db.getDatabase();
     const normalized = path.resolve(folderPath);
-    const current = db
-      .prepare('SELECT available FROM folders WHERE path = ?')
-      .get(normalized) as { available: number } | undefined;
+    const current = db.prepare('SELECT available FROM folders WHERE path = ?').get(normalized) as
+      | { available: number }
+      | undefined;
     if (!current) return { changed: false };
     const currentBool = !!current.available;
     if (currentBool === available) return { changed: false };
@@ -1073,7 +1056,9 @@ export class DatabaseService {
       }
     }
     this.invalidateImageCache();
-    console.log(`[migration] backfilled EXIF for ${filled}/${rows.length} images${cancelled ? ' (cancelled)' : ''}`);
+    console.log(
+      `[migration] backfilled EXIF for ${filled}/${rows.length} images${cancelled ? ' (cancelled)' : ''}`,
+    );
     return { filled, cancelled };
   }
 
@@ -1138,7 +1123,9 @@ export class DatabaseService {
   ): Promise<FaceScanResult> {
     if (!this.db) throw new Error('Database not initialized');
     if (!this.faceDetector || !this.faceMatcher) {
-      throw new Error('Face detection is not available. The face-api models may have failed to load.');
+      throw new Error(
+        'Face detection is not available. The face-api models may have failed to load.',
+      );
     }
 
     const images = this.db.getUnscannedFaceImages();

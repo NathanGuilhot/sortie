@@ -1,6 +1,7 @@
 {
   "appId": "com.sortie.app",
   "productName": "Sortie",
+  "electronVersion": "32.2.7",
   "directories": {
     "output": "out",
     "buildResources": "resources"

@@ -1,7 +1,7 @@
 {
   "name": "sortie-desktop",
   "productName": "Sortie",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Local-first photo tagger with CLIP embeddings and face detection",
   "author": "Nathan Guilhot <nathan.guilhot@gmx.fr>",
   "license": "MIT",
@@ -21,7 +21,7 @@
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
-    "postinstall": "electron-rebuild -m ../ -w better-sqlite3,canvas"
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.8",
@@ -50,7 +50,7 @@
     "@types/react-dom": "^18.0.0",
     "@vitejs/plugin-react": "^4.0.0",
     "autoprefixer": "^10.0.0",
-    "electron": "^32.2.7",
+    "electron": "32.2.7",
     "electron-builder": "^24.0.0",
     "electron-vite": "^2.0.0",
     "png-to-ico": "^2.1.8",

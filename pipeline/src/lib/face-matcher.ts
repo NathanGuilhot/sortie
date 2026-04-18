@@ -82,8 +82,8 @@ export class FaceMatcher {
       if (withinThreshold) personIds.push(pid);
     }
 
-    const N = normed.length;       // faces (rows)
-    const M = personIds.length;    // candidate persons (cols)
+    const N = normed.length; // faces (rows)
+    const M = personIds.length; // candidate persons (cols)
 
     if (M === 0) {
       // No existing persons match — create a new person for each face.
@@ -186,9 +186,10 @@ export class FaceMatcher {
     const embedding = this.db.getFaceEmbedding(faceId);
     if (!embedding) throw new Error(`No embedding found for face ${faceId}`);
 
-    const faces = this.db.getDatabase().prepare('SELECT person_id FROM faces WHERE id = ?').get(faceId) as
-      | { person_id: number | null }
-      | undefined;
+    const faces = this.db
+      .getDatabase()
+      .prepare('SELECT person_id FROM faces WHERE id = ?')
+      .get(faceId) as { person_id: number | null } | undefined;
     const oldPersonId = faces?.person_id;
 
     const newPersonId = this.db.insertPerson(null);

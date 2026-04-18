@@ -343,17 +343,17 @@ export class DatabaseManager {
     }
 
     if (version < 6) {
-      const folderCols = this.db
-        .prepare('PRAGMA table_info(folders)')
-        .all() as Array<{ name: string }>;
+      const folderCols = this.db.prepare('PRAGMA table_info(folders)').all() as Array<{
+        name: string;
+      }>;
       const folderColNames = new Set(folderCols.map((c) => c.name));
       if (!folderColNames.has('available')) {
         this.db.exec('ALTER TABLE folders ADD COLUMN available BOOLEAN DEFAULT 1');
       }
 
-      const imageCols = this.db
-        .prepare('PRAGMA table_info(images)')
-        .all() as Array<{ name: string }>;
+      const imageCols = this.db.prepare('PRAGMA table_info(images)').all() as Array<{
+        name: string;
+      }>;
       const imageColNames = new Set(imageCols.map((c) => c.name));
       if (!imageColNames.has('missing')) {
         this.db.exec('ALTER TABLE images ADD COLUMN missing BOOLEAN DEFAULT 0');
@@ -364,9 +364,9 @@ export class DatabaseManager {
     }
 
     if (version < 7) {
-      const imageCols = this.db
-        .prepare('PRAGMA table_info(images)')
-        .all() as Array<{ name: string }>;
+      const imageCols = this.db.prepare('PRAGMA table_info(images)').all() as Array<{
+        name: string;
+      }>;
       const imageColNames = new Set(imageCols.map((c) => c.name));
       if (!imageColNames.has('website_link')) {
         this.db.exec('ALTER TABLE images ADD COLUMN website_link TEXT');
@@ -389,9 +389,9 @@ export class DatabaseManager {
     }
 
     if (version < 8) {
-      const folderCols = this.db
-        .prepare('PRAGMA table_info(folders)')
-        .all() as Array<{ name: string }>;
+      const folderCols = this.db.prepare('PRAGMA table_info(folders)').all() as Array<{
+        name: string;
+      }>;
       const folderColNames = new Set(folderCols.map((c) => c.name));
       if (!folderColNames.has('exclude_from_face_scan')) {
         this.db.exec('ALTER TABLE folders ADD COLUMN exclude_from_face_scan BOOLEAN DEFAULT 0');
@@ -400,9 +400,9 @@ export class DatabaseManager {
     }
 
     if (version < 9) {
-      const imageTagCols = this.db
-        .prepare('PRAGMA table_info(image_tags)')
-        .all() as Array<{ name: string }>;
+      const imageTagCols = this.db.prepare('PRAGMA table_info(image_tags)').all() as Array<{
+        name: string;
+      }>;
       const imageTagColNames = new Set(imageTagCols.map((c) => c.name));
       if (!imageTagColNames.has('position')) {
         this.db.exec('ALTER TABLE image_tags ADD COLUMN position INTEGER');
@@ -592,7 +592,11 @@ export class DatabaseManager {
     if (!row) return null;
     if (Buffer.isBuffer(row.embedding)) {
       return Array.from(
-        new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.embedding.byteLength / 4),
+        new Float32Array(
+          row.embedding.buffer,
+          row.embedding.byteOffset,
+          row.embedding.byteLength / 4,
+        ),
       );
     }
     return row.embedding;
@@ -633,9 +637,9 @@ export class DatabaseManager {
 
   getPersonById(personId: number): Person | null {
     return (
-      (this.db.prepare('SELECT * FROM persons WHERE id = ?').get(personId) as PersonDbRow | undefined as
-        | Person
-        | undefined) ?? null
+      (this.db.prepare('SELECT * FROM persons WHERE id = ?').get(personId) as
+        | PersonDbRow
+        | undefined as Person | undefined) ?? null
     );
   }
 
@@ -675,7 +679,9 @@ export class DatabaseManager {
 
   updatePersonThumbnail(personId: number, faceId: number): void {
     this.db
-      .prepare("UPDATE persons SET thumbnail_face_id = ?, updated_at = datetime('now') WHERE id = ?")
+      .prepare(
+        "UPDATE persons SET thumbnail_face_id = ?, updated_at = datetime('now') WHERE id = ?",
+      )
       .run(faceId, personId);
   }
 

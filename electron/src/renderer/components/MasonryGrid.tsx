@@ -1,10 +1,6 @@
 import { useEffect, useState, useRef, useMemo, RefObject } from 'react';
 import { useImageStore } from '../stores/imageStore';
-import {
-  computeMasonryLayout,
-  getVisibleIndices,
-  type LayoutResult,
-} from './masonry-layout';
+import { computeMasonryLayout, getVisibleIndices, type LayoutResult } from './masonry-layout';
 import { MasonryImage } from './masonry-utils';
 
 const OVERSCAN = 500;
@@ -19,8 +15,16 @@ interface MasonryGridProps {
 }
 
 export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
-  const { images, loading, error, fetchImages, searchMore, hasMore, activeSearchQuery, setSelectedImage } =
-    useImageStore();
+  const {
+    images,
+    loading,
+    error,
+    fetchImages,
+    searchMore,
+    hasMore,
+    activeSearchQuery,
+    setSelectedImage,
+  } = useImageStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
@@ -118,9 +122,7 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
     const bottomEdge = scrollTop + viewportHeight + OVERSCAN;
     if (layout.totalHeight > 0 && bottomEdge >= layout.totalHeight) {
       loadingMore.current = true;
-      const loader = activeSearchQuery
-        ? searchMore(50)
-        : fetchImages(100, images.length, true);
+      const loader = activeSearchQuery ? searchMore(50) : fetchImages(100, images.length, true);
       void loader.finally(() => {
         loadingMore.current = false;
       });

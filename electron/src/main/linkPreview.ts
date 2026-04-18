@@ -90,7 +90,10 @@ function extractTitle(html: string): string | null {
   return decodeEntities(m[1]).replace(/\s+/g, ' ').trim() || null;
 }
 
-async function fetchWithCap(url: string, byteCap: number): Promise<{ bytes: Uint8Array; contentType: string | null }> {
+async function fetchWithCap(
+  url: string,
+  byteCap: number,
+): Promise<{ bytes: Uint8Array; contentType: string | null }> {
   const res = await fetch(url, {
     headers: { 'user-agent': USER_AGENT, accept: 'text/html,*/*' },
     redirect: 'follow',
@@ -157,13 +160,8 @@ export async function fetchLinkPreview(url: string): Promise<LinkPreviewRow> {
     const { bytes } = await fetchWithCap(normalized, HTML_BYTE_CAP);
     const html = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
 
-    const title =
-      extractMeta(html, ['og:title', 'twitter:title']) ?? extractTitle(html);
-    const description = extractMeta(html, [
-      'og:description',
-      'twitter:description',
-      'description',
-    ]);
+    const title = extractMeta(html, ['og:title', 'twitter:title']) ?? extractTitle(html);
+    const description = extractMeta(html, ['og:description', 'twitter:description', 'description']);
     const siteName = extractMeta(html, ['og:site_name']);
     const ogImage = extractMeta(html, ['og:image', 'og:image:url', 'twitter:image']);
 

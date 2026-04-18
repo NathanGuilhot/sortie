@@ -85,22 +85,19 @@ export function setupIpcHandlers(
     return { changes };
   });
 
-  ipcMain.handle(
-    'scan-folder',
-    async (event, { path, opId }: { path: string; opId: string }) => {
-      const webContents = event.sender;
-      const signal = registerOperation(opId);
-      try {
-        return await dbService.scanFolder(
-          path,
-          (progress) => webContents.send('scan-progress', progress),
-          signal,
-        );
-      } finally {
-        clearOperation(opId);
-      }
-    },
-  );
+  ipcMain.handle('scan-folder', async (event, { path, opId }: { path: string; opId: string }) => {
+    const webContents = event.sender;
+    const signal = registerOperation(opId);
+    try {
+      return await dbService.scanFolder(
+        path,
+        (progress) => webContents.send('scan-progress', progress),
+        signal,
+      );
+    } finally {
+      clearOperation(opId);
+    }
+  });
 
   ipcMain.handle('cancel-operation', async (_event, { opId }: { opId: string }) => {
     return { cancelled: cancelOperation(opId) };
@@ -128,7 +125,9 @@ export function setupIpcHandlers(
     try {
       const files = fs.readdirSync(faceThumbDir);
       for (const file of files) fs.unlinkSync(path.join(faceThumbDir, file));
-    } catch { /* dir may not exist */ }
+    } catch {
+      /* dir may not exist */
+    }
     return { success: true };
   });
 
@@ -188,21 +187,15 @@ export function setupIpcHandlers(
 
   ipcMain.handle(
     'boards:reorder',
-    async (
-      _event,
-      { tagId, orderedImageIds }: { tagId: number; orderedImageIds: number[] },
-    ) => {
+    async (_event, { tagId, orderedImageIds }: { tagId: number; orderedImageIds: number[] }) => {
       await dbService.reorderBoardImages(tagId, orderedImageIds);
       return { success: true };
     },
   );
 
-  ipcMain.handle(
-    'boards:get-image-suggestions',
-    async (_event, { tagId }: { tagId: number }) => {
-      return await dbService.getBoardImageSuggestions(tagId);
-    },
-  );
+  ipcMain.handle('boards:get-image-suggestions', async (_event, { tagId }: { tagId: number }) => {
+    return await dbService.getBoardImageSuggestions(tagId);
+  });
 
   ipcMain.handle(
     'boards:add-image',

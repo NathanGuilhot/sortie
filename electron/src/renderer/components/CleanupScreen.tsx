@@ -13,7 +13,12 @@ import {
 
 const SearchIcon = (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+    />
   </svg>
 );
 
@@ -71,9 +76,7 @@ function DuplicateGroupCard({
         <div className="flex items-center gap-2">
           <span
             className={`px-2 py-0.5 rounded text-xs font-medium ${
-              group.matchType === 'exact'
-                ? 'bg-coral/30 text-ink'
-                : 'bg-gray-100 text-gray-700'
+              group.matchType === 'exact' ? 'bg-coral/30 text-ink' : 'bg-gray-100 text-gray-700'
             }`}
           >
             {group.matchType === 'exact' ? 'Exact Match' : 'Visual Match'}
@@ -138,7 +141,11 @@ function ImageCard({
 
       {/* Metadata */}
       <div className="space-y-0.5 mb-2">
-        <CopyText value={image.file_name} className="text-xs font-medium text-gray-900 truncate block" title={image.file_name}>
+        <CopyText
+          value={image.file_name}
+          className="text-xs font-medium text-gray-900 truncate block"
+          title={image.file_name}
+        >
           {image.file_name}
         </CopyText>
         <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -271,9 +278,7 @@ export function CleanupScreen() {
       {scanning && scanProgress && (
         <ProgressPanel
           label={
-            scanProgress.phase === 'hashing'
-              ? 'Computing image hashes...'
-              : 'Comparing images...'
+            scanProgress.phase === 'hashing' ? 'Computing image hashes...' : 'Comparing images...'
           }
           current={scanProgress.current}
           total={scanProgress.total}

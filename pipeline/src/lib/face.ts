@@ -94,7 +94,10 @@ export class FaceDetector {
     let canvasHeight: number;
 
     if (cachePath && this.isCacheValid(cachePath, imagePath)) {
-      const result = await sharp(cachePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const result = await sharp(cachePath)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
       data = result.data;
       canvasWidth = result.info.width;
       canvasHeight = result.info.height;

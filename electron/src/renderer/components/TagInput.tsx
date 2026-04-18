@@ -27,8 +27,7 @@ const CATEGORY_CLASSES: Record<string, string> = {
   camera: 'bg-gray-100 text-gray-600 hover:bg-gray-200',
 };
 
-const DEFAULT_TAG_CLASS =
-  'bg-gray-100 hover:bg-gray-200 text-gray-700';
+const DEFAULT_TAG_CLASS = 'bg-gray-100 hover:bg-gray-200 text-gray-700';
 
 const CATEGORY_DOT: Record<string, string> = {
   ai: 'bg-ink',
@@ -88,12 +87,15 @@ export function TagInput({
   // Tight fuse for near-duplicate detection
   const tightFuse = useMemo(
     () =>
-      new Fuse(tags.map((t) => t.name), {
-        threshold: 0.3,
-        distance: 50,
-        includeScore: true,
-        minMatchCharLength: 2,
-      }),
+      new Fuse(
+        tags.map((t) => t.name),
+        {
+          threshold: 0.3,
+          distance: 50,
+          includeScore: true,
+          minMatchCharLength: 2,
+        },
+      ),
     [tags],
   );
 
@@ -106,30 +108,25 @@ export function TagInput({
     [fuse],
   );
 
-  const renderSuggestion = useCallback(
-    (item: Tag, _query: string) => {
-      const count = parseInt(item.usageCount || '0', 10);
-      const cat = item.category || null;
-      const dotClass = cat ? CATEGORY_DOT[cat] : null;
+  const renderSuggestion = useCallback((item: Tag, _query: string) => {
+    const count = parseInt(item.usageCount || '0', 10);
+    const cat = item.category || null;
+    const dotClass = cat ? CATEGORY_DOT[cat] : null;
 
-      return (
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-1.5 min-w-0">
-            {dotClass && (
-              <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotClass}`} />
-            )}
-            <span className="truncate">{item.text}</span>
-          </div>
-          {count > 0 && (
-            <span className="text-[10px] text-gray-400 ml-2 flex-shrink-0 tabular-nums">
-              {count}
-            </span>
+    return (
+      <div className="flex items-center justify-between w-full">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {dotClass && (
+            <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotClass}`} />
           )}
+          <span className="truncate">{item.text}</span>
         </div>
-      );
-    },
-    [],
-  );
+        {count > 0 && (
+          <span className="text-[10px] text-gray-400 ml-2 flex-shrink-0 tabular-nums">{count}</span>
+        )}
+      </div>
+    );
+  }, []);
 
   const handleInputChange = useCallback(
     (value: string) => {
@@ -243,8 +240,18 @@ export function TagInput({
 
       {nearDuplicates.length > 0 && inputValue.trim() && (
         <div className="mt-1.5 px-2.5 py-2 text-xs text-gray-600 bg-gray-50 rounded-lg border border-gray-200 flex items-start gap-1.5">
-          <svg className="w-3.5 h-3.5 text-gray-400 mt-px flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          <svg
+            className="w-3.5 h-3.5 text-gray-400 mt-px flex-shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"
+            />
           </svg>
           <span>
             Similar:{' '}

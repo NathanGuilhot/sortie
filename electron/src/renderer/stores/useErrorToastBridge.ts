@@ -15,13 +15,7 @@ type HasError = { error: string | null; setError?: (e: string | null) => void };
  */
 export function useErrorToastBridge() {
   useEffect(() => {
-    const stores = [
-      useImageStore,
-      useBoardStore,
-      useCleanupStore,
-      usePeopleStore,
-      useTagStore,
-    ];
+    const stores = [useImageStore, useBoardStore, useCleanupStore, usePeopleStore, useTagStore];
 
     const unsubs = stores.map((store) =>
       store.subscribe((state: HasError, prev: HasError) => {

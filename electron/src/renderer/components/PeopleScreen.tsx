@@ -15,7 +15,12 @@ import { toast } from '../stores/toastStore';
 
 const SearchIcon = (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+    />
   </svg>
 );
 
@@ -218,7 +223,9 @@ function PersonDetail({
             </button>
           ) : (
             <button
-              onClick={() => { setConfirmDelete(true); }}
+              onClick={() => {
+                setConfirmDelete(true);
+              }}
               className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             >
               Delete
@@ -281,11 +288,7 @@ function FaceThumbnail({ face }: { face: Face }) {
       onMouseLeave={() => setHover(false)}
     >
       <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200">
-        <img
-          src={buildFaceThumbUrl(face, 100)}
-          alt="face"
-          className="w-full h-full object-cover"
-        />
+        <img src={buildFaceThumbUrl(face, 100)} alt="face" className="w-full h-full object-cover" />
       </div>
       {hover && (
         <button
@@ -294,7 +297,12 @@ function FaceThumbnail({ face }: { face: Face }) {
           title="Split from this person"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2.5}
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       )}
@@ -395,91 +403,101 @@ export function PeopleScreen() {
             className="w-6 h-6 flex items-center justify-center rounded hover:bg-mint/30 text-ink/60 hover:text-ink cursor-pointer"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
       )}
 
-        {/* Content */}
-        {selectedPerson && !merging ? (
-          <PersonDetail
-            person={selectedPerson}
-            onClose={() => selectPerson(null)}
-            onStartMerge={() => setMerging(selectedPerson.id)}
-          />
-        ) : (
-          <>
-            {loading && persons.length === 0 ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <div key={i} className="flex flex-col items-center p-4 rounded-xl border border-gray-200 animate-pulse">
-                    <div className="w-20 h-20 rounded-full bg-gray-200 mb-3" />
-                    <div className="h-3 w-16 bg-gray-200 rounded mb-1.5" />
-                    <div className="h-2.5 w-10 bg-gray-100 rounded" />
-                  </div>
-                ))}
-              </div>
-            ) : persons.length === 0 ? (
-              <EmptyState
-                icon={PeopleIcon}
-                title="No people yet"
-                description="Scan your library to detect faces."
-                action={
-                  <PrimaryButton
-                    icon={SearchIcon}
-                    size="lg"
-                    onClick={() => void scanFaces()}
-                    disabled={scanning}
-                  >
-                    Scan Faces
-                  </PrimaryButton>
-                }
-              />
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
-                {persons.map((person) => (
-                  <PersonCard
-                    key={person.id}
-                    person={person}
-                    isSelected={selectedPerson?.id === person.id}
-                    onClick={() => selectPerson(person)}
-                    onMergeTarget={() => void handleMergeTarget(person.id)}
-                    merging={merging !== null && merging !== person.id}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Reset face data */}
-        <div className="mt-12 pt-4 border-t border-gray-100 flex justify-center">
-          {resettingFaces ? (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-red-600">Erase all face data? This cannot be undone.</span>
-              <button
-                onClick={() => void handleResetFaceData()}
-                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer"
-              >
-                Confirm Reset
-              </button>
-              <button
-                onClick={() => setResettingFaces(false)}
-                className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50 cursor-pointer"
-              >
-                Cancel
-              </button>
+      {/* Content */}
+      {selectedPerson && !merging ? (
+        <PersonDetail
+          person={selectedPerson}
+          onClose={() => selectPerson(null)}
+          onStartMerge={() => setMerging(selectedPerson.id)}
+        />
+      ) : (
+        <>
+          {loading && persons.length === 0 ? (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex flex-col items-center p-4 rounded-xl border border-gray-200 animate-pulse"
+                >
+                  <div className="w-20 h-20 rounded-full bg-gray-200 mb-3" />
+                  <div className="h-3 w-16 bg-gray-200 rounded mb-1.5" />
+                  <div className="h-2.5 w-10 bg-gray-100 rounded" />
+                </div>
+              ))}
             </div>
+          ) : persons.length === 0 ? (
+            <EmptyState
+              icon={PeopleIcon}
+              title="No people yet"
+              description="Scan your library to detect faces."
+              action={
+                <PrimaryButton
+                  icon={SearchIcon}
+                  size="lg"
+                  onClick={() => void scanFaces()}
+                  disabled={scanning}
+                >
+                  Scan Faces
+                </PrimaryButton>
+              }
+            />
           ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
+              {persons.map((person) => (
+                <PersonCard
+                  key={person.id}
+                  person={person}
+                  isSelected={selectedPerson?.id === person.id}
+                  onClick={() => selectPerson(person)}
+                  onMergeTarget={() => void handleMergeTarget(person.id)}
+                  merging={merging !== null && merging !== person.id}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Reset face data */}
+      <div className="mt-12 pt-4 border-t border-gray-100 flex justify-center">
+        {resettingFaces ? (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-red-600">
+              Erase all face data? This cannot be undone.
+            </span>
             <button
               onClick={() => void handleResetFaceData()}
-              className="text-xs text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+              className="px-3 py-1.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer"
             >
-              Reset Face Data
+              Confirm Reset
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => setResettingFaces(false)}
+              className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50 cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => void handleResetFaceData()}
+            className="text-xs text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+          >
+            Reset Face Data
+          </button>
+        )}
+      </div>
     </ScreenShell>
   );
 }

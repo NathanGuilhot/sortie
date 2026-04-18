@@ -15,7 +15,10 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'sortie-file', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
   { scheme: 'sortie-thumb', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
   { scheme: 'sortie-face', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
-  { scheme: 'sortie-preview', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
+  {
+    scheme: 'sortie-preview',
+    privileges: { bypassCSP: true, supportFetchAPI: true, stream: true },
+  },
 ]);
 
 let mainWindow: BrowserWindow | null = null;
@@ -185,7 +188,11 @@ void app.whenReady().then(async () => {
     // Cache key includes bbox so stale crops are never served after a
     // face-data reset (SQLite reuses row IDs without AUTOINCREMENT).
     const bboxKey = `${bx.toFixed(4)}_${by.toFixed(4)}_${bw.toFixed(4)}_${bh.toFixed(4)}`;
-    const cacheHash = crypto.createHash('sha256').update(`${faceId}_${bboxKey}_${filePath}`).digest('hex').slice(0, 16);
+    const cacheHash = crypto
+      .createHash('sha256')
+      .update(`${faceId}_${bboxKey}_${filePath}`)
+      .digest('hex')
+      .slice(0, 16);
     const cachePath = path.join(faceThumbDir, `${cacheHash}_${size}.jpg`);
 
     try {

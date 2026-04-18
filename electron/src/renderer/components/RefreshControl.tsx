@@ -165,12 +165,8 @@ export function RefreshControl({ scrollContainerRef }: RefreshControlProps) {
 
   const armed = pullDistance >= PULL_THRESHOLD;
   const indicatorVisible = refreshing || pullDistance >= INDICATOR_SHOW_AT;
-  const indicatorOpacity = refreshing
-    ? 1
-    : Math.min(1, pullDistance / PULL_THRESHOLD);
-  const indicatorTranslateY = refreshing
-    ? 0
-    : Math.min(pullDistance, MAX_PULL) - MAX_PULL / 2;
+  const indicatorOpacity = refreshing ? 1 : Math.min(1, pullDistance / PULL_THRESHOLD);
+  const indicatorTranslateY = refreshing ? 0 : Math.min(pullDistance, MAX_PULL) - MAX_PULL / 2;
 
   return (
     <>

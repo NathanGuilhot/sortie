@@ -17,17 +17,12 @@ export function AddToBoardButton({ imageId, imageTags }: AddToBoardButtonProps) 
 
   const currentBoards = useMemo(() => {
     const boardTagIds = new Set(
-      imageTags
-        .filter((t) => t.category === 'user' || t.category === 'ai')
-        .map((t) => t.id),
+      imageTags.filter((t) => t.category === 'user' || t.category === 'ai').map((t) => t.id),
     );
     return boards.filter((b) => boardTagIds.has(b.id));
   }, [imageTags, boards]);
 
-  const currentBoardIds = useMemo(
-    () => new Set(currentBoards.map((b) => b.id)),
-    [currentBoards],
-  );
+  const currentBoardIds = useMemo(() => new Set(currentBoards.map((b) => b.id)), [currentBoards]);
 
   const handleAdd = (board: Board) => {
     void addToBoard(imageId, board.id);
@@ -56,7 +51,12 @@ export function AddToBoardButton({ imageId, imageTags }: AddToBoardButtonProps) 
               aria-label={`Remove from ${board.name}`}
             >
               <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={3}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </span>
@@ -66,7 +66,12 @@ export function AddToBoardButton({ imageId, imageTags }: AddToBoardButtonProps) 
           className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2.5}
+              d="M12 4v16m8-8H4"
+            />
           </svg>
           Add to board
         </button>

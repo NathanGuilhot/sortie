@@ -77,10 +77,8 @@ contextBridge.exposeInMainWorld('sortieAPI', {
       ipcRenderer.invoke('boards:add-image', { imageId, tagId }),
     removeImage: (imageId: number, tagId: number) =>
       ipcRenderer.invoke('boards:remove-image', { imageId, tagId }),
-    create: (name: string, color?: string) =>
-      ipcRenderer.invoke('boards:create', { name, color }),
-    rename: (tagId: number, name: string) =>
-      ipcRenderer.invoke('boards:rename', { tagId, name }),
+    create: (name: string, color?: string) => ipcRenderer.invoke('boards:create', { name, color }),
+    rename: (tagId: number, name: string) => ipcRenderer.invoke('boards:rename', { tagId, name }),
     setColor: (tagId: number, color: string) =>
       ipcRenderer.invoke('boards:set-color', { tagId, color }),
     delete: (tagId: number) => ipcRenderer.invoke('boards:delete', { tagId }),
@@ -156,8 +154,7 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   mergePersons: (keepPersonId: number, mergePersonId: number) =>
     ipcRenderer.invoke('merge-persons', { keepPersonId, mergePersonId }),
 
-  splitFaceFromPerson: (faceId: number) =>
-    ipcRenderer.invoke('split-face-from-person', { faceId }),
+  splitFaceFromPerson: (faceId: number) => ipcRenderer.invoke('split-face-from-person', { faceId }),
 
   getImageFaces: (imageId: number) => ipcRenderer.invoke('get-image-faces', { imageId }),
 
@@ -190,9 +187,7 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   recheckFolderAvailability: (folderPath?: string) =>
     ipcRenderer.invoke('recheck-folder-availability', { path: folderPath }),
 
-  onFolderAvailability: (
-    callback: (change: { path: string; available: boolean }) => void,
-  ) => {
+  onFolderAvailability: (callback: (change: { path: string; available: boolean }) => void) => {
     const handler = (_event: unknown, change: { path: string; available: boolean }) =>
       callback(change);
     ipcRenderer.on('folder-availability-changed', handler);

@@ -13,13 +13,7 @@ export interface StatItem {
   label: string;
 }
 
-export function StatHeader({
-  stats,
-  action,
-}: {
-  stats: StatItem[];
-  action?: ReactNode;
-}) {
+export function StatHeader({ stats, action }: { stats: StatItem[]; action?: ReactNode }) {
   return (
     <div className="flex items-center justify-between mb-8">
       <div className="flex items-center gap-6">
@@ -38,13 +32,7 @@ export function StatHeader({
   );
 }
 
-export function ErrorBanner({
-  message,
-  onDismiss,
-}: {
-  message: string;
-  onDismiss?: () => void;
-}) {
+export function ErrorBanner({ message, onDismiss }: { message: string; onDismiss?: () => void }) {
   return (
     <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center justify-between text-sm">
       <span>{message}</span>
@@ -54,7 +42,12 @@ export function ErrorBanner({
           className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 text-red-400 hover:text-red-600 cursor-pointer"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       )}
@@ -90,15 +83,24 @@ export function ProgressPanel({
               style={{ width: `${(current / total) * 100}%` }}
             />
           </div>
-          {currentFile && (
-            <div className="text-xs text-ink/70 mt-1 truncate">{currentFile}</div>
-          )}
+          {currentFile && <div className="text-xs text-ink/70 mt-1 truncate">{currentFile}</div>}
         </>
       ) : (
         <div className="flex items-center gap-2 text-sm text-ink">
           <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
           </svg>
           {label}
         </div>
@@ -160,13 +162,7 @@ export function PrimaryButton({
   );
 }
 
-export function CancelButton({
-  children,
-  onClick,
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-}) {
+export function CancelButton({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
   return (
     <button
       onClick={onClick}

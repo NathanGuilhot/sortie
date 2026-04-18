@@ -91,14 +91,8 @@ function CopyImageButton({
 }
 
 export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
-  const {
-    hideImage,
-    deleteImage,
-    updateImageMetadata,
-    addToBoard,
-    setSelectedImage,
-    fetchImages,
-  } = useImageStore();
+  const { hideImage, deleteImage, updateImageMetadata, addToBoard, setSelectedImage, fetchImages } =
+    useImageStore();
   const fetchBoards = useBoardStore((s) => s.fetchBoards);
   const [date, setDate] = useState<string>('');
   const [location, setLocation] = useState('');
@@ -270,7 +264,9 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
 
   if (!image) return null;
 
-  const originalDate = image.captured_at ? new Date(image.captured_at).toISOString().split('T')[0] : '';
+  const originalDate = image.captured_at
+    ? new Date(image.captured_at).toISOString().split('T')[0]
+    : '';
   const originalLocation = [image.city, image.country].filter(Boolean).join(', ') || '';
   const originalDescription = image.description || '';
   const originalWebsiteLink = image.website_link || '';
@@ -282,7 +278,12 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     (savedWebsiteLink ?? '') !== originalWebsiteLink;
 
   const hasCamera =
-    image.camera_make || image.camera_model || image.aperture || image.iso || image.exposure_time || image.focal_length;
+    image.camera_make ||
+    image.camera_model ||
+    image.aperture ||
+    image.iso ||
+    image.exposure_time ||
+    image.focal_length;
 
   const cameraName = [image.camera_make, image.camera_model].filter(Boolean).join(' ');
   const cameraSettings = [
@@ -382,7 +383,11 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             </svg>
           </button>
         </div>
-        <CopyText value={image.file_path} className="mt-1.5 text-[11px] text-gray-300 truncate pl-[42px] block" title={image.file_path}>
+        <CopyText
+          value={image.file_path}
+          className="mt-1.5 text-[11px] text-gray-300 truncate pl-[42px] block"
+          title={image.file_path}
+        >
           {image.file_path}
         </CopyText>
       </div>
@@ -613,7 +618,13 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             {isSaving && (
               <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             )}
-            {isSaving ? 'Saving...' : saveSuccess ? 'Saved' : isDirty ? 'Save changes' : 'No changes'}
+            {isSaving
+              ? 'Saving...'
+              : saveSuccess
+                ? 'Saved'
+                : isDirty
+                  ? 'Save changes'
+                  : 'No changes'}
             {saveSuccess && (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -634,10 +645,14 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
           <DisclosureSection title="Camera">
             <div className="space-y-1">
               {cameraName && (
-                <CopyText value={cameraName} className="text-sm font-medium text-gray-700 block">{cameraName}</CopyText>
+                <CopyText value={cameraName} className="text-sm font-medium text-gray-700 block">
+                  {cameraName}
+                </CopyText>
               )}
               {cameraSettings && (
-                <CopyText value={cameraSettings} className="text-xs text-gray-500 font-mono block">{cameraSettings}</CopyText>
+                <CopyText value={cameraSettings} className="text-xs text-gray-500 font-mono block">
+                  {cameraSettings}
+                </CopyText>
               )}
             </div>
           </DisclosureSection>
@@ -667,7 +682,10 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             {image.latitude != null && image.longitude != null && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-400">Coordinates</span>
-                <CopyText value={`${image.latitude.toFixed(4)}, ${image.longitude.toFixed(4)}`} className="inline-flex px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-[11px]">
+                <CopyText
+                  value={`${image.latitude.toFixed(4)}, ${image.longitude.toFixed(4)}`}
+                  className="inline-flex px-2 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-[11px]"
+                >
                   {image.latitude.toFixed(4)}, {image.longitude.toFixed(4)}
                 </CopyText>
               </div>
@@ -739,7 +757,9 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
                 Cancel
               </button>
             </div>
-            <p className="text-[11px] text-gray-400 text-center">File will be permanently deleted</p>
+            <p className="text-[11px] text-gray-400 text-center">
+              File will be permanently deleted
+            </p>
           </div>
         ) : (
           !confirmingDelete && (

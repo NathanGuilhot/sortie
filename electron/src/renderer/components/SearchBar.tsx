@@ -53,9 +53,7 @@ function PersonFilterChip({
       onClick={onToggle}
       title={`${label} (${person.face_count})`}
       className={`relative w-10 h-10 rounded-full overflow-hidden transition-all ${
-        selected
-          ? 'ring-2 ring-ink ring-offset-2'
-          : 'ring-1 ring-gray-200 hover:ring-gray-400'
+        selected ? 'ring-2 ring-ink ring-offset-2' : 'ring-1 ring-gray-200 hover:ring-gray-400'
       }`}
     >
       {thumbUrl ? (
@@ -394,9 +392,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
                         key={p.id}
                         person={p}
                         selected={personFilter === p.id}
-                        onToggle={() =>
-                          setPersonFilter(personFilter === p.id ? null : p.id)
-                        }
+                        onToggle={() => setPersonFilter(personFilter === p.id ? null : p.id)}
                       />
                     ))}
                   </div>

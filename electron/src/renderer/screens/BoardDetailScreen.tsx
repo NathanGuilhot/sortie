@@ -5,7 +5,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Board, Image } from 'shared';
 import { useImageStore } from '../stores/imageStore';
 import { useBoardStore } from '../stores/boardStore';
-import { computeMasonryLayout, getVisibleIndices, type LayoutResult, type Position } from '../components/masonry-layout';
+import {
+  computeMasonryLayout,
+  getVisibleIndices,
+  type LayoutResult,
+  type Position,
+} from '../components/masonry-layout';
 import { MetadataModal } from '../components/MetadataModal';
 import { BoardSuggestionsRow } from '../components/BoardSuggestionsRow';
 
@@ -56,7 +61,10 @@ export function BoardDetailScreen() {
   };
 
   const handleDropCommit = () => {
-    void reorderBoardImages(tagId, images.map((img) => img.id));
+    void reorderBoardImages(
+      tagId,
+      images.map((img) => img.id),
+    );
   };
 
   const handleRemove = async (imageId: number) => {
@@ -87,7 +95,12 @@ export function BoardDetailScreen() {
               aria-label="Back to boards"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
             </button>
             <div className="flex-1 min-w-0">
@@ -224,8 +237,7 @@ function BoardMasonry({
     [images, containerWidth, columns],
   );
 
-  const columnWidth =
-    containerWidth > 0 ? (containerWidth - (columns - 1) * GAP) / columns : 0;
+  const columnWidth = containerWidth > 0 ? (containerWidth - (columns - 1) * GAP) / columns : 0;
 
   const visibleIndices = useMemo(() => {
     const top = scrollTop - OVERSCAN;
@@ -340,7 +352,12 @@ function DraggableTile({
         aria-label="Remove from board"
       >
         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2.5}
+            d="M6 18L18 6M6 6l12 12"
+          />
         </svg>
       </button>
     </div>
