@@ -1,6 +1,6 @@
 {
   "name": "sortie",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Picture Tagger & Embedding Electron App",
   "private": true,
   "workspaces": [
@@ -9,7 +9,8 @@
     "electron"
   ],
   "scripts": {
-    "type-check": "yarn workspace shared run type-check && yarn workspace pipeline run type-check && yarn workspace sortie-desktop run type-check",
+    "type-check": "yarn workspace shared run build && yarn workspace pipeline run build && yarn workspace sortie-desktop run type-check",
+    "postinstall": "cd electron && electron-builder install-app-deps",
     "build:icons": "yarn workspace sortie-desktop run build:icons",
     "build:code": "yarn workspace shared run build && yarn workspace pipeline run build && yarn workspace sortie-desktop run build:code",
     "build": "yarn build:icons && yarn build:code",
