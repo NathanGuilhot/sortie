@@ -69,13 +69,16 @@ export class DatabaseManager {
 
   private setupExtensions() {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { getLoadablePath } = require('sqlite-vec') as { getLoadablePath: () => string };
       let extPath = getLoadablePath();
       // In packaged Electron apps, sqlite-vec resolves to a path inside
       // app.asar but the .dylib lives in app.asar.unpacked (per electron-builder
       // asarUnpack rules). Redirect so sqlite3_load_extension can dlopen it.
-      extPath = extPath.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`);
+      extPath = extPath.replace(
+        `${path.sep}app.asar${path.sep}`,
+        `${path.sep}app.asar.unpacked${path.sep}`,
+      );
       this.db.loadExtension(extPath);
       this.vecLoaded = true;
     } catch (err) {
