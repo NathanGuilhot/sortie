@@ -49,8 +49,9 @@
   "publish": [
     {
       "provider": "github",
-      "owner": "nathanguilhot",
-      "repo": "sortie"
+      "owner": "NathanGuilhot",
+      "repo": "sortie",
+      "releaseType": "draft"
     }
   ],
   "extends": null

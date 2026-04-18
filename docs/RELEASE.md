@@ -1,38 +1,30 @@
 # Release Guide
 
-Sortie ships unsigned installers for v0.1.0. Code signing + notarization are planned follow-ups.
+Sortie ships unsigned installers. Code signing + notarization are planned follow-ups.
 
-## Versioning
+## Cutting a release
 
-Bump the version in **both** `package.json` files before building:
+1. Bump the version in **both** `package.json` (root) and `electron/package.json`, and commit.
+2. Tag and push:
+   ```sh
+   git tag v0.1.1
+   git push origin v0.1.1
+   ```
+3. The `Release` workflow runs automatically on tag push (or trigger manually from the Actions tab):
+   - Generates icons once on macOS, shares them via artifact.
+   - Builds + publishes mac / windows / linux in parallel.
+   - Uploads all artifacts to a **draft** GitHub release — edit the notes and publish when ready.
 
-- `/package.json` (root workspace)
-- `/electron/package.json` (source of truth for `app.getVersion()` and electron-builder)
-
-Keep them in sync until we script it.
-
-## Build commands
-
-Run from the repo root:
-
-```sh
-yarn build            # sanity-check a full clean compile
-yarn dist:mac         # macOS: Sortie-<ver>-arm64.dmg + Sortie-<ver>-x64.dmg
-yarn dist:win         # Windows: Sortie-Setup-<ver>.exe (NSIS)
-yarn dist:linux       # Linux: AppImage + .deb
-```
-
-Artifacts land in `electron/out/`.
-
-### Cross-building Windows from macOS
-
-`yarn dist:win` on macOS requires Wine to build the NSIS installer:
+## Local builds
 
 ```sh
-brew install --cask wine-stable
+yarn build            # full clean compile (icons + code)
+yarn dist:mac         # Sortie-<ver>-arm64.dmg + Sortie-<ver>-x64.dmg
+yarn dist:win         # Sortie-Setup-<ver>.exe (NSIS)
+yarn dist:linux       # AppImage + .deb
 ```
 
-If Wine is not available, build on a Windows machine or VM.
+Artifacts land in `electron/out/`. Cross-building Windows from macOS requires `brew install --cask wine-stable`.
 
 ## Smoke test checklist
 
@@ -40,38 +32,31 @@ For each platform, after install:
 
 - [ ] App launches without crashing
 - [ ] Menu bar / taskbar shows **Sortie** (never "Electron")
-- [ ] `About Sortie` (macOS: app menu; Win/Linux: Help menu) shows the correct version
-- [ ] External links (GitHub, License) open in the system browser
+- [ ] `About Sortie` shows the correct version
+- [ ] External links open in the system browser
 - [ ] Add a folder, scan it, verify images + tags + faces pipelines work
 
-## User-facing install notes
-
-Include these in release notes since v0.1.0 installers are unsigned:
+## Release-notes boilerplate (unsigned installers)
 
 ### macOS — Gatekeeper warning
 
-On first launch, macOS will block the app as "damaged" or "from an unidentified developer".
-Workaround:
-1. Open **Applications**, right-click **Sortie**, choose **Open**
-2. In the confirmation dialog, click **Open** again
+On first launch, macOS blocks the app as "damaged" or "from an unidentified developer".
 
-You only need to do this once. If macOS still refuses, run in Terminal:
+1. Open **Applications**, right-click **Sortie**, choose **Open**.
+2. Click **Open** in the confirmation dialog.
+
+If macOS still refuses:
 ```sh
 xattr -cr /Applications/Sortie.app
 ```
 
 ### Windows — SmartScreen warning
 
-When running `Sortie-Setup-<ver>.exe`, SmartScreen may show "Windows protected your PC".
-Click **More info** → **Run anyway**.
-
-## Publishing
-
-No automation yet. Attach the artifacts from `electron/out/` to a GitHub release manually.
+SmartScreen may show "Windows protected your PC". Click **More info** → **Run anyway**.
 
 ## Future work
 
-- Apple Developer ID code signing + notarization (requires membership).
+- Apple Developer ID code signing + notarization.
 - Windows Authenticode signing.
-- Auto-updates via `electron-updater` (already installed, not wired up).
-- GitHub Actions to build + attach artifacts on tag push.
+- Auto-updates via `electron-updater` (installed, not wired up).
+- Script the dual version bump.

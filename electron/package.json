@@ -1,7 +1,7 @@
 {
-  "name": "electron",
+  "name": "sortie-desktop",
   "productName": "Sortie",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local-first photo tagger with CLIP embeddings and face detection",
   "author": "Nathan Guilhot <nathan.guilhot@gmx.fr>",
   "license": "MIT",
@@ -10,7 +10,8 @@
   "main": "./dist/main/index.js",
   "scripts": {
     "build:icons": "node scripts/generate-icons.mjs",
-    "build": "yarn build:icons && tsc && electron-vite build",
+    "build:code": "tsc && electron-vite build",
+    "build": "yarn build:icons && yarn build:code",
     "clean": "rm -rf dist out",
     "type-check": "tsc --noEmit",
     "start": "electron-vite preview",
