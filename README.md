@@ -21,7 +21,8 @@ How about family pictures? Sortie runs on-device face detection to allow you to 
 
 You can also edit and view your image metadatas, adding descriptions, links, favorite them...
 
-On top of this, the gallery is optimized to handle thousands and gigabits of images without breaking a sweat! ᕙ(  •̀ ᗜ •́  )ᕗ 
+On top of this, the gallery is optimized to handle thousands and gigabits of images without breaking a sweat! 
+ᕙ(  •̀ ᗜ •́  )ᕗ 
 
 
 ## Install
