@@ -65,12 +65,16 @@ export class WatcherService {
 
   private async onFileRemoved(filePath: string) {
     const ext = path.extname(filePath).toLowerCase();
-    if (IMAGE_EXTENSIONS.has(ext) && this.dbService) {
-      try {
-        await this.dbService.markImageMissing(filePath);
-      } catch (error) {
-        console.error('Failed to mark image as missing:', filePath, error);
-      }
+    if (!IMAGE_EXTENSIONS.has(ext) || !this.dbService) return;
+    // Drive disconnects fire `unlink` for every file in the tree. The
+    // availability monitor handles bulk mark-as-missing; ignore unlinks
+    // when the parent folder is currently offline.
+    const folder = this.dbService.getFolderForPath(filePath);
+    if (folder && !folder.available) return;
+    try {
+      await this.dbService.markImageMissing(filePath);
+    } catch (error) {
+      console.error('Failed to mark image as missing:', filePath, error);
     }
   }
 }

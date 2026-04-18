@@ -150,4 +150,33 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   getDatabasePath: () => ipcRenderer.invoke('get-database-path'),
 
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
+
+  // Folder availability (external drives)
+  recheckFolderAvailability: (folderPath?: string) =>
+    ipcRenderer.invoke('recheck-folder-availability', { path: folderPath }),
+
+  onFolderAvailability: (
+    callback: (change: { path: string; available: boolean }) => void,
+  ) => {
+    const handler = (_event: unknown, change: { path: string; available: boolean }) =>
+      callback(change);
+    ipcRenderer.on('folder-availability-changed', handler);
+    return () => {
+      ipcRenderer.removeListener('folder-availability-changed', handler);
+    };
+  },
+
+  // App info
+  app: {
+    getVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
+    openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', { url }),
+    showAboutPanel: () => ipcRenderer.invoke('app:showAboutPanel'),
+    onShowAbout: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('show-about', handler);
+      return () => {
+        ipcRenderer.removeListener('show-about', handler);
+      };
+    },
+  },
 });

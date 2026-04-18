@@ -3,11 +3,13 @@ import path from 'path';
 import fs from 'fs';
 import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
+import { FolderAvailabilityMonitor } from './folderAvailability';
 import { registerOperation, cancelOperation, clearOperation } from './operations';
 
 export function setupIpcHandlers(
   dbService: DatabaseService,
   watcherService: WatcherService,
+  availabilityMonitor: FolderAvailabilityMonitor,
   dbPath: string,
 ) {
   ipcMain.handle('pick-folder', async (event) => {
@@ -62,7 +64,13 @@ export function setupIpcHandlers(
   ipcMain.handle('add-folder', async (_event, { path }: { path: string }) => {
     const folderId = await dbService.addFolder(path);
     await watcherService.watchFolder(path);
+    void availabilityMonitor.checkNow(path);
     return folderId;
+  });
+
+  ipcMain.handle('recheck-folder-availability', async (_event, args?: { path?: string }) => {
+    const changes = await availabilityMonitor.checkNow(args?.path);
+    return { changes };
   });
 
   ipcMain.handle(
@@ -332,6 +340,22 @@ export function setupIpcHandlers(
 
   ipcMain.handle('delete-person', async (_event, { personId }: { personId: number }) => {
     await dbService.deletePerson(personId);
+    return { success: true };
+  });
+
+  // --- App info / system ---
+
+  ipcMain.handle('app:getVersion', () => app.getVersion());
+
+  ipcMain.handle('app:showAboutPanel', () => {
+    app.showAboutPanel();
+  });
+
+  ipcMain.handle('app:openExternal', async (_event, { url }: { url: string }) => {
+    if (!/^https?:\/\//i.test(url)) {
+      throw new Error(`Refusing to open non-http(s) URL: ${url}`);
+    }
+    await shell.openExternal(url);
     return { success: true };
   });
 }

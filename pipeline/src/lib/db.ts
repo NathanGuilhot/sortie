@@ -339,6 +339,27 @@ export class DatabaseManager {
       this.db.exec('UPDATE images SET faces_scanned = 0');
       this.db.pragma('user_version = 5');
     }
+
+    if (version < 6) {
+      const folderCols = this.db
+        .prepare('PRAGMA table_info(folders)')
+        .all() as Array<{ name: string }>;
+      const folderColNames = new Set(folderCols.map((c) => c.name));
+      if (!folderColNames.has('available')) {
+        this.db.exec('ALTER TABLE folders ADD COLUMN available BOOLEAN DEFAULT 1');
+      }
+
+      const imageCols = this.db
+        .prepare('PRAGMA table_info(images)')
+        .all() as Array<{ name: string }>;
+      const imageColNames = new Set(imageCols.map((c) => c.name));
+      if (!imageColNames.has('missing')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN missing BOOLEAN DEFAULT 0');
+      }
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_missing ON images(missing)');
+
+      this.db.pragma('user_version = 6');
+    }
   }
 
   insertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): number {

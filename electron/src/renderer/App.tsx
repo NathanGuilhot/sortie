@@ -5,9 +5,11 @@ import { MetadataModal } from './components/MetadataModal';
 import { FolderScanner } from './components/FolderScanner';
 import { CleanupScreen } from './components/CleanupScreen';
 import { PeopleScreen } from './components/PeopleScreen';
+import { AboutModal } from './components/AboutModal';
 import { useImageStore } from './stores/imageStore';
 import { useUIStore } from './stores/uiStore';
 import { useEmbedderStore } from './stores/embedderStore';
+import { Logo } from './components/Logo';
 
 function App() {
   const { selectedImage, setSelectedImage, images } = useImageStore();
@@ -18,11 +20,16 @@ function App() {
     if (saved === 'gallery' || saved === 'folders' || saved === 'cleanup' || saved === 'people') return saved;
     return 'gallery';
   });
+  const [showAbout, setShowAbout] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const initEmbedder = useEmbedderStore((s) => s.init);
 
   useEffect(() => initEmbedder(), [initEmbedder]);
+
+  useEffect(() => {
+    return window.sortieAPI.app.onShowAbout(() => setShowAbout(true));
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -44,11 +51,11 @@ function App() {
   }, [activeView, clearFilters]);
 
   return (
-    <div className="h-screen bg-gray-50 flex overflow-hidden">
+    <div className="h-screen bg-cream flex overflow-hidden">
       {/* Sidebar */}
-      <div className="w-16 h-screen fixed left-0 top-0 bg-gray-900 text-white flex flex-col z-30">
-        <div className="p-4 border-b border-gray-800 flex items-center justify-center">
-          <span className="text-lg font-bold">S</span>
+      <div className="w-16 h-screen fixed left-0 top-0 bg-ink text-white flex flex-col z-30">
+        <div className="p-3 border-b border-white/10 flex items-center justify-center">
+          <Logo className="w-9 h-9" variant="mono" />
         </div>
 
         <nav className="flex-1 p-2">
@@ -56,7 +63,7 @@ function App() {
             <li>
               <button
                 onClick={() => setActiveView('gallery')}
-                className={`relative group flex items-center justify-center w-full p-2 rounded ${activeView === 'gallery' ? 'bg-gray-800' : 'hover:bg-gray-800'}`}
+                className={`relative group flex items-center justify-center w-full p-2 rounded ${activeView === 'gallery' ? 'bg-white/10' : 'hover:bg-white/10'}`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -66,7 +73,7 @@ function App() {
                     d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                   />
                 </svg>
-                <span className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                <span className="absolute left-full ml-2 px-2 py-1 bg-ink text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                   Gallery
                 </span>
               </button>
@@ -74,7 +81,7 @@ function App() {
             <li>
               <button
                 onClick={() => setActiveView('folders')}
-                className={`relative group flex items-center justify-center w-full p-2 rounded ${activeView === 'folders' ? 'bg-gray-800' : 'hover:bg-gray-800'}`}
+                className={`relative group flex items-center justify-center w-full p-2 rounded ${activeView === 'folders' ? 'bg-white/10' : 'hover:bg-white/10'}`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -84,7 +91,7 @@ function App() {
                     d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
                   />
                 </svg>
-                <span className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                <span className="absolute left-full ml-2 px-2 py-1 bg-ink text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                   Folders
                 </span>
               </button>
@@ -92,7 +99,7 @@ function App() {
             <li>
               <button
                 onClick={() => setActiveView('cleanup')}
-                className={`relative group flex items-center justify-center w-full p-2 rounded ${activeView === 'cleanup' ? 'bg-gray-800' : 'hover:bg-gray-800'}`}
+                className={`relative group flex items-center justify-center w-full p-2 rounded ${activeView === 'cleanup' ? 'bg-white/10' : 'hover:bg-white/10'}`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -102,7 +109,7 @@ function App() {
                     d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
                   />
                 </svg>
-                <span className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                <span className="absolute left-full ml-2 px-2 py-1 bg-ink text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                   Cleanup
                 </span>
               </button>
@@ -110,7 +117,7 @@ function App() {
             <li>
               <button
                 onClick={() => setActiveView('people')}
-                className={`relative group flex items-center justify-center w-full p-2 rounded ${activeView === 'people' ? 'bg-gray-800' : 'hover:bg-gray-800'}`}
+                className={`relative group flex items-center justify-center w-full p-2 rounded ${activeView === 'people' ? 'bg-white/10' : 'hover:bg-white/10'}`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -120,7 +127,7 @@ function App() {
                     d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
                   />
                 </svg>
-                <span className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                <span className="absolute left-full ml-2 px-2 py-1 bg-ink text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                   People
                 </span>
               </button>
@@ -128,8 +135,8 @@ function App() {
           </ul>
         </nav>
 
-        <div className="p-4 border-t border-gray-800">
-          <div className="text-center text-xs text-gray-400">v0.1</div>
+        <div className="p-4 border-t border-white/10">
+          <div className="text-center text-xs text-white/50">v0.1</div>
         </div>
       </div>
 
@@ -155,6 +162,7 @@ function App() {
           {activeView === 'folders' && <FolderScanner />}
           {activeView === 'cleanup' && <CleanupScreen />}
           {activeView === 'people' && <PeopleScreen />}
+          {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
         </main>
 
         {/* Status bar */}

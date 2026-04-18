@@ -12,32 +12,41 @@
   ],
   "mac": {
     "category": "public.app-category.photography",
-    "icon": "resources/icons/icon.png",
+    "icon": "resources/icons/icon.icns",
     "target": [
-      "dmg",
-      "zip"
+      { "target": "dmg", "arch": ["arm64", "x64"] }
     ],
-    "hardenedRuntime": true,
+    "identity": null,
+    "hardenedRuntime": false,
     "gatekeeperAssess": false,
-    "entitlements": "resources/entitlements.mac.plist",
-    "entitlementsInherit": "resources/entitlements.mac.plist"
+    "artifactName": "Sortie-${version}-${arch}.${ext}"
   },
   "win": {
-    "target": [
-      "nsis",
-      "zip"
-    ],
-    "icon": "resources/icons/icon.ico"
+    "target": ["nsis"],
+    "icon": "resources/icons/icon.ico",
+    "artifactName": "Sortie-Setup-${version}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Sortie"
   },
   "linux": {
+    "maintainer": "Nathan Guilhot <nathan.guilhot@gmx.fr>",
+    "synopsis": "Local-first photo tagger with CLIP embeddings",
     "category": "Graphics",
-    "target": [
-      "AppImage",
-      "deb",
-      "rpm",
-      "snap"
-    ],
-    "icon": "resources/icons/icon.png"
+    "icon": "resources/icons/icon.png",
+    "target": ["AppImage", "deb"]
   },
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "nathanguilhot",
+      "repo": "sortie"
+    }
+  ],
   "extends": null
 }

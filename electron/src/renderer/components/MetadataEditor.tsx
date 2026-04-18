@@ -231,8 +231,8 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             onClick={() => setIsFavorite(!isFavorite)}
             className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
               isFavorite
-                ? 'text-rose-500 hover:text-rose-600 bg-rose-50'
-                : 'text-gray-300 hover:text-rose-400 hover:bg-rose-50'
+                ? 'text-coral hover:text-coral/80 bg-coral/15'
+                : 'text-gray-300 hover:text-coral hover:bg-coral/10'
             }`}
             title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           >
@@ -347,13 +347,13 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
               {suggestions.map((s) => (
                 <span
                   key={s.tagId}
-                  className="group inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium border border-dashed border-blue-300 text-blue-600 rounded-full bg-blue-50/50 transition-colors"
+                  className="group inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium border border-dashed border-ink/30 text-ink rounded-full bg-lavender/20 transition-colors"
                   style={{ opacity: 0.5 + s.confidence * 0.5 }}
                 >
                   {s.tagName}
                   <button
                     onClick={() => handleAcceptSuggestion(s)}
-                    className="w-6 h-6 flex items-center justify-center rounded-full text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    className="w-6 h-6 flex items-center justify-center rounded-full text-ink/60 hover:text-ink hover:bg-lavender/30 transition-colors"
                     title="Accept"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -367,7 +367,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
                   </button>
                   <button
                     onClick={() => handleDismissSuggestion(s)}
-                    className="w-6 h-6 flex items-center justify-center rounded-full text-blue-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                    className="w-6 h-6 flex items-center justify-center rounded-full text-ink/40 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                     title="Dismiss"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -503,9 +503,9 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
           disabled={isSaving || (!isDirty && !saveSuccess)}
           className={`w-full px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
             saveSuccess
-              ? 'bg-blue-50 text-blue-600 border border-blue-200'
+              ? 'bg-mint/30 text-ink border border-mint/50'
               : isDirty
-                ? 'bg-gray-900 text-white hover:bg-gray-800 shadow-sm'
+                ? 'bg-ink text-white hover:bg-ink/90 shadow-sm'
                 : 'bg-gray-100 text-gray-400 border border-gray-200'
           }`}
         >
@@ -579,7 +579,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             disabled={embeddingStatus === 'loading'}
             className={`mt-3 w-full px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               embeddingStatus === 'success'
-                ? 'border-blue-200 text-blue-600 bg-blue-50'
+                ? 'border-mint/50 text-ink bg-mint/20'
                 : embeddingStatus === 'error'
                   ? 'border-gray-300 text-red-500 bg-gray-50'
                   : 'border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-100'

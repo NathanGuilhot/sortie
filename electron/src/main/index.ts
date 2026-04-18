@@ -1,11 +1,15 @@
-import { app, BrowserWindow, protocol, net } from 'electron';
+import { app, BrowserWindow, Menu, protocol, net } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import sharp from 'sharp';
 import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
+import { FolderAvailabilityMonitor } from './folderAvailability';
 import { setupIpcHandlers } from './ipc';
+import { buildMenu } from './menu';
+
+app.setName('Sortie');
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'sortie-file', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
@@ -16,6 +20,7 @@ protocol.registerSchemesAsPrivileged([
 let mainWindow: BrowserWindow | null = null;
 let dbService: DatabaseService | null = null;
 let watcherService: WatcherService | null = null;
+let availabilityMonitor: FolderAvailabilityMonitor | null = null;
 
 function migrateLegacyClipCache(targetDir: string) {
   try {
@@ -40,6 +45,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    title: 'Sortie',
+    icon: path.join(__dirname, '../../resources/icons/icon.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -74,9 +81,11 @@ async function initializeServices() {
   watcherService = new WatcherService();
   watcherService.setDatabaseService(dbService);
 
+  availabilityMonitor = new FolderAvailabilityMonitor(dbService);
+
   await dbService.fixImageDimensions();
 
-  setupIpcHandlers(dbService, watcherService, dbPath);
+  setupIpcHandlers(dbService, watcherService, availabilityMonitor, dbPath);
 
   dbService.onEmbedderStatus((status) => {
     mainWindow?.webContents.send('embedder-status', status);
@@ -89,9 +98,15 @@ async function initializeServices() {
       void watcherService.watchFolder(folder.path);
     }
   }
+
+  availabilityMonitor.start();
 }
 
 void app.whenReady().then(async () => {
+  if (process.platform === 'darwin') {
+    app.dock?.setIcon(path.join(__dirname, '../../resources/icons/icon.png'));
+  }
+
   const thumbDir = path.join(app.getPath('userData'), 'thumbs');
   fs.mkdirSync(thumbDir, { recursive: true });
 
@@ -108,8 +123,24 @@ void app.whenReady().then(async () => {
     const hash = crypto.createHash('sha256').update(filePath).digest('hex').slice(0, 16);
     const cachePath = path.join(thumbDir, `${hash}_${width}.jpg`);
 
+    let srcStat: fs.Stats;
     try {
-      const srcStat = fs.statSync(filePath);
+      srcStat = fs.statSync(filePath);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT' || code === 'EACCES' || code === 'EIO') {
+        // Fall back to cached thumbnail if we have one — useful when the
+        // source drive is offline but a thumbnail was generated previously.
+        if (fs.existsSync(cachePath)) {
+          return net.fetch(`file://${cachePath}`);
+        }
+        return new Response(null, { status: 410 });
+      }
+      console.error('[thumb] stat failed:', err);
+      return new Response(null, { status: 500 });
+    }
+
+    try {
       let useCached = false;
       try {
         const cacheStat = fs.statSync(cachePath);
@@ -130,7 +161,10 @@ void app.whenReady().then(async () => {
       return net.fetch(`file://${cachePath}`);
     } catch (err) {
       console.error('[thumb] failed:', err);
-      return net.fetch(`file://${filePath}`);
+      if (fs.existsSync(cachePath)) {
+        return net.fetch(`file://${cachePath}`);
+      }
+      return new Response(null, { status: 500 });
     }
   });
 
@@ -156,6 +190,16 @@ void app.whenReady().then(async () => {
     try {
       if (fs.existsSync(cachePath)) {
         return net.fetch(`file://${cachePath}`);
+      }
+
+      try {
+        fs.statSync(filePath);
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === 'ENOENT' || code === 'EACCES' || code === 'EIO') {
+          return new Response(null, { status: 410 });
+        }
+        throw err;
       }
 
       // metadata() returns raw stored dimensions; EXIF orientations 5-8
@@ -189,13 +233,27 @@ void app.whenReady().then(async () => {
     }
   });
 
+  app.setAboutPanelOptions({
+    applicationName: 'Sortie',
+    applicationVersion: app.getVersion(),
+    version: app.getVersion(),
+    copyright: `© ${new Date().getFullYear()} Nathan Guilhot`,
+    website: 'https://github.com/nathanguilhot/sortie',
+    iconPath: path.join(__dirname, '../../resources/icons/icon.png'),
+  });
+
   await initializeServices();
   createWindow();
+  Menu.setApplicationMenu(buildMenu(mainWindow));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
+  });
+
+  app.on('browser-window-focus', () => {
+    void availabilityMonitor?.checkNow();
   });
 });
 
@@ -206,6 +264,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  availabilityMonitor?.stop();
   watcherService?.stopAll();
   dbService?.close();
 });

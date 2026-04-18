@@ -16,6 +16,7 @@ export interface Image {
   description: string | null;
   favorite: boolean;
   hidden: boolean;
+  missing: boolean;
   camera_make?: string | null;
   camera_model?: string | null;
   aperture?: number | null;
@@ -71,6 +72,7 @@ export interface Folder {
   path: string;
   watched: boolean;
   ignored: boolean;
+  available: boolean;
   last_scanned: string | null;
   created_at: string;
 }

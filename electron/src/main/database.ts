@@ -127,7 +127,7 @@ export class DatabaseService {
     const stmt = this.db.getDatabase().prepare(`
       SELECT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
       FROM images i
-      WHERE i.hidden = 0
+      WHERE i.hidden = 0 AND i.missing = 0
       ORDER BY i.captured_at DESC, i.created_at DESC
       LIMIT ? OFFSET ?
     `);
@@ -149,7 +149,7 @@ export class DatabaseService {
     const stmt = this.db.getDatabase().prepare(`
       SELECT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
       FROM images i
-      WHERE i.favorite = 1 AND i.hidden = 0
+      WHERE i.favorite = 1 AND i.hidden = 0 AND i.missing = 0
       ORDER BY i.captured_at DESC, i.created_at DESC
       LIMIT ? OFFSET ?
     `);
@@ -175,7 +175,7 @@ export class DatabaseService {
       FROM images i
       INNER JOIN image_tags it ON i.id = it.image_id
       INNER JOIN tags t ON it.tag_id = t.id
-      WHERE i.hidden = 0 AND t.name IN (${placeholders})
+      WHERE i.hidden = 0 AND i.missing = 0 AND t.name IN (${placeholders})
       GROUP BY i.id
       HAVING COUNT(DISTINCT t.id) = ?
       ORDER BY i.captured_at DESC, i.created_at DESC
@@ -203,7 +203,7 @@ export class DatabaseService {
         FROM vec_images v
         WHERE v.embedding MATCH ? AND k = ?
       ) sub
-      INNER JOIN images i ON i.id = sub.rowid AND i.hidden = 0
+      INNER JOIN images i ON i.id = sub.rowid AND i.hidden = 0 AND i.missing = 0
       ORDER BY sub.distance
     `);
     const results = stmt.all(JSON.stringify(embedding), limit) as Array<{
@@ -254,7 +254,7 @@ export class DatabaseService {
         FROM vec_images v
         WHERE v.embedding MATCH ? AND k = ?
       ) sub
-      INNER JOIN images i ON i.id = sub.rowid AND i.hidden = 0
+      INNER JOIN images i ON i.id = sub.rowid AND i.hidden = 0 AND i.missing = 0
       WHERE sub.rowid != ?
       ORDER BY sub.distance
     `);
@@ -286,18 +286,31 @@ export class DatabaseService {
 
   async addFolder(folderPath: string): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
+    const db = this.db.getDatabase();
     const normalized = path.resolve(folderPath);
+    let available = true;
     try {
       await fs.access(normalized);
     } catch {
-      throw new Error('Folder does not exist');
+      available = false;
     }
-    const stmt = this.db.getDatabase().prepare(`
-      INSERT OR IGNORE INTO folders (path) VALUES (?)
-    `);
-    const result = stmt.run(normalized);
+    db.prepare('INSERT OR IGNORE INTO folders (path, available) VALUES (?, ?)').run(
+      normalized,
+      available ? 1 : 0,
+    );
+    db.prepare('UPDATE folders SET available = ? WHERE path = ?').run(
+      available ? 1 : 0,
+      normalized,
+    );
+    const row = db.prepare('SELECT id FROM folders WHERE path = ?').get(normalized) as
+      | { id: number }
+      | undefined;
+    if (!row) throw new Error('Folder insert failed');
+    if (!available) {
+      db.prepare("UPDATE images SET missing = 1 WHERE file_path LIKE ?").run(normalized + '/%');
+    }
     this.invalidateImageCache();
-    return result.lastInsertRowid as number;
+    return row.id;
   }
 
   async scanFolder(
@@ -307,12 +320,17 @@ export class DatabaseService {
   ): Promise<ScanFolderResult> {
     if (!this.db) throw new Error('Database not initialized');
     const normalized = path.resolve(folderPath);
+    let reachable = true;
     try {
       await fs.access(normalized);
     } catch {
-      throw new Error('Folder does not exist');
+      reachable = false;
     }
     const folderId = await this.addFolder(normalized);
+    if (!reachable) {
+      console.log(`[scan] folder ${normalized} is offline; skipping scan`);
+      return { folderId, processed: 0, cancelled: false };
+    }
 
     const imageFiles: string[] = [];
 
@@ -383,7 +401,7 @@ export class DatabaseService {
           COUNT(i.id) AS image_count,
           SUM(i.file_size) AS total_size
         FROM folders fo
-        LEFT JOIN images i ON i.file_path LIKE fo.path || '/%' AND i.hidden = 0
+        LEFT JOIN images i ON i.file_path LIKE fo.path || '/%' AND i.hidden = 0 AND i.missing = 0
         GROUP BY fo.id
       ) s ON s.folder_id = f.id
       ORDER BY f.created_at DESC
@@ -496,9 +514,53 @@ export class DatabaseService {
     if (!this.db) throw new Error('Database not initialized');
     this.db
       .getDatabase()
-      .prepare(`UPDATE images SET hidden = 1, modified_at = datetime('now') WHERE file_path = ?`)
+      .prepare(`UPDATE images SET missing = 1, modified_at = datetime('now') WHERE file_path = ?`)
       .run(filePath);
     this.invalidateImageCache();
+  }
+
+  getFolderForPath(filePath: string): Folder | null {
+    if (!this.db) return null;
+    const normalized = path.resolve(filePath);
+    const stmt = this.db.getDatabase().prepare(`
+      SELECT * FROM folders
+      WHERE ? LIKE path || '/%' OR ? = path
+      ORDER BY length(path) DESC
+      LIMIT 1
+    `);
+    const row = stmt.get(normalized, normalized) as Folder | undefined;
+    return row ?? null;
+  }
+
+  async setFolderAvailability(
+    folderPath: string,
+    available: boolean,
+  ): Promise<{ changed: boolean }> {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db.getDatabase();
+    const normalized = path.resolve(folderPath);
+    const current = db
+      .prepare('SELECT available FROM folders WHERE path = ?')
+      .get(normalized) as { available: number } | undefined;
+    if (!current) return { changed: false };
+    const currentBool = !!current.available;
+    if (currentBool === available) return { changed: false };
+
+    const txn = db.transaction(() => {
+      db.prepare('UPDATE folders SET available = ? WHERE path = ?').run(
+        available ? 1 : 0,
+        normalized,
+      );
+      const pattern = normalized + '/%';
+      db.prepare('UPDATE images SET missing = ? WHERE file_path LIKE ?').run(
+        available ? 0 : 1,
+        pattern,
+      );
+    });
+    txn();
+
+    this.invalidateImageCache();
+    return { changed: true };
   }
 
   async updateImageMetadata(
@@ -785,7 +847,7 @@ export class DatabaseService {
       SELECT DISTINCT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
       FROM images i
       JOIN faces f ON f.image_id = i.id
-      WHERE f.person_id = ? AND i.hidden = 0
+      WHERE f.person_id = ? AND i.hidden = 0 AND i.missing = 0
       ORDER BY i.captured_at DESC, i.created_at DESC
       LIMIT ? OFFSET ?
     `);
@@ -867,6 +929,7 @@ export class DatabaseService {
       description: null,
       favorite: false,
       hidden: false,
+      missing: false,
       camera_make: exifData.cameraMake,
       camera_model: exifData.cameraModel,
       aperture: exifData.aperture,
@@ -918,7 +981,7 @@ export class DatabaseService {
 
     const rows = db
       .prepare(
-        'SELECT id, file_path FROM images WHERE hidden = 0 AND (file_hash IS NULL OR dhash IS NULL)',
+        'SELECT id, file_path FROM images WHERE hidden = 0 AND missing = 0 AND (file_hash IS NULL OR dhash IS NULL)',
       )
       .all() as Array<{ id: number; file_path: string }>;
 
@@ -960,7 +1023,7 @@ export class DatabaseService {
         `SELECT id, file_path, file_name, file_size, mime_type, width, height,
                 created_at, modified_at, captured_at, latitude, longitude,
                 city, country, description, favorite, hidden, file_hash, dhash
-         FROM images WHERE hidden = 0 AND dhash IS NOT NULL`,
+         FROM images WHERE hidden = 0 AND missing = 0 AND dhash IS NOT NULL`,
       )
       .all() as Image[];
 

@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "type-check": "tsc --noEmit -p tsconfig.base.json",
+    "build:icons": "yarn workspace electron run build:icons",
     "build": "yarn workspace shared run build && yarn workspace pipeline run build && yarn workspace electron run build",
     "dev": "yarn workspace shared run build && yarn workspace pipeline run build && yarn workspace electron run dev",
     "clean": "yarn workspace shared run clean && yarn workspace pipeline run clean && yarn workspace electron run clean",

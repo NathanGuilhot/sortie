@@ -49,7 +49,7 @@ function PersonFilterChip({
       title={`${label} (${person.face_count})`}
       className={`relative w-10 h-10 rounded-full overflow-hidden transition-all ${
         selected
-          ? 'ring-2 ring-blue-500 ring-offset-2'
+          ? 'ring-2 ring-ink ring-offset-2'
           : 'ring-1 ring-gray-200 hover:ring-gray-400'
       }`}
     >
@@ -307,7 +307,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
               />
             </svg>
             {hasActiveFilters && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-coral rounded-full" />
             )}
           </button>
         )}
@@ -420,7 +420,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
                 >
                   <div
                     className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${
-                      showFavoritesOnly ? 'bg-rose-500/90' : 'bg-gray-200 hover:bg-gray-300'
+                      showFavoritesOnly ? 'bg-coral' : 'bg-gray-200 hover:bg-gray-300'
                     }`}
                   >
                     <svg
@@ -440,7 +440,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"
-                    className="h-3.5 w-3.5 text-blue-600 rounded border-gray-300"
+                    className="h-3.5 w-3.5 text-ink rounded border-gray-300"
                     checked={showHidden}
                     onChange={(e) => setShowHidden(e.target.checked)}
                   />

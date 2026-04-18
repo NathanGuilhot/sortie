@@ -2,6 +2,32 @@ import { useState, useEffect, useRef } from 'react';
 import { usePeopleStore } from '../stores/peopleStore';
 import { Person, Face } from 'shared';
 import { buildFaceThumbUrl } from './faceThumb';
+import {
+  ScreenShell,
+  StatHeader,
+  ErrorBanner,
+  EmptyState,
+  ProgressPanel,
+  PrimaryButton,
+  CancelButton,
+} from './screen';
+
+const SearchIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  </svg>
+);
+
+const PeopleIcon = (
+  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+    />
+  </svg>
+);
 
 function PersonCard({
   person,
@@ -42,9 +68,9 @@ function PersonCard({
       onClick={merging ? onMergeTarget : onClick}
       className={`flex flex-col items-center p-4 rounded-xl transition-all ${
         isSelected
-          ? 'bg-blue-50 ring-2 ring-blue-500'
+          ? 'bg-lavender/30 ring-2 ring-ink/40'
           : merging
-            ? 'bg-blue-50 ring-2 ring-blue-300 hover:bg-blue-100 cursor-crosshair'
+            ? 'bg-lavender/30 ring-2 ring-ink/20 hover:bg-lavender/50 cursor-crosshair'
             : 'bg-white hover:bg-gray-50 hover:shadow-md'
       } border border-gray-200`}
     >
@@ -151,12 +177,12 @@ function PersonDetail({
                 onChange={(e) => setNameInput(e.target.value)}
                 onBlur={() => void handleSaveName()}
                 autoFocus
-                className="text-xl font-semibold border-b-2 border-blue-500 outline-none bg-transparent px-1"
+                className="text-xl font-semibold border-b-2 border-ink outline-none bg-transparent px-1"
               />
             </form>
           ) : (
             <h2
-              className="text-xl font-semibold cursor-pointer hover:text-blue-600"
+              className="text-xl font-semibold cursor-pointer hover:text-ink"
               onClick={() => setEditing(true)}
             >
               {person.name || `Person ${person.id}`}
@@ -298,105 +324,63 @@ export function PeopleScreen() {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">People</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              {persons.length} {persons.length === 1 ? 'person' : 'people'} &middot; {totalFaces}{' '}
-              {totalFaces === 1 ? 'face' : 'faces'} detected
-            </p>
-          </div>
-          {scanning ? (
-            <button
-              onClick={() => void cancelScan()}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
-            >
-              Cancel Scan
-            </button>
+    <ScreenShell>
+      <StatHeader
+        stats={[
+          { value: persons.length, label: 'People' },
+          { value: totalFaces.toLocaleString(), label: 'Faces Detected' },
+        ]}
+        action={
+          scanning ? (
+            <CancelButton onClick={() => void cancelScan()}>Cancel Scan</CancelButton>
           ) : (
-            <button
-              onClick={() => void scanFaces()}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-            >
+            <PrimaryButton icon={SearchIcon} onClick={() => void scanFaces()}>
               Scan Faces
-            </button>
-          )}
+            </PrimaryButton>
+          )
+        }
+      />
+
+      {merging && (
+        <div className="mb-6 p-4 bg-lavender/30 border border-lavender/50 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-ink">Click another person to merge into them</span>
+          <button
+            onClick={() => setMerging(null)}
+            className="text-sm text-ink hover:text-ink/70 font-medium"
+          >
+            Cancel
+          </button>
         </div>
+      )}
 
-        {/* Merge banner */}
-        {merging && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-            <span className="text-sm text-blue-800">
-              Click another person to merge into them
-            </span>
-            <button
-              onClick={() => setMerging(null)}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
+      {scanning && scanProgress && (
+        <ProgressPanel
+          label={scanProgress.total > 0 ? 'Detecting faces...' : 'Checking for unscanned images...'}
+          current={scanProgress.current}
+          total={scanProgress.total}
+          currentFile={scanProgress.currentFile}
+        />
+      )}
 
-        {/* Scan progress */}
-        {scanning && scanProgress && (
-          <div className="mb-6 bg-white rounded-lg border border-gray-200 p-4">
-            {scanProgress.total > 0 ? (
-              <>
-                <div className="flex justify-between text-sm text-gray-600 mb-2">
-                  <span>Detecting faces...</span>
-                  <span>
-                    {scanProgress.current} / {scanProgress.total}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all"
-                    style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-400 mt-2 truncate">{scanProgress.currentFile}</p>
-              </>
-            ) : (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Checking for unscanned images...
-              </div>
-            )}
-          </div>
-        )}
+      {scanResult && !scanning && (
+        <div className="mb-6 p-4 bg-mint/20 border border-mint/40 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-ink">
+            {scanResult.scanned === 0
+              ? 'All images have already been scanned for faces.'
+              : `Scanned ${scanResult.scanned} ${scanResult.scanned === 1 ? 'image' : 'images'}, detected ${scanResult.detected} ${scanResult.detected === 1 ? 'face' : 'faces'}.`}
+          </span>
+          <button
+            onClick={clearScanResult}
+            className="w-6 h-6 flex items-center justify-center rounded hover:bg-mint/30 text-ink/60 hover:text-ink cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
-        {/* Scan result */}
-        {scanResult && !scanning && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-            <span className="text-sm text-blue-800">
-              {scanResult.scanned === 0
-                ? 'All images have already been scanned for faces.'
-                : `Scanned ${scanResult.scanned} ${scanResult.scanned === 1 ? 'image' : 'images'}, detected ${scanResult.detected} ${scanResult.detected === 1 ? 'face' : 'faces'}.`}
-            </span>
-            <button
-              onClick={clearScanResult}
-              className="w-6 h-6 flex items-center justify-center rounded hover:bg-blue-100 text-blue-400 hover:text-blue-600 cursor-pointer"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-            {error}
-          </div>
-        )}
+      {error && <ErrorBanner message={error} />}
 
         {/* Content */}
         {selectedPerson && !merging ? (
@@ -408,7 +392,7 @@ export function PeopleScreen() {
         ) : (
           <>
             {loading && persons.length === 0 ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
                 {Array.from({ length: 12 }).map((_, i) => (
                   <div key={i} className="flex flex-col items-center p-4 rounded-xl border border-gray-200 animate-pulse">
                     <div className="w-20 h-20 rounded-full bg-gray-200 mb-3" />
@@ -418,27 +402,23 @@ export function PeopleScreen() {
                 ))}
               </div>
             ) : persons.length === 0 ? (
-              <div className="text-center py-20">
-                <svg
-                  className="w-16 h-16 mx-auto text-gray-300 mb-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                  />
-                </svg>
-                <p className="text-gray-500 mb-2">No people detected yet</p>
-                <p className="text-sm text-gray-400">
-                  Scan photos to detect faces.
-                </p>
-              </div>
+              <EmptyState
+                icon={PeopleIcon}
+                title="No people yet"
+                description="Scan your library to detect faces."
+                action={
+                  <PrimaryButton
+                    icon={SearchIcon}
+                    size="lg"
+                    onClick={() => void scanFaces()}
+                    disabled={scanning}
+                  >
+                    Scan Faces
+                  </PrimaryButton>
+                }
+              />
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
                 {persons.map((person) => (
                   <PersonCard
                     key={person.id}
@@ -481,7 +461,6 @@ export function PeopleScreen() {
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </ScreenShell>
   );
 }

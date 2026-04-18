@@ -122,6 +122,20 @@ declare global {
       resetDatabase: () => Promise<{ success: boolean }>;
       getDatabasePath: () => Promise<string>;
       pickFolder: () => Promise<string | null>;
+      // Folder availability (external drives)
+      recheckFolderAvailability: (folderPath?: string) => Promise<{
+        changes: Array<{ path: string; available: boolean }>;
+      }>;
+      onFolderAvailability: (
+        callback: (change: { path: string; available: boolean }) => void,
+      ) => () => void;
+      // App info
+      app: {
+        getVersion: () => Promise<string>;
+        openExternal: (url: string) => Promise<{ success: boolean }>;
+        showAboutPanel: () => Promise<void>;
+        onShowAbout: (callback: () => void) => () => void;
+      };
     };
   }
 }

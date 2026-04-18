@@ -2,6 +2,38 @@ import { useState } from 'react';
 import { useCleanupStore } from '../stores/cleanupStore';
 import { CopyText } from './CopyText';
 import { DuplicateGroup, Image } from 'shared';
+import {
+  ScreenShell,
+  StatHeader,
+  ErrorBanner,
+  EmptyState,
+  ProgressPanel,
+  PrimaryButton,
+  CancelButton,
+} from './screen';
+
+const SearchIcon = (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  </svg>
+);
+
+const DuplicateIcon = (
+  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+    />
+  </svg>
+);
+
+const CheckIcon = (
+  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+  </svg>
+);
 
 function formatSize(bytes: number): string {
   if (!bytes) return '0 B';
@@ -41,7 +73,7 @@ function DuplicateGroupCard({
           <span
             className={`px-2 py-0.5 rounded text-xs font-medium ${
               group.matchType === 'exact'
-                ? 'bg-rose-100 text-rose-700'
+                ? 'bg-coral/30 text-ink'
                 : 'bg-gray-100 text-gray-700'
             }`}
           >
@@ -146,7 +178,7 @@ function ImageCard({
       ) : (
         <button
           onClick={() => setConfirming(true)}
-          className="w-full px-2 py-1.5 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition-colors cursor-pointer"
+          className="w-full px-2 py-1.5 text-xs text-ink border border-ink/20 rounded hover:bg-lavender/30 transition-colors cursor-pointer"
         >
           Keep this one
         </button>
@@ -197,177 +229,74 @@ export function CleanupScreen() {
   }, 0);
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        {/* Summary header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-6">
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{duplicateGroups.length}</div>
-              <div className="text-xs text-gray-500">Duplicate Groups</div>
-            </div>
-            <div className="w-px h-8 bg-gray-200" />
-            <div>
-              <div className="text-2xl font-bold text-gray-900">
-                {duplicateGroups.reduce((sum, g) => sum + g.images.length, 0)}
-              </div>
-              <div className="text-xs text-gray-500">Total Files</div>
-            </div>
-            <div className="w-px h-8 bg-gray-200" />
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{formatSize(reclaimableBytes)}</div>
-              <div className="text-xs text-gray-500">Reclaimable</div>
-            </div>
-          </div>
-          {scanning ? (
-            <button
-              onClick={() => void cancelScan()}
-              className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium cursor-pointer"
-            >
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
-              Cancel
-            </button>
+    <ScreenShell>
+      <StatHeader
+        stats={[
+          { value: duplicateGroups.length, label: 'Duplicate Groups' },
+          {
+            value: duplicateGroups.reduce((sum, g) => sum + g.images.length, 0),
+            label: 'Total Files',
+          },
+          { value: formatSize(reclaimableBytes), label: 'Reclaimable' },
+        ]}
+        action={
+          scanning ? (
+            <CancelButton onClick={() => void cancelScan()}>Cancel</CancelButton>
           ) : (
-            <button
-              onClick={() => void handleScan()}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium cursor-pointer"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+            <PrimaryButton icon={SearchIcon} onClick={() => void handleScan()}>
               Scan for Duplicates
-            </button>
-          )}
-        </div>
+            </PrimaryButton>
+          )
+        }
+      />
 
-        {/* Progress bar */}
-        {scanning && scanProgress && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex justify-between text-sm text-blue-700 mb-2">
-              <span>
-                {scanProgress.phase === 'hashing'
-                  ? 'Computing image hashes...'
-                  : 'Comparing images...'}
-              </span>
-              <span>
-                {scanProgress.total > 0 ? `${scanProgress.current}/${scanProgress.total}` : ''}
-              </span>
-            </div>
-            {scanProgress.total > 0 && (
-              <div className="w-full bg-blue-200 rounded-full h-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{
-                    width: `${(scanProgress.current / scanProgress.total) * 100}%`,
-                  }}
-                />
-              </div>
-            )}
-            {scanProgress.currentFile && (
-              <div className="text-xs text-blue-500 mt-1 truncate">{scanProgress.currentFile}</div>
-            )}
-          </div>
-        )}
+      {scanning && scanProgress && (
+        <ProgressPanel
+          label={
+            scanProgress.phase === 'hashing'
+              ? 'Computing image hashes...'
+              : 'Comparing images...'
+          }
+          current={scanProgress.current}
+          total={scanProgress.total}
+          currentFile={scanProgress.currentFile}
+        />
+      )}
 
-        {/* Error banner */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center justify-between text-sm">
-            <span>{error}</span>
-            <button
-              onClick={() => setError(null)}
-              className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 text-red-400 hover:text-red-600 cursor-pointer"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
-        )}
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-        {/* Initial state */}
-        {!hasScanned && !scanning && duplicateGroups.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
-              <svg
-                className="w-8 h-8 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-1">Find duplicate images</h3>
-            <p className="text-sm text-gray-500 mb-6 text-center max-w-sm">
-              Find exact and visual duplicates.
-            </p>
-            <button
-              onClick={() => void handleScan()}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium cursor-pointer"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+      {!hasScanned && !scanning && duplicateGroups.length === 0 && (
+        <EmptyState
+          icon={DuplicateIcon}
+          title="Find duplicate images"
+          description="Find exact and visual duplicates."
+          action={
+            <PrimaryButton icon={SearchIcon} size="lg" onClick={() => void handleScan()}>
               Scan for Duplicates
-            </button>
-          </div>
-        )}
+            </PrimaryButton>
+          }
+        />
+      )}
 
-        {/* Empty state after scan */}
-        {hasScanned && !scanning && duplicateGroups.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
-              <svg
-                className="w-8 h-8 text-blue-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-1">No duplicates found</h3>
-            <p className="text-sm text-gray-500">Your library is clean!</p>
-          </div>
-        )}
+      {hasScanned && !scanning && duplicateGroups.length === 0 && (
+        <EmptyState
+          icon={CheckIcon}
+          iconTone="success"
+          title="No duplicates found"
+          description="Your library is clean!"
+        />
+      )}
 
-        {/* Duplicate group cards */}
-        <div className="space-y-4">
-          {duplicateGroups.map((group) => (
-            <DuplicateGroupCard
-              key={group.groupId}
-              group={group}
-              onKeep={(group, keepId) => void handleKeep(group, keepId)}
-              onDismiss={(group) => void handleDismissGroup(group)}
-            />
-          ))}
-        </div>
+      <div className="space-y-4">
+        {duplicateGroups.map((group) => (
+          <DuplicateGroupCard
+            key={group.groupId}
+            group={group}
+            onKeep={(group, keepId) => void handleKeep(group, keepId)}
+            onDismiss={(group) => void handleDismissGroup(group)}
+          />
+        ))}
       </div>
-    </div>
+    </ScreenShell>
   );
 }

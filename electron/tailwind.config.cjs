@@ -6,6 +6,17 @@ module.exports = {
   ],
   theme: {
     extend: {
+      colors: {
+        coral: '#F4A896',
+        lavender: '#C9B8E8',
+        mint: '#8BD4B8',
+        butter: '#FAD06F',
+        ink: '#2E2D42',
+        cream: '#FFF8F2',
+      },
+      fontFamily: {
+        sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
+      },
       keyframes: {
         'slide-in-right': {
           '0%': { transform: 'translateX(100%)' },

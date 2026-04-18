@@ -19,7 +19,7 @@ interface TagInputProps {
 }
 
 const CATEGORY_CLASSES: Record<string, string> = {
-  ai: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+  ai: 'bg-lavender/40 text-ink hover:bg-lavender/60',
   location: 'bg-gray-200 text-gray-700 hover:bg-gray-300',
   camera: 'bg-gray-100 text-gray-600 hover:bg-gray-200',
 };
@@ -28,7 +28,7 @@ const DEFAULT_TAG_CLASS =
   'bg-gray-100 hover:bg-gray-200 text-gray-700';
 
 const CATEGORY_DOT: Record<string, string> = {
-  ai: 'bg-blue-400',
+  ai: 'bg-ink',
   location: 'bg-gray-500',
   camera: 'bg-gray-400',
 };

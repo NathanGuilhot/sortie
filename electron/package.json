@@ -1,11 +1,16 @@
 {
   "name": "electron",
+  "productName": "Sortie",
   "version": "0.1.0",
-  "description": "Electron desktop app for Sortie",
+  "description": "Local-first photo tagger with CLIP embeddings and face detection",
+  "author": "Nathan Guilhot <nathan.guilhot@gmx.fr>",
+  "license": "MIT",
+  "homepage": "https://github.com/nathanguilhot/sortie",
   "private": true,
   "main": "./dist/main/index.js",
   "scripts": {
-    "build": "tsc && electron-vite build",
+    "build:icons": "node scripts/generate-icons.mjs",
+    "build": "yarn build:icons && tsc && electron-vite build",
     "clean": "rm -rf dist out",
     "type-check": "tsc --noEmit",
     "start": "electron-vite preview",
@@ -18,6 +23,7 @@
     "postinstall": "electron-rebuild -m ../ -w better-sqlite3"
   },
   "dependencies": {
+    "@fontsource/dm-sans": "^5.2.8",
     "chokidar": "^3.6.0",
     "electron-store": "^8.0.0",
     "electron-updater": "^6.0.0",
@@ -36,18 +42,20 @@
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.0.0",
+    "@electron/rebuild": "^3.7.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "@vitejs/plugin-react": "^4.0.0",
     "autoprefixer": "^10.0.0",
     "electron": "^32.2.7",
-    "@electron/rebuild": "^3.7.0",
+    "electron-builder": "^24.0.0",
     "electron-vite": "^2.0.0",
+    "png-to-ico": "^2.1.8",
     "postcss": "^8.0.0",
+    "sharp": "^0.33.5",
     "tailwindcss": "^3.0.0",
     "typescript": "^5.0.0",
-    "vite": "^5.0.0",
-    "electron-builder": "^24.0.0"
+    "vite": "^5.0.0"
   }
 }
