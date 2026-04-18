@@ -1,6 +1,10 @@
 import { useEffect, useState, useRef, useMemo, RefObject } from 'react';
 import { useImageStore } from '../stores/imageStore';
-import { computeMasonryLayout } from './masonry-layout';
+import {
+  computeMasonryLayout,
+  getVisibleIndices,
+  type LayoutResult,
+} from './masonry-layout';
 import { MasonryImage } from './masonry-utils';
 
 const OVERSCAN = 500;
@@ -15,7 +19,8 @@ interface MasonryGridProps {
 }
 
 export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
-  const { images, loading, error, fetchImages, hasMore, setSelectedImage } = useImageStore();
+  const { images, loading, error, fetchImages, searchMore, hasMore, activeSearchQuery, setSelectedImage } =
+    useImageStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
@@ -81,26 +86,31 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
     return Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, fit));
   }, [layoutWidth]);
 
-  const layout = useMemo(
-    () => computeMasonryLayout(images, layoutWidth, columns, GAP, padding),
-    [images, layoutWidth, columns],
-  );
+  // Hold the previous layout so that appending images only lays out the
+  // tail. `computeMasonryLayout` validates the prefix via edge ids and falls
+  // back to a full recompute if the images array was replaced.
+  const priorLayoutRef = useRef<LayoutResult | undefined>(undefined);
+  const layout = useMemo(() => {
+    const next = computeMasonryLayout(
+      images,
+      layoutWidth,
+      columns,
+      GAP,
+      padding,
+      priorLayoutRef.current,
+    );
+    priorLayoutRef.current = next;
+    return next;
+  }, [images, layoutWidth, columns]);
 
   const columnWidth = layoutWidth > 0 ? (layoutWidth - (columns - 1) * GAP) / columns : 0;
 
-  // Determine visible items (virtualization)
+  // Determine visible items via the bucketed spatial index in `layout`.
   const visibleIndices = useMemo(() => {
-    const indices: number[] = [];
     const top = scrollTop - OVERSCAN;
     const bottom = scrollTop + viewportHeight + OVERSCAN;
-    for (let i = 0; i < layout.positions.length; i++) {
-      const pos = layout.positions[i];
-      if (pos.y + pos.height > top && pos.y < bottom) {
-        indices.push(i);
-      }
-    }
-    return indices;
-  }, [layout.positions, scrollTop, viewportHeight]);
+    return getVisibleIndices(layout, top, bottom);
+  }, [layout, scrollTop, viewportHeight]);
 
   // Infinite scroll: load more when near bottom
   useEffect(() => {
@@ -108,11 +118,23 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
     const bottomEdge = scrollTop + viewportHeight + OVERSCAN;
     if (layout.totalHeight > 0 && bottomEdge >= layout.totalHeight) {
       loadingMore.current = true;
-      void fetchImages(100, images.length, true).finally(() => {
+      const loader = activeSearchQuery
+        ? searchMore(50)
+        : fetchImages(100, images.length, true);
+      void loader.finally(() => {
         loadingMore.current = false;
       });
     }
-  }, [scrollTop, viewportHeight, layout.totalHeight, hasMore, images.length, fetchImages]);
+  }, [
+    scrollTop,
+    viewportHeight,
+    layout.totalHeight,
+    hasMore,
+    images.length,
+    fetchImages,
+    searchMore,
+    activeSearchQuery,
+  ]);
 
   let content: React.ReactNode = null;
   if (loading && images.length === 0) {

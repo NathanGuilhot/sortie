@@ -157,6 +157,22 @@ export function FolderScanner() {
     }
   };
 
+  const handleFaceScanExclusionToggle = async (path: string, currentlyExcluded: boolean) => {
+    if (!currentlyExcluded) {
+      const ok = window.confirm(
+        'Exclude this folder from face scanning? Existing face detections in this folder will be deleted.',
+      );
+      if (!ok) return;
+    }
+    try {
+      await window.sortieAPI.setFolderFaceScanExclusion(path, !currentlyExcluded);
+      await loadFolders();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+    }
+  };
+
   const handleRemoveFolder = async (folderPath: string) => {
     if (removingFolder !== folderPath) {
       setRemovingFolder(folderPath);
@@ -397,6 +413,46 @@ export function FolderScanner() {
                       Scan Now
                     </button>
                   )}
+                </div>
+
+                {/* Face scan exclusion */}
+                <div className="flex items-center mt-3 pt-3 border-t border-gray-100">
+                  <button
+                    onClick={() =>
+                      void handleFaceScanExclusionToggle(
+                        folder.path,
+                        folder.exclude_from_face_scan,
+                      )
+                    }
+                    disabled={!folder.available}
+                    title={
+                      folder.exclude_from_face_scan
+                        ? 'Re-enable face scanning for this folder'
+                        : 'Exclude this folder from face scanning (deletes existing detections)'
+                    }
+                    className="flex items-center gap-2 text-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <div
+                      className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
+                        folder.exclude_from_face_scan ? 'bg-gray-300' : 'bg-mint'
+                      }`}
+                    >
+                      <div
+                        className={`absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform duration-200 ${
+                          folder.exclude_from_face_scan
+                            ? 'translate-x-[3px]'
+                            : 'translate-x-[19px]'
+                        }`}
+                      />
+                    </div>
+                    <span
+                      className={
+                        folder.exclude_from_face_scan ? 'text-gray-500' : 'text-ink'
+                      }
+                    >
+                      {folder.exclude_from_face_scan ? 'Face scan off' : 'Face scan on'}
+                    </span>
+                  </button>
                 </div>
               </div>
             ))}

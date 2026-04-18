@@ -136,6 +136,7 @@ export class DatabaseManager {
         path TEXT UNIQUE NOT NULL,
         watched BOOLEAN DEFAULT 1,
         ignored BOOLEAN DEFAULT 0,
+        exclude_from_face_scan BOOLEAN DEFAULT 0,
         last_scanned DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
@@ -359,6 +360,42 @@ export class DatabaseManager {
       this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_missing ON images(missing)');
 
       this.db.pragma('user_version = 6');
+    }
+
+    if (version < 7) {
+      const imageCols = this.db
+        .prepare('PRAGMA table_info(images)')
+        .all() as Array<{ name: string }>;
+      const imageColNames = new Set(imageCols.map((c) => c.name));
+      if (!imageColNames.has('website_link')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN website_link TEXT');
+      }
+
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS link_previews (
+          url_hash TEXT PRIMARY KEY,
+          url TEXT NOT NULL,
+          title TEXT,
+          description TEXT,
+          site_name TEXT,
+          image_path TEXT,
+          fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          error TEXT
+        )
+      `);
+
+      this.db.pragma('user_version = 7');
+    }
+
+    if (version < 8) {
+      const folderCols = this.db
+        .prepare('PRAGMA table_info(folders)')
+        .all() as Array<{ name: string }>;
+      const folderColNames = new Set(folderCols.map((c) => c.name));
+      if (!folderColNames.has('exclude_from_face_scan')) {
+        this.db.exec('ALTER TABLE folders ADD COLUMN exclude_from_face_scan BOOLEAN DEFAULT 0');
+      }
+      this.db.pragma('user_version = 8');
     }
   }
 
@@ -635,9 +672,20 @@ export class DatabaseManager {
   }
 
   getUnscannedFaceImages(): Array<{ id: number; file_path: string }> {
-    return this.db
-      .prepare('SELECT id, file_path FROM images WHERE faces_scanned = 0 AND hidden = 0')
-      .all() as Array<{ id: number; file_path: string }>;
+    const excluded = this.db
+      .prepare('SELECT path FROM folders WHERE exclude_from_face_scan = 1')
+      .all() as Array<{ path: string }>;
+    if (excluded.length === 0) {
+      return this.db
+        .prepare('SELECT id, file_path FROM images WHERE faces_scanned = 0 AND hidden = 0')
+        .all() as Array<{ id: number; file_path: string }>;
+    }
+    const likeClauses = excluded.map(() => "file_path NOT LIKE ? || '/%'").join(' AND ');
+    const stmt = this.db.prepare(
+      `SELECT id, file_path FROM images
+       WHERE faces_scanned = 0 AND hidden = 0 AND ${likeClauses}`,
+    );
+    return stmt.all(...excluded.map((e) => e.path)) as Array<{ id: number; file_path: string }>;
   }
 
   cleanupOrphanedPersons(): void {

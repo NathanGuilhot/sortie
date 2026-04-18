@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell, BrowserWindow, app } from 'electron';
+import { ipcMain, dialog, shell, BrowserWindow, app, clipboard, nativeImage } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { DatabaseService } from './database';
@@ -28,10 +28,22 @@ export function setupIpcHandlers(
     },
   );
 
+  ipcMain.handle('get-image', async (_event, { id }: { id: number }) => {
+    return await dbService.getImage(id);
+  });
+
+  ipcMain.handle('reshuffle-images', () => {
+    dbService.reshuffle();
+    return { success: true };
+  });
+
   ipcMain.handle(
     'search-images',
-    async (_event, { query, limit }: { query: string; limit?: number }) => {
-      return await dbService.searchImages(query, limit);
+    async (
+      _event,
+      { query, limit, offset }: { query: string; limit?: number; offset?: number },
+    ) => {
+      return await dbService.searchImages(query, limit, offset);
     },
   );
 
@@ -181,6 +193,13 @@ export function setupIpcHandlers(
     return { watching: false };
   });
 
+  ipcMain.handle(
+    'set-folder-face-scan-exclusion',
+    async (_event, { path, excluded }: { path: string; excluded: boolean }) => {
+      return await dbService.setFolderFaceScanExclusion(path, excluded);
+    },
+  );
+
   ipcMain.handle('hide-image', async (_event, { imageId }: { imageId: number }) => {
     await dbService.hideImage(imageId);
     return { success: true };
@@ -201,6 +220,7 @@ export function setupIpcHandlers(
           captured_at?: string | null;
           city?: string | null;
           country?: string | null;
+          website_link?: string | null;
         };
       },
     ) => {
@@ -208,6 +228,14 @@ export function setupIpcHandlers(
       return { success: true };
     },
   );
+
+  ipcMain.handle('get-link-preview', async (_event, { url }: { url: string }) => {
+    return await dbService.getLinkPreview(url);
+  });
+
+  ipcMain.handle('fetch-link-preview', async (_event, { url }: { url: string }) => {
+    return await dbService.fetchAndCacheLinkPreview(url);
+  });
 
   ipcMain.handle('recompute-embedding', async (_event, { imageId }: { imageId: number }) => {
     await dbService.recomputeEmbedding(imageId);
@@ -251,6 +279,13 @@ export function setupIpcHandlers(
 
   ipcMain.handle('reveal-in-finder', async (_event, { filePath }: { filePath: string }) => {
     shell.showItemInFolder(filePath);
+    return { success: true };
+  });
+
+  ipcMain.handle('copy-image-to-clipboard', async (_event, { filePath }: { filePath: string }) => {
+    const image = nativeImage.createFromPath(filePath);
+    if (image.isEmpty()) return { success: false };
+    clipboard.writeImage(image);
     return { success: true };
   });
 

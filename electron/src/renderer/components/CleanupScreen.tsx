@@ -209,8 +209,28 @@ export function CleanupScreen() {
 
   const handleKeep = async (group: DuplicateGroup, keepImageId: number) => {
     const toDelete = group.images.filter((img: Image) => img.id !== keepImageId);
+    const failures: { fileName: string; message: string }[] = [];
     for (const img of toDelete) {
-      await deleteImage(img.id);
+      try {
+        await deleteImage(img.id);
+      } catch (err: unknown) {
+        failures.push({
+          fileName: img.file_name,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    if (failures.length === 0) {
+      setError(null);
+      return;
+    }
+    const first = failures[0].message;
+    if (failures.length === 1) {
+      setError(`Couldn't delete ${failures[0].fileName}: ${first}`);
+    } else {
+      setError(
+        `Couldn't delete ${failures.length} of ${toDelete.length} files. First failure: ${first}`,
+      );
     }
   };
 

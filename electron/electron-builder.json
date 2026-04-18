@@ -10,6 +10,11 @@
     "node_modules/**/*",
     "package.json"
   ],
+  "asarUnpack": [
+    "node_modules/canvas/build/Release/*.node",
+    "node_modules/better-sqlite3/build/Release/*.node",
+    "**/*.node"
+  ],
   "mac": {
     "category": "public.app-category.photography",
     "icon": "resources/icons/icon.icns",

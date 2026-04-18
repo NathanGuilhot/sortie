@@ -6,8 +6,12 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   getImages: (limit?: number, offset?: number) =>
     ipcRenderer.invoke('get-images', { limit, offset }),
 
-  searchImages: (query: string, limit?: number) =>
-    ipcRenderer.invoke('search-images', { query, limit }),
+  getImage: (id: number) => ipcRenderer.invoke('get-image', { id }),
+
+  reshuffleImages: () => ipcRenderer.invoke('reshuffle-images'),
+
+  searchImages: (query: string, limit?: number, offset?: number) =>
+    ipcRenderer.invoke('search-images', { query, limit, offset }),
 
   getEmbedderStatus: (): Promise<EmbedderStatus> => ipcRenderer.invoke('get-embedder-status'),
 
@@ -51,6 +55,9 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   updateImageMetadata: (imageId: number, metadata: Record<string, unknown>) =>
     ipcRenderer.invoke('update-image-metadata', { imageId, metadata }),
 
+  getLinkPreview: (url: string) => ipcRenderer.invoke('get-link-preview', { url }),
+  fetchLinkPreview: (url: string) => ipcRenderer.invoke('fetch-link-preview', { url }),
+
   // Suggestions
   getSuggestions: (imageId: number) => ipcRenderer.invoke('get-suggestions', { imageId }),
   dismissSuggestion: (imageId: number, tagId: number) =>
@@ -66,6 +73,9 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   watchFolder: (path: string) => ipcRenderer.invoke('watch-folder', { path }),
 
   unwatchFolder: (path: string) => ipcRenderer.invoke('unwatch-folder', { path }),
+
+  setFolderFaceScanExclusion: (path: string, excluded: boolean) =>
+    ipcRenderer.invoke('set-folder-face-scan-exclusion', { path, excluded }),
 
   recomputeEmbedding: (imageId: number) => ipcRenderer.invoke('recompute-embedding', { imageId }),
 
@@ -107,6 +117,8 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   // File actions
   revealInFinder: (filePath: string) => ipcRenderer.invoke('reveal-in-finder', { filePath }),
+  copyImageToClipboard: (filePath: string) =>
+    ipcRenderer.invoke('copy-image-to-clipboard', { filePath }),
   backfillExif: (opId: string) => ipcRenderer.invoke('backfill-exif', { opId }),
 
   // Face Detection / People

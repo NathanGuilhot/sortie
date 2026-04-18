@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Image, Face } from 'shared';
 import { TagInput } from './TagInput';
 import { CopyText } from './CopyText';
+import { LinkPreviewCard } from './LinkPreviewCard';
 import { useImageStore } from '../stores/imageStore';
 
 interface TagSuggestion {
@@ -47,17 +48,65 @@ function DisclosureSection({
   );
 }
 
+function CopyImageButton({
+  filePath,
+  label,
+  className,
+}: {
+  filePath: string;
+  label: string;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const handleCopy = () => {
+    void window.sortieAPI.copyImageToClipboard(filePath).then((res) => {
+      if (!res.success) return;
+      clearTimeout(timerRef.current);
+      setCopied(true);
+      timerRef.current = setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <span
+      className={`cursor-copy select-none ${className ?? ''}`}
+      title="Click to copy image"
+      onClick={handleCopy}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleCopy();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    >
+      {copied ? <span className="text-green-500">Copied</span> : label}
+    </span>
+  );
+}
+
 export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
-  const { updateImageTags, hideImage, updateImageMetadata, setSelectedImage, fetchImages } =
-    useImageStore();
+  const {
+    updateImageTags,
+    hideImage,
+    deleteImage,
+    updateImageMetadata,
+    setSelectedImage,
+    fetchImages,
+  } = useImageStore();
   const [tags, setTags] = useState<string[]>([]);
   const [date, setDate] = useState<string>('');
   const [location, setLocation] = useState('');
+  const [websiteLink, setWebsiteLink] = useState('');
   const [description, setDescription] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingFileDelete, setConfirmingFileDelete] = useState(false);
   const [embeddingStatus, setEmbeddingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>(
     'idle',
   );
@@ -71,6 +120,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
       setTags(image.tags?.map((t) => t.name) || []);
       setDate(image.captured_at ? new Date(image.captured_at).toISOString().split('T')[0] : '');
       setLocation([image.city, image.country].filter(Boolean).join(', ') || '');
+      setWebsiteLink(image.website_link || '');
       setDescription(image.description || '');
       setIsFavorite(image.favorite || false);
 
@@ -119,11 +169,28 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     setTags([]);
     setDate('');
     setLocation('');
+    setWebsiteLink('');
     setDescription('');
     setIsFavorite(false);
     setSuggestions([]);
     setTagCategories(new Map());
   };
+
+  const normalizeWebsiteLink = (raw: string): string | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    if (/\s/.test(trimmed)) return null;
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    try {
+      const u = new URL(withScheme);
+      if (!u.hostname.includes('.')) return null;
+      return u.toString();
+    } catch {
+      return null;
+    }
+  };
+
+  const savedWebsiteLink = normalizeWebsiteLink(websiteLink);
 
   const handleSave = async () => {
     if (!image) return;
@@ -139,6 +206,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
         captured_at: date ? new Date(date).toISOString() : null,
         city: city || undefined,
         country: country || undefined,
+        website_link: savedWebsiteLink,
       });
       await fetchImages();
       const updatedImages = useImageStore.getState().images;
@@ -156,12 +224,25 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
   const handleDelete = async () => {
     if (!image) return;
     if (!confirmingDelete) {
+      setConfirmingFileDelete(false);
       setConfirmingDelete(true);
       return;
     }
     await hideImage(image.id);
     setSelectedImage(null);
     setConfirmingDelete(false);
+  };
+
+  const handleFileDelete = async () => {
+    if (!image) return;
+    if (!confirmingFileDelete) {
+      setConfirmingDelete(false);
+      setConfirmingFileDelete(true);
+      return;
+    }
+    await deleteImage(image.id);
+    setSelectedImage(null);
+    setConfirmingFileDelete(false);
   };
 
   const handleRecomputeEmbedding = async () => {
@@ -198,11 +279,13 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
   const originalDate = image.captured_at ? new Date(image.captured_at).toISOString().split('T')[0] : '';
   const originalLocation = [image.city, image.country].filter(Boolean).join(', ') || '';
   const originalDescription = image.description || '';
+  const originalWebsiteLink = image.website_link || '';
   const isDirty =
     isFavorite !== (image.favorite || false) ||
     description !== originalDescription ||
     date !== originalDate ||
     location !== originalLocation ||
+    (savedWebsiteLink ?? '') !== originalWebsiteLink ||
     JSON.stringify([...tags].sort()) !== JSON.stringify([...originalTags].sort());
 
   const hasCamera =
@@ -281,7 +364,11 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <CopyText value={image.file_name} className="text-sm font-medium text-gray-800 truncate block">{image.file_name}</CopyText>
+            <CopyImageButton
+              filePath={image.file_path}
+              label={image.file_name}
+              className="text-sm font-medium text-gray-800 truncate block"
+            />
             <div className="text-xs text-gray-400">
               {image.width} &times; {image.height}
               {image.file_size ? ` \u00b7 ${(image.file_size / 1024 / 1024).toFixed(1)} MB` : ''}
@@ -482,6 +569,31 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
+                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+              />
+            </svg>
+            Website Link
+          </label>
+          <input
+            type="text"
+            inputMode="url"
+            className={inputClasses}
+            placeholder="https://example.com"
+            value={websiteLink}
+            onChange={(e) => setWebsiteLink(e.target.value)}
+          />
+          {image.website_link && savedWebsiteLink === image.website_link && (
+            <LinkPreviewCard url={image.website_link} />
+          )}
+        </div>
+
+        <div>
+          <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
               />
             </svg>
@@ -597,14 +709,14 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
       </div>
 
       {/* [G] Danger zone */}
-      <div className="pt-4 border-t border-gray-100">
+      <div className="pt-4 border-t border-gray-100 space-y-2">
         {confirmingDelete ? (
           <div className="flex items-center gap-2">
             <button
               onClick={() => void handleDelete()}
               className="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
             >
-              Confirm delete
+              Confirm remove
             </button>
             <button
               onClick={() => setConfirmingDelete(false)}
@@ -614,12 +726,42 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             </button>
           </div>
         ) : (
-          <button
-            onClick={() => void handleDelete()}
-            className="w-full px-3 py-2 text-xs text-gray-400 hover:text-red-500 transition-colors text-center"
-          >
-            Remove from library
-          </button>
+          !confirmingFileDelete && (
+            <button
+              onClick={() => void handleDelete()}
+              className="w-full px-3 py-2 text-xs text-gray-400 hover:text-red-500 transition-colors text-center"
+            >
+              Remove from library
+            </button>
+          )
+        )}
+        {confirmingFileDelete ? (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => void handleFileDelete()}
+                className="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+              >
+                Delete file
+              </button>
+              <button
+                onClick={() => setConfirmingFileDelete(false)}
+                className="flex-1 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400 text-center">File will be permanently deleted</p>
+          </div>
+        ) : (
+          !confirmingDelete && (
+            <button
+              onClick={() => void handleFileDelete()}
+              className="w-full px-3 py-2 text-xs font-medium text-red-500 hover:text-red-600 transition-colors text-center"
+            >
+              Delete file permanently
+            </button>
+          )
         )}
       </div>
     </div>

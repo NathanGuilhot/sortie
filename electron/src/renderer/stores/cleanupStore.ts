@@ -108,8 +108,16 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
           .filter((g) => g.images.length >= 2),
       }));
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message });
+      throw new Error(cleanIpcErrorMessage(error));
     }
   },
 }));
+
+function cleanIpcErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  // Electron's ipcRenderer.invoke wraps thrown errors with a preamble like
+  // "Error invoking remote method 'delete-image': Error: <original>".
+  // Strip it so the UI shows just the underlying message.
+  const match = raw.match(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?(.*)$/s);
+  return match ? match[1] : raw;
+}

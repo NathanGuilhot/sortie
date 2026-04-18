@@ -20,7 +20,7 @@
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
-    "postinstall": "electron-rebuild -m ../ -w better-sqlite3"
+    "postinstall": "electron-rebuild -m ../ -w better-sqlite3,canvas"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.8",
@@ -34,6 +34,7 @@
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^18.0.0",
     "react-photo-gallery": "^8.0.0",
+    "react-router-dom": "^7.14.1",
     "react-tag-input": "^6.10.6",
     "react-window": "^2.2.7",
     "react-window-infinite-loader": "^2.0.1",

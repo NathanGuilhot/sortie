@@ -15,6 +15,7 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'sortie-file', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
   { scheme: 'sortie-thumb', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
   { scheme: 'sortie-face', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
+  { scheme: 'sortie-preview', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
 ]);
 
 let mainWindow: BrowserWindow | null = null;
@@ -231,6 +232,18 @@ void app.whenReady().then(async () => {
       console.error('[face-thumb] failed:', err);
       return new Response('Face thumbnail error', { status: 500 });
     }
+  });
+
+  const previewDir = path.join(app.getPath('userData'), 'link-previews');
+  fs.mkdirSync(previewDir, { recursive: true });
+
+  protocol.handle('sortie-preview', (request) => {
+    const url = new URL(request.url);
+    const rel = decodeURIComponent(url.pathname.replace(/^\//, ''));
+    const filePath = path.join(previewDir, rel);
+    if (!filePath.startsWith(previewDir)) return new Response(null, { status: 403 });
+    if (!fs.existsSync(filePath)) return new Response(null, { status: 404 });
+    return net.fetch(`file://${filePath}`);
   });
 
   app.setAboutPanelOptions({

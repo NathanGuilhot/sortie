@@ -26,7 +26,18 @@ export interface Image {
   embedded?: boolean;
   file_hash?: string | null;
   dhash?: string | null;
+  website_link?: string | null;
   tags?: Tag[];
+}
+
+export interface LinkPreview {
+  url: string;
+  title: string | null;
+  description: string | null;
+  site_name: string | null;
+  image_path: string | null;
+  fetched_at: string;
+  error: string | null;
 }
 
 export interface DuplicateGroup {
@@ -72,6 +83,7 @@ export interface Folder {
   path: string;
   watched: boolean;
   ignored: boolean;
+  exclude_from_face_scan: boolean;
   available: boolean;
   last_scanned: string | null;
   created_at: string;

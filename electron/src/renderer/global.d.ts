@@ -13,6 +13,7 @@ import {
   HashScanResult,
   BackfillExifResult,
   EmbedderStatus,
+  LinkPreview,
 } from 'shared';
 
 export {};
@@ -22,7 +23,9 @@ declare global {
     sortieAPI: {
       // Image operations
       getImages: (limit?: number, offset?: number) => Promise<Image[]>;
-      searchImages: (query: string, limit?: number) => Promise<SearchResult[]>;
+      getImage: (id: number) => Promise<Image | null>;
+      reshuffleImages: () => Promise<{ success: boolean }>;
+      searchImages: (query: string, limit?: number, offset?: number) => Promise<SearchResult[]>;
       getEmbedderStatus: () => Promise<EmbedderStatus>;
       onEmbedderStatus: (callback: (status: EmbedderStatus) => void) => () => void;
       findSimilarImages: (imageId: number, limit?: number) => Promise<SearchResult[]>;
@@ -63,8 +66,11 @@ declare global {
           captured_at?: string | null;
           city?: string | null;
           country?: string | null;
+          website_link?: string | null;
         },
       ) => Promise<void>;
+      getLinkPreview: (url: string) => Promise<LinkPreview | null>;
+      fetchLinkPreview: (url: string) => Promise<LinkPreview>;
       // Suggestions
       getSuggestions: (imageId: number) => Promise<TagSuggestion[]>;
       dismissSuggestion: (imageId: number, tagId: number) => Promise<void>;
@@ -77,6 +83,10 @@ declare global {
       // Watcher control
       watchFolder: (path: string) => Promise<{ watching: boolean }>;
       unwatchFolder: (path: string) => Promise<{ watching: boolean }>;
+      setFolderFaceScanExclusion: (
+        path: string,
+        excluded: boolean,
+      ) => Promise<{ changed: boolean }>;
       // Cleanup / Duplicate detection
       computeMissingHashes: (opId: string) => Promise<HashScanResult>;
       findDuplicateGroups: () => Promise<DuplicateGroup[]>;
@@ -90,6 +100,7 @@ declare global {
       ) => () => void;
       // File actions
       revealInFinder: (filePath: string) => Promise<{ success: boolean }>;
+      copyImageToClipboard: (filePath: string) => Promise<{ success: boolean }>;
       backfillExif: (opId: string) => Promise<BackfillExifResult>;
       // Face Detection / People
       getPersons: () => Promise<Person[]>;

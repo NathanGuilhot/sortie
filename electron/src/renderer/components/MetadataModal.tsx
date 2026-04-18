@@ -149,8 +149,14 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
         </div>
 
         {/* Center image */}
-        <div className="flex-1 flex items-center justify-center p-4 min-w-0 h-full overflow-hidden">
-          <div className="relative inline-block max-w-full max-h-full">
+        <div
+          className="flex-1 flex items-center justify-center p-4 min-w-0 h-full overflow-hidden"
+          onClick={onClose}
+        >
+          <div
+            className="relative inline-block max-w-full max-h-full"
+            onClick={(e) => e.stopPropagation()}
+          >
             <img
               ref={imgRef}
               src={`sortie-file://${image.file_path}`}
