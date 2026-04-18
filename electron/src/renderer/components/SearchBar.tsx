@@ -3,6 +3,7 @@ import { Person } from 'shared';
 import { useUIStore } from '../stores/uiStore';
 import { useImageStore } from '../stores/imageStore';
 import { useEmbedderStore } from '../stores/embedderStore';
+import { toast } from '../stores/toastStore';
 import { TagInput } from './TagInput';
 import { buildFaceThumbUrl } from './faceThumb';
 
@@ -35,7 +36,11 @@ function PersonFilterChip({
         const personFace = faces.find((f) => f.person_id === person.id);
         if (!cancelled && personFace) setThumbUrl(buildFaceThumbUrl(personFace));
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`Failed to load person thumbnail: ${message}`);
+      });
     return () => {
       cancelled = true;
     };
@@ -102,7 +107,13 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
 
   // Load persons list for the filter dropdown
   useEffect(() => {
-    window.sortieAPI.getPersons().then(setPersons).catch(() => {});
+    window.sortieAPI
+      .getPersons()
+      .then(setPersons)
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`Failed to load people: ${message}`);
+      });
   }, []);
 
   // React to person filter changes

@@ -4,15 +4,18 @@ import { MetadataEditor } from './MetadataEditor';
 import { CopyText } from './CopyText';
 import { SimilarityGrid } from './SimilarityGrid';
 import { useImageStore } from '../stores/imageStore';
+import { toast } from '../stores/toastStore';
 
 interface MetadataModalProps {
   image: Image;
   onClose: () => void;
   onNavigate: (image: Image) => void;
+  images?: Image[];
 }
 
-export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps) {
-  const images = useImageStore((s) => s.images);
+export function MetadataModal({ image, onClose, onNavigate, images: imagesProp }: MetadataModalProps) {
+  const storeImages = useImageStore((s) => s.images);
+  const images = imagesProp ?? storeImages;
   const [showMetadata, setShowMetadata] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [similarImages, setSimilarImages] = useState<SearchResult[]>([]);
@@ -37,16 +40,23 @@ export function MetadataModal({ image, onClose, onNavigate }: MetadataModalProps
     let cancelled = false;
     setSimilarImages([]);
 
-    void window.sortieAPI.findSimilarImages(image.id, 20).then((results: SearchResult[]) => {
-      if (cancelled) return;
-      cache.current.set(image.id, results);
-      // Cap cache size
-      if (cache.current.size > 50) {
-        const first = cache.current.keys().next().value;
-        if (first !== undefined) cache.current.delete(first);
-      }
-      setSimilarImages(results);
-    });
+    window.sortieAPI
+      .findSimilarImages(image.id, 20)
+      .then((results: SearchResult[]) => {
+        if (cancelled) return;
+        cache.current.set(image.id, results);
+        // Cap cache size
+        if (cache.current.size > 50) {
+          const first = cache.current.keys().next().value;
+          if (first !== undefined) cache.current.delete(first);
+        }
+        setSimilarImages(results);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`Failed to load similar images: ${message}`);
+      });
 
     return () => {
       cancelled = true;

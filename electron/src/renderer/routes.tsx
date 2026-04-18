@@ -16,7 +16,7 @@ export const routes: RouteObject[] = [
       { path: 'boards', element: <BoardsIndexScreen /> },
       { path: 'boards/:id', element: <BoardDetailScreen /> },
       { path: 'folders', element: <FoldersScreen /> },
-      { path: 'cleanup', element: <CleanupScreen /> },
+      // { path: 'cleanup', element: <CleanupScreen /> }, // Disabled until we have a better duplicate algorithm
       { path: 'people', element: <PeopleScreen /> },
       { path: '*', element: <Navigate to="/gallery" replace /> },
     ],

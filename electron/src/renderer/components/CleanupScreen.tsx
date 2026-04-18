@@ -5,7 +5,6 @@ import { DuplicateGroup, Image } from 'shared';
 import {
   ScreenShell,
   StatHeader,
-  ErrorBanner,
   EmptyState,
   ProgressPanel,
   PrimaryButton,
@@ -190,7 +189,6 @@ function ImageCard({
 export function CleanupScreen() {
   const {
     duplicateGroups,
-    error,
     scanning,
     scanProgress,
     scanForDuplicates,
@@ -282,8 +280,6 @@ export function CleanupScreen() {
           currentFile={scanProgress.currentFile}
         />
       )}
-
-      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       {!hasScanned && !scanning && duplicateGroups.length === 0 && (
         <EmptyState

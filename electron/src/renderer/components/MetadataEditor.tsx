@@ -5,6 +5,7 @@ import { CopyText } from './CopyText';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { useImageStore } from '../stores/imageStore';
 import { useBoardStore } from '../stores/boardStore';
+import { toast } from '../stores/toastStore';
 
 interface TagSuggestion {
   tagId: number;
@@ -208,7 +209,8 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (error) {
-      console.error('Failed to save metadata:', error);
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to save metadata: ${message}`);
     } finally {
       setIsSaving(false);
     }
@@ -245,7 +247,9 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
       await window.sortieAPI.recomputeEmbedding(image.id);
       setEmbeddingStatus('success');
       setTimeout(() => setEmbeddingStatus('idle'), 2000);
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to recompute embedding: ${message}`);
       setEmbeddingStatus('error');
       setTimeout(() => setEmbeddingStatus('idle'), 3000);
     }

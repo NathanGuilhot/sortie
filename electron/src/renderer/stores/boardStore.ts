@@ -5,6 +5,7 @@ interface BoardStore {
   boards: Board[];
   loading: boolean;
   error: string | null;
+  setError: (error: string | null) => void;
   fetchBoards: () => Promise<void>;
   createBoard: (name: string, color?: string) => Promise<Board>;
   renameBoard: (id: number, name: string) => Promise<void>;
@@ -16,6 +17,7 @@ export const useBoardStore = create<BoardStore>((set) => ({
   boards: [],
   loading: false,
   error: null,
+  setError: (error) => set({ error }),
   fetchBoards: async () => {
     set({ loading: true, error: null });
     try {
@@ -27,24 +29,45 @@ export const useBoardStore = create<BoardStore>((set) => ({
     }
   },
   createBoard: async (name, color) => {
-    const board = await window.sortieAPI.boards.create(name, color);
-    set((state) => ({ boards: [...state.boards, board] }));
-    return board;
+    try {
+      const board = await window.sortieAPI.boards.create(name, color);
+      set((state) => ({ boards: [...state.boards, board] }));
+      return board;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message });
+      throw error;
+    }
   },
   renameBoard: async (id, name) => {
-    await window.sortieAPI.boards.rename(id, name);
-    set((state) => ({
-      boards: state.boards.map((b) => (b.id === id ? { ...b, name } : b)),
-    }));
+    try {
+      await window.sortieAPI.boards.rename(id, name);
+      set((state) => ({
+        boards: state.boards.map((b) => (b.id === id ? { ...b, name } : b)),
+      }));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message });
+    }
   },
   setBoardColor: async (id, color) => {
-    await window.sortieAPI.boards.setColor(id, color);
-    set((state) => ({
-      boards: state.boards.map((b) => (b.id === id ? { ...b, color } : b)),
-    }));
+    try {
+      await window.sortieAPI.boards.setColor(id, color);
+      set((state) => ({
+        boards: state.boards.map((b) => (b.id === id ? { ...b, color } : b)),
+      }));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message });
+    }
   },
   deleteBoard: async (id) => {
-    await window.sortieAPI.boards.delete(id);
-    set((state) => ({ boards: state.boards.filter((b) => b.id !== id) }));
+    try {
+      await window.sortieAPI.boards.delete(id);
+      set((state) => ({ boards: state.boards.filter((b) => b.id !== id) }));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message });
+    }
   },
 }));

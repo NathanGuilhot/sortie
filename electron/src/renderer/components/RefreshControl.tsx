@@ -1,6 +1,7 @@
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { useImageStore } from '../stores/imageStore';
 import { useUIStore } from '../stores/uiStore';
+import { toast } from '../stores/toastStore';
 
 interface RefreshControlProps {
   scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -56,6 +57,9 @@ export function RefreshControl({ scrollContainerRef }: RefreshControlProps) {
         await fetchImages();
       }
       scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to reshuffle: ${message}`);
     } finally {
       setRefreshing(false);
     }

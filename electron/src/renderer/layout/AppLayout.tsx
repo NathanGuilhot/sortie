@@ -49,18 +49,18 @@ const NAV_ITEMS: NavItem[] = [
       />
     ),
   },
-  {
-    to: '/cleanup',
-    label: 'Cleanup',
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-      />
-    ),
-  },
+  // {
+  //   to: '/cleanup',
+  //   label: 'Cleanup',
+  //   icon: (
+  //     <path
+  //       strokeLinecap="round"
+  //       strokeLinejoin="round"
+  //       strokeWidth={2}
+  //       d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+  //     />
+  //   ),
+  // },
   {
     to: '/people',
     label: 'People',
@@ -88,6 +88,15 @@ export function AppLayout() {
   const [showAbout, setShowAbout] = useState(false);
   const initEmbedder = useEmbedderStore((s) => s.init);
   const requestFocusSearch = useUIStore((s) => s.requestFocusSearch);
+  const requestScrollGalleryToTop = useUIStore((s) => s.requestScrollGalleryToTop);
+
+  const goHomeOrScrollTop = () => {
+    if (location.pathname === '/gallery') {
+      requestScrollGalleryToTop();
+    } else {
+      navigate('/gallery');
+    }
+  };
 
   useEffect(() => initEmbedder(), [initEmbedder]);
 
@@ -111,7 +120,14 @@ export function AppLayout() {
     <div className="h-screen bg-cream flex overflow-hidden">
       <div className="w-16 h-screen fixed left-0 top-0 bg-ink text-white flex flex-col z-30">
         <div className="p-3 border-b border-white/10 flex items-center justify-center">
-          <Logo className="w-9 h-9" variant="mono" />
+          <button
+            type="button"
+            onClick={goHomeOrScrollTop}
+            className="p-1 rounded hover:bg-white/10 transition-colors"
+            aria-label="Go to gallery"
+          >
+            <Logo className="w-9 h-9" variant="mono" />
+          </button>
         </div>
 
         <nav className="flex-1 p-2">
@@ -120,6 +136,12 @@ export function AppLayout() {
               <li key={item.to}>
                 <NavLink
                   to={item.to}
+                  onClick={(e) => {
+                    if (item.to === '/gallery' && location.pathname === '/gallery') {
+                      e.preventDefault();
+                      requestScrollGalleryToTop();
+                    }
+                  }}
                   className={({ isActive }) =>
                     `relative group flex items-center justify-center w-full p-2 rounded ${
                       isActive ? 'bg-white/10' : 'hover:bg-white/10'

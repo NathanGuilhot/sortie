@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePeopleStore } from '../stores/peopleStore';
-import { Person, Face } from 'shared';
+import { Person, Face, Image } from 'shared';
 import { buildFaceThumbUrl } from './faceThumb';
+import { MetadataModal } from './MetadataModal';
 import {
   ScreenShell,
   StatHeader,
-  ErrorBanner,
   EmptyState,
   ProgressPanel,
   PrimaryButton,
   CancelButton,
 } from './screen';
+import { toast } from '../stores/toastStore';
 
 const SearchIcon = (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -45,22 +46,24 @@ function PersonCard({
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (person.thumbnail_face_id) {
-      window.sortieAPI.getImageFaces(0).catch(() => {});
-      // Load the actual face for this person
-      window.sortieAPI
-        .getPersonImages(person.id, 1)
-        .then(async (images) => {
-          if (images.length > 0) {
-            const faces = await window.sortieAPI.getImageFaces(images[0].id);
-            const personFace = faces.find((f) => f.person_id === person.id);
-            if (personFace) {
-              setThumbUrl(buildFaceThumbUrl(personFace));
-            }
-          }
-        })
-        .catch(() => {});
-    }
+    if (!person.thumbnail_face_id) return;
+    let cancelled = false;
+    window.sortieAPI
+      .getPersonImages(person.id, 1)
+      .then(async (images) => {
+        if (cancelled || images.length === 0) return;
+        const faces = await window.sortieAPI.getImageFaces(images[0].id);
+        const personFace = faces.find((f) => f.person_id === person.id);
+        if (!cancelled && personFace) setThumbUrl(buildFaceThumbUrl(personFace));
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`Failed to load face thumbnail: ${message}`);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [person.id, person.thumbnail_face_id]);
 
   return (
@@ -118,7 +121,14 @@ function PersonDetail({
   const [nameInput, setNameInput] = useState(person.name || '');
   const [faces, setFaces] = useState<Face[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<Image | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (selectedImage && !personImages.some((i) => i.id === selectedImage.id)) {
+      setSelectedImage(null);
+    }
+  }, [personImages, selectedImage]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- intentional reset on prop change */
   useEffect(() => {
@@ -234,16 +244,30 @@ function PersonDetail({
       {/* Image grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         {personImages.map((img) => (
-          <div key={img.id} className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+          <button
+            key={img.id}
+            type="button"
+            onClick={() => setSelectedImage(img)}
+            className="aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
+          >
             <img
               src={`sortie-thumb://${img.file_path}?w=300`}
               alt={img.file_name}
               className="w-full h-full object-cover"
               loading="lazy"
             />
-          </div>
+          </button>
         ))}
       </div>
+
+      {selectedImage && (
+        <MetadataModal
+          image={selectedImage}
+          images={personImages}
+          onClose={() => setSelectedImage(null)}
+          onNavigate={(img) => setSelectedImage(img)}
+        />
+      )}
     </div>
   );
 }
@@ -285,7 +309,6 @@ export function PeopleScreen() {
     persons,
     selectedPerson,
     loading,
-    error,
     scanning,
     scanProgress,
     scanResult,
@@ -379,8 +402,6 @@ export function PeopleScreen() {
           </button>
         </div>
       )}
-
-      {error && <ErrorBanner message={error} />}
 
         {/* Content */}
         {selectedPerson && !merging ? (

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { FolderWithStats } from 'shared';
 import { CopyText } from './CopyText';
-import { ScreenShell, StatHeader, ErrorBanner, EmptyState, PrimaryButton } from './screen';
+import { ScreenShell, StatHeader, EmptyState, PrimaryButton } from './screen';
+import { toast } from '../stores/toastStore';
 
 const PlusIcon = (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,7 +45,6 @@ function formatSize(bytes: number): string {
 export function FolderScanner() {
   const [folders, setFolders] = useState<FolderWithStats[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [scanningFolder, setScanningFolder] = useState<string | null>(null);
   const [scanOpId, setScanOpId] = useState<string | null>(null);
   const [scanProgress, setScanProgress] = useState<{
@@ -72,7 +72,7 @@ export function FolderScanner() {
       setFolders(data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -82,7 +82,6 @@ export function FolderScanner() {
     try {
       const selected = await window.sortieAPI.pickFolder();
       if (!selected) return;
-      setError(null);
       await window.sortieAPI.addFolder(selected);
       await loadFolders();
 
@@ -104,7 +103,7 @@ export function FolderScanner() {
       await loadFolders();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      toast.error(message);
       setScanningFolder(null);
       setScanOpId(null);
       setScanProgress(null);
@@ -124,7 +123,7 @@ export function FolderScanner() {
       await loadFolders();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      toast.error(message);
     } finally {
       unsubscribe();
       setScanningFolder(null);
@@ -139,7 +138,7 @@ export function FolderScanner() {
       await window.sortieAPI.cancelOperation(scanOpId);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      toast.error(message);
     }
   };
 
@@ -153,7 +152,7 @@ export function FolderScanner() {
       await loadFolders();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      toast.error(message);
     }
   };
 
@@ -169,7 +168,7 @@ export function FolderScanner() {
       await loadFolders();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      toast.error(message);
     }
   };
 
@@ -184,7 +183,7 @@ export function FolderScanner() {
       await loadFolders();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      toast.error(message);
       setRemovingFolder(null);
     }
   };
@@ -200,7 +199,7 @@ export function FolderScanner() {
       await loadFolders();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      toast.error(message);
       setResettingDb(false);
     }
   };
@@ -222,8 +221,6 @@ export function FolderScanner() {
           </PrimaryButton>
         }
       />
-
-      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       {loading && folders.length === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

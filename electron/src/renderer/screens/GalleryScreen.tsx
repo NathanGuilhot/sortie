@@ -11,6 +11,7 @@ export function GalleryScreen() {
   const setSelectedImage = useImageStore((s) => s.setSelectedImage);
   const clearFilters = useUIStore((s) => s.clearFilters);
   const focusSearchRequestedAt = useUIStore((s) => s.focusSearchRequestedAt);
+  const scrollGalleryToTopRequestedAt = useUIStore((s) => s.scrollGalleryToTopRequestedAt);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -22,6 +23,12 @@ export function GalleryScreen() {
   useEffect(() => {
     if (focusSearchRequestedAt > 0) searchInputRef.current?.focus();
   }, [focusSearchRequestedAt]);
+
+  useEffect(() => {
+    if (scrollGalleryToTopRequestedAt > 0) {
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [scrollGalleryToTopRequestedAt]);
 
   return (
     <>

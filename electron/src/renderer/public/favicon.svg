@@ -1,11 +1,57 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1024" height="1024" rx="180" ry="180" fill="#FFFFFF"/>
-  <path d="M 312 450 A 240 240 0 0 1 792 450 L 792 830 L 312 830 Z" fill="#C9B8E8"/>
-  <path d="M 262 420 A 240 240 0 0 1 742 420 L 742 800 L 262 800 Z" fill="#F4A896"/>
-  <circle cx="502" cy="500" r="80" fill="#8BD4B8"/>
-  <circle cx="502" cy="500" r="26" fill="#FFFFFF"/>
-  <path d="M 880 220 L 892 268 L 940 280 L 892 292 L 880 340 L 868 292 L 820 280 L 868 268 Z" fill="#FAD06F"/>
-  <circle cx="215" cy="840" r="20" fill="#F4A896"/>
-  <circle cx="855" cy="855" r="20" fill="#C9B8E8"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 1024 1024"
+   version="1.1"
+   id="svg3"
+   sodipodi:docname="logo.svg"
+   inkscape:version="1.4 (e7c3feb1, 2024-10-09)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs3" />
+  <sodipodi:namedview
+     id="namedview3"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.13737186"
+     inkscape:cx="858.98232"
+     inkscape:cy="178.34802"
+     inkscape:window-width="1512"
+     inkscape:window-height="856"
+     inkscape:window-x="0"
+     inkscape:window-y="33"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg3" />
+  <g
+     fill="none"
+     stroke-width="48"
+     stroke-linejoin="round"
+     stroke-linecap="round"
+     id="g3">
+    <path
+       d="M 312 450 A 240 240 0 0 1 792 450 L 792 830 L 312 830 Z"
+       stroke="#C9B8E8"
+       id="path1" />
+    <path
+       d="M 262 420 A 240 240 0 0 1 742 420 L 742 800 L 262 800 Z"
+       stroke="#F4A896"
+       id="path2" />
+    <circle
+       cx="502"
+       cy="500"
+       r="80"
+       stroke="#8BD4B8"
+       id="circle2" />
+    <path
+       d="M 880 220 L 892 268 L 940 280 L 892 292 L 880 340 L 868 292 L 820 280 L 868 268 Z"
+       stroke="#FAD06F"
+       id="path3" />
+  </g>
 </svg>
