@@ -1,127 +1,60 @@
-# Sortie ദ്ദി(˵ •̀ ᴗ - ˵ ) ✧
+<p align="center">
+  <img src="electron/resources/brand/logo.svg" alt="Sortie logo" width="160" />
+</p>
 
-Sort and organise your pictures by themes and smart tags!
+# Sortie - your local-first pinboard ദ്ദി(˵ •̀ ᴗ - ˵ ) ✧
 
-Sortie is a desktop application for macOS, Windows, and Linux that helps you organize your photo collection using AI-powered tagging, manual tagging, and smart search. It automatically generates embeddings for images, allows you to tag them, and provides a fast searchable gallery.
+Sortie is a private image gallery that doesn't compromise on cool features. 
 
-## ✨ Features
+Point it to your photos folder and it builds a gallery you can search, filters, and organise into boards/tags.
+Everything stays on your machine.
 
-- **AI-Powered Tagging**: Automatically generate descriptive tags for your images using CLIP embeddings
-- **Manual Tagging**: Add custom tags to organize your photos your way
-- **Smart Search**: Search by tags, text descriptions, or visual similarity
-- **Fast Gallery View**: Masonry grid layout with infinite scrolling and lazy loading
-- **Batch Operations**: Tag multiple images at once, drag and drop organization
-- **Local-First**: All data stays on your machine, no cloud required
-- **Cross-Platform**: Works on macOS, Windows, and Linux
+Available for Windows, macOS and Linux.
 
-## 📦 Installation
+## What's in it
 
-### macOS
-1. Download the latest `Sortie.dmg` from the [Releases page](https://github.com/yourusername/sortie/releases)
-2. Open the DMG file and drag Sortie to your Applications folder
-3. Launch Sortie from Applications (you may need to right-click and select "Open" the first time due to Gatekeeper)
+A local and private embeddings model scans your images and allows you to search your gallery in natural language: type what you remember ("beach at sunset", "red coat") and it finds the image you were thinking about.
 
-### Windows
-1. Download the latest `Sortie Setup.exe` from Releases
-2. Run the installer and follow the prompts
-3. Launch Sortie from the Start Menu
+Pin your images to Pinterest-style boards, and get smart suggestion for other images to add!
 
-### Linux
-1. Download the AppImage from Releases
-2. Make it executable: `chmod +x Sortie-*.AppImage`
-3. Run: `./Sortie-*.AppImage`
+How about family pictures? Sortie runs on-device face detection to allow you to filter your pictures by people.
 
-## 🚀 Usage
+You can also edit and view your image metadatas, adding descriptions, links, favorite them...
 
-### First Launch
-1. On first launch, you'll be prompted to select a folder containing your images
-2. Sortie will scan the folder and begin generating embeddings for your images (this may take some time depending on the number of images)
-3. Once complete, you'll see your images in the main gallery
+On top of this, the gallery is optimized to handle thousands and gigabits of images without breaking a sweat! ᕙ(  •̀ ᗜ •́  )ᕗ 
 
-### Tagging Images
-- **Automatic Tags**: Sortie automatically suggests tags based on image content
-- **Add Custom Tags**: Click on an image and use the tag input field to add your own tags
-- **Batch Tagging**: Select multiple images (Shift+Click or Cmd/Ctrl+Click) and add tags to all selected images at once
 
-### Searching
-- Use the search bar at the top to find images by tags or text descriptions
-- The search supports fuzzy matching and will show relevant images as you type
+## Install
 
-### Gallery Navigation
-- Scroll through your images with infinite loading
-- Click on any image to view it larger with its tags
-- Drag and drop images between tags or collections
+Grab a build from the [Releases page](https://github.com/nathanguilhot/sortie/releases).
 
-### Settings
-- Access settings via the gear icon in the top-right
-- Configure embedding model preferences, database location, and UI themes
+**macOS.** Open the `.dmg`, drag to Applications. First launch needs a right-click → **Open** since the installer isn't signed. If Gatekeeper still won't budge, `xattr -cr /Applications/Sortie.app` usually sorts it.
 
-## 🛠 Building from Source
+**Windows.** Run `Sortie-Setup-<ver>.exe`. SmartScreen will complain; click **More info** → **Run anyway**.
 
-### Prerequisites
-- Node.js 18 or later
-- Yarn package manager
-- Python 3.8+ (for some native dependencies)
+**Linux.** `chmod +x Sortie-*.AppImage && ./Sortie-*.AppImage`, or install the `.deb`.
 
-### Steps
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/sortie.git
-   cd sortie
-   ```
-2. Install dependencies:
-   ```bash
-   yarn install
-   ```
-3. Build all packages:
-   ```bash
-   yarn build
-   ```
-4. Start development mode:
-   ```bash
-   yarn dev
-   ```
-5. Package for distribution:
-   ```bash
-   yarn dist                # All platforms
-   yarn dist:mac           # macOS only
-   yarn dist:win           # Windows only
-   yarn dist:linux         # Linux only
-   ```
+## Develop
 
-### Project Structure
-- `shared/` – Shared TypeScript types and utilities
-- `pipeline/` – Image processing and embedding generation service
-- `electron/` – Electron desktop application
-- `resources/` – App icons and entitlements
+Node 18 or newer, and Yarn.
 
-## 🧪 Development
-
-### Running Tests
-```bash
-# Run tests for all workspaces
-yarn workspace shared test
-yarn workspace pipeline test
-yarn workspace electron test
+```sh
+yarn install
+yarn dev            # build workspaces + launch Electron with hot reload
+yarn dist:mac       # or dist:win / dist:linux — artifacts land in electron/out/
 ```
 
-### Code Style
-- TypeScript with strict type checking
-- ESLint and Prettier for code formatting
-- Husky for pre-commit hooks
+See [`docs/RELEASE.md`](docs/RELEASE.md) for versioning, cross-building, and the smoke-test checklist.
 
-## 📄 License
+## Layout
 
-MIT © 2024 Sortie Contributors
+```
+shared/     TypeScript types shared across workspaces
+pipeline/   CLIP + face embedding pipeline
+electron/   Main process, IPC, React renderer, packaging
+docs/       Release guide
+```
 
-## 🤝 Contributing
+## License
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## 🐛 Reporting Issues
-
-If you encounter any bugs or have feature requests, please open an issue on GitHub.
-
----
-
-Built with ❤️ using Electron, React, TypeScript, and CLIP embeddings.
+MIT © Nathan Guilhot
