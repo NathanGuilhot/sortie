@@ -81,3 +81,28 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# TypeScript incremental
+*.tsbuildinfo
+
+# Lockfile (yarn-only project)
+package-lock.json
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Vite cache
+.vite/
+**/.vite/
+
+# Yarn Berry
+.pnp.*
+.yarn/cache
+.yarn/install-state.gz
+.yarn/build-state.yml
+
+# macOS custom folder icon
+Icon?
+
+# Local override files
+*.local
