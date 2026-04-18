@@ -13,15 +13,20 @@ Available for Windows, macOS and Linux.
 
 ## What's in it
 
+<img src="assets/gallery.jpeg" alt="Gallery view" width="260" />
+
 A local and private embeddings model scans your images and allows you to search your gallery in natural language: type what you remember ("beach at sunset", "red coat") and it finds the image you were thinking about.
 
 Pin your images to Pinterest-style boards, and get smart suggestion for other images to add!
 
 How about family pictures? Sortie runs on-device face detection to allow you to filter your pictures by people.
 
-You can also edit and view your image metadatas, adding descriptions, links, favorite them...
+<img src="assets/image_view.jpeg" alt="Gallery view" width="260" />
+
+You can also edit and view your image metadatas, adding descriptions, links, favorite them... and jump between related images to surf your gallery!
 
 On top of this, the gallery is optimized to handle thousands and gigabits of images without breaking a sweat! 
+
 ᕙ(  •̀ ᗜ •́  )ᕗ 
 
 
