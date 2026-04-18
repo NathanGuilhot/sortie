@@ -1,6 +1,6 @@
 {
   "name": "sortie",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Picture Tagger & Embedding Electron App",
   "private": true,
   "workspaces": [

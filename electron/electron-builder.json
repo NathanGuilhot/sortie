@@ -6,15 +6,87 @@
     "output": "out",
     "buildResources": "resources"
   },
+  "compression": "maximum",
   "files": [
     "dist/**/*",
-    "node_modules/**/*",
-    "package.json"
+    "package.json",
+    "!src/**/*",
+    "!resources/**/*",
+    "!scripts/**/*",
+    "!test.js",
+    "!test2.js",
+    "!tsconfig.json",
+    "!tailwind.config.cjs",
+    "!postcss.config.cjs",
+    "!electron.vite.config.ts",
+    "!electron-builder.json",
+    "!dist/.tsbuildinfo",
+    "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme,HISTORY.md,HISTORY,history.md}",
+    "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples,docs,doc,website,site,demo,demos,benchmark,benchmarks}",
+    "!**/node_modules/**/*.d.ts",
+    "!**/node_modules/**/*.map",
+    "!**/node_modules/**/*.ts",
+    "!**/node_modules/**/.bin",
+    "!**/node_modules/**/.github",
+    "!**/node_modules/**/.vscode",
+    "!**/node_modules/**/*.{md,markdown}",
+    "!**/*.{o,hprof,orig,pyc,pyo,rbc,swp,csproj,gyp,gypi}",
+    "!**/._*",
+    "!**/@xenova/transformers/dist/*.wasm",
+    "!**/@xenova/transformers/dist/transformers.js",
+    "!**/@xenova/transformers/dist/*.map",
+    "!**/sharp/vendor/**",
+    "!**/sharp/src/**",
+    "!**/sharp/install/**",
+    "!**/sharp/docs/**",
+    "!node_modules/@xenova/transformers/node_modules/**",
+    "!**/node_modules/@tensorflow/*/dist/*.{es2017,fesm}.js",
+    "!**/node_modules/@tensorflow/*/dist/*.{es2017,fesm}.js.map",
+    "!**/node_modules/@tensorflow/*/dist/*.min.js",
+    "!**/node_modules/@tensorflow/*/dist/*.min.js.map",
+    "!**/node_modules/@tensorflow/*/dist/**/*_test.js",
+    "!**/node_modules/@tensorflow/*/dist/miniprogram/**",
+    "!**/node_modules/onnxruntime-web/**",
+    "!**/node_modules/core-js/**",
+    "!**/node_modules/@babel/**",
+    "!**/node_modules/react/**",
+    "!**/node_modules/react-dom/**",
+    "!**/node_modules/react-router/**",
+    "!**/node_modules/react-router-dom/**",
+    "!**/node_modules/react-dnd/**",
+    "!**/node_modules/react-dnd-html5-backend/**",
+    "!**/node_modules/react-photo-gallery/**",
+    "!**/node_modules/react-window/**",
+    "!**/node_modules/react-window-infinite-loader/**",
+    "!**/node_modules/react-tag-input/**",
+    "!**/node_modules/@react-dnd/**",
+    "!**/node_modules/@fontsource/**",
+    "!**/node_modules/lodash-es/**",
+    "!**/node_modules/web-streams-polyfill/**",
+    "!**/node_modules/fuse.js/**",
+    "!**/node_modules/zustand/**",
+    "!**/node_modules/classnames/**",
+    "!**/node_modules/scheduler/**",
+    "!**/node_modules/@vladmandic/face-api/dist/face-api.js",
+    "!**/node_modules/@vladmandic/face-api/dist/face-api.esm*",
+    "!**/node_modules/@vladmandic/face-api/dist/face-api.node.*",
+    "!**/node_modules/@vladmandic/face-api/dist/face-api.node-gpu*",
+    "!**/node_modules/@vladmandic/face-api/dist/tfjs.esm*",
+    "!**/node_modules/canvas/prebuilds/**",
+    "!**/node_modules/canvas/src/**"
   ],
   "asarUnpack": [
-    "node_modules/canvas/build/Release/*.node",
-    "node_modules/better-sqlite3/build/Release/*.node",
-    "**/*.node"
+    "**/*.node",
+    "**/*.dylib",
+    "**/*.so",
+    "**/*.so.*",
+    "**/*.dll",
+    "node_modules/canvas/build/Release/**",
+    "node_modules/better-sqlite3/build/Release/**",
+    "node_modules/onnxruntime-node/bin/**"
+  ],
+  "extraResources": [
+    { "from": "resources/icons/icon.png", "to": "icons/icon.png" }
   ],
   "mac": {
     "category": "public.app-category.photography",
@@ -25,12 +97,20 @@
     "identity": null,
     "hardenedRuntime": false,
     "gatekeeperAssess": false,
-    "artifactName": "Sortie-${version}-${arch}.${ext}"
+    "artifactName": "Sortie-${version}-${arch}.${ext}",
+    "files": [
+      "!**/node_modules/onnxruntime-node/bin/napi-v3/linux/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v3/win32/**"
+    ]
   },
   "win": {
     "target": ["nsis"],
     "icon": "resources/icons/icon.ico",
-    "artifactName": "Sortie-Setup-${version}.${ext}"
+    "artifactName": "Sortie-Setup-${version}.${ext}",
+    "files": [
+      "!**/node_modules/onnxruntime-node/bin/napi-v3/darwin/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v3/linux/**"
+    ]
   },
   "nsis": {
     "oneClick": false,
@@ -45,7 +125,11 @@
     "synopsis": "Local-first photo tagger with CLIP embeddings",
     "category": "Graphics",
     "icon": "resources/icons/icon.png",
-    "target": ["AppImage", "deb"]
+    "target": ["AppImage", "deb"],
+    "files": [
+      "!**/node_modules/onnxruntime-node/bin/napi-v3/darwin/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v3/win32/**"
+    ]
   },
   "publish": [
     {

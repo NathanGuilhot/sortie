@@ -38,7 +38,11 @@ On top of this, the gallery is optimized to handle thousands and gigabits of ima
 
 Grab a build from the [Releases page](https://github.com/nathanguilhot/sortie/releases).
 
-**macOS.** Open the `.dmg`, drag to Applications. First launch needs a right-click → **Open** since the installer isn't signed. If Gatekeeper still won't budge, `xattr -cr /Applications/Sortie.app` usually sorts it.
+**macOS.** Open the `.dmg`, drag to Applications. The build is unsigned, so Gatekeeper will say the app is *damaged*. Clear the quarantine flag once and you're set:
+
+```sh
+xattr -cr /Applications/Sortie.app
+```
 
 **Windows.** Run `Sortie-Setup-<ver>.exe`. SmartScreen will complain; click **More info** → **Run anyway**.
 

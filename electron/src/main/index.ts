@@ -11,6 +11,10 @@ import { buildMenu } from './menu';
 
 app.setName('Sortie');
 
+const iconPath = app.isPackaged
+  ? path.join(process.resourcesPath, 'icons', 'icon.png')
+  : path.join(__dirname, '../../resources/icons/icon.png');
+
 protocol.registerSchemesAsPrivileged([
   { scheme: 'sortie-file', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
   { scheme: 'sortie-thumb', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
@@ -50,7 +54,7 @@ function createWindow() {
     width: 1200,
     height: 800,
     title: 'Sortie',
-    icon: path.join(__dirname, '../../resources/icons/icon.png'),
+    icon: iconPath,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -108,7 +112,11 @@ async function initializeServices() {
 
 void app.whenReady().then(async () => {
   if (process.platform === 'darwin') {
-    app.dock?.setIcon(path.join(__dirname, '../../resources/icons/icon.png'));
+    try {
+      app.dock?.setIcon(iconPath);
+    } catch (error) {
+      console.warn('Dock icon load failed:', error);
+    }
   }
 
   const thumbDir = path.join(app.getPath('userData'), 'thumbs');
@@ -253,14 +261,18 @@ void app.whenReady().then(async () => {
     return net.fetch(`file://${filePath}`);
   });
 
-  app.setAboutPanelOptions({
-    applicationName: 'Sortie',
-    applicationVersion: app.getVersion(),
-    version: app.getVersion(),
-    copyright: `© ${new Date().getFullYear()} Nathan Guilhot`,
-    website: 'https://github.com/nathanguilhot/sortie',
-    iconPath: path.join(__dirname, '../../resources/icons/icon.png'),
-  });
+  try {
+    app.setAboutPanelOptions({
+      applicationName: 'Sortie',
+      applicationVersion: app.getVersion(),
+      version: app.getVersion(),
+      copyright: `© ${new Date().getFullYear()} Nathan Guilhot`,
+      website: 'https://github.com/nathanguilhot/sortie',
+      iconPath: iconPath,
+    });
+  } catch (error) {
+    console.warn('About panel options failed:', error);
+  }
 
   await initializeServices();
   createWindow();

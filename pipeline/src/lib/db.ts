@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import path from 'path';
 import { Image, Face, Person, FACE_EMBEDDING_DIM, normalizeVector } from 'shared';
 
 interface EmbeddingDbRow {
@@ -50,6 +51,7 @@ interface VecMatchRow {
 
 export class DatabaseManager {
   private db: Database.Database;
+  private vecLoaded = false;
 
   constructor(dbPath: string) {
     this.db = new Database(dbPath);
@@ -68,16 +70,23 @@ export class DatabaseManager {
   private setupExtensions() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
-      const { load } = require('sqlite-vec');
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-      load(this.db);
+      const { getLoadablePath } = require('sqlite-vec') as { getLoadablePath: () => string };
+      let extPath = getLoadablePath();
+      // In packaged Electron apps, sqlite-vec resolves to a path inside
+      // app.asar but the .dylib lives in app.asar.unpacked (per electron-builder
+      // asarUnpack rules). Redirect so sqlite3_load_extension can dlopen it.
+      extPath = extPath.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`);
+      this.db.loadExtension(extPath);
+      this.vecLoaded = true;
     } catch (err) {
       console.warn('sqlite-vec extension not available:', err);
     }
   }
 
   private setupSchema() {
-    this.db.exec(`SELECT vec_version()`);
+    if (this.vecLoaded) {
+      this.db.exec(`SELECT vec_version()`);
+    }
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS images (
@@ -125,11 +134,13 @@ export class DatabaseManager {
       )
     `);
 
-    this.db.exec(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS vec_images USING vec0(
-        embedding float[512]
-      )
-    `);
+    if (this.vecLoaded) {
+      this.db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS vec_images USING vec0(
+          embedding float[512]
+        )
+      `);
+    }
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS folders (
@@ -302,17 +313,19 @@ export class DatabaseManager {
         )
       `);
 
-      this.db.exec(`
-        CREATE VIRTUAL TABLE IF NOT EXISTS vec_faces USING vec0(
-          embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
-        )
-      `);
+      if (this.vecLoaded) {
+        this.db.exec(`
+          CREATE VIRTUAL TABLE IF NOT EXISTS vec_faces USING vec0(
+            embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
+          )
+        `);
 
-      this.db.exec(`
-        CREATE VIRTUAL TABLE IF NOT EXISTS vec_persons USING vec0(
-          embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
-        )
-      `);
+        this.db.exec(`
+          CREATE VIRTUAL TABLE IF NOT EXISTS vec_persons USING vec0(
+            embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
+          )
+        `);
+      }
 
       this.db.exec('CREATE INDEX IF NOT EXISTS idx_faces_image ON faces(image_id)');
       this.db.exec('CREATE INDEX IF NOT EXISTS idx_faces_person ON faces(person_id)');
@@ -321,7 +334,7 @@ export class DatabaseManager {
       this.db.pragma('user_version = 5');
     }
 
-    if (version >= 4 && version < 5) {
+    if (version >= 4 && version < 5 && this.vecLoaded) {
       // Vec tables were created with default (L2) distance. Recreate with cosine
       // and wipe all persons so clustering is re-run on next scan.
       this.db.exec('DROP TABLE IF EXISTS vec_faces');
