@@ -358,15 +358,16 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
             <div
               className={`px-4 py-3 space-y-3 ${isFocused && !localQuery ? 'border-t border-gray-100' : ''}`}
             >
-              {/* Tag filters */}
+              {/* Board filters */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  Filter by tags
+                  Filter by board
                 </label>
                 <TagInput
                   selectedTags={tagFilters}
                   onChange={setTagFilters}
-                  placeholder="Add tags..."
+                  placeholder="Add boards..."
+                  suggestionCategories={['user', 'ai']}
                 />
               </div>
 

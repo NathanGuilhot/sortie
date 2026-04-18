@@ -1,6 +1,7 @@
 import { TagSuggestion, Collection } from 'pipeline';
 import {
   Image,
+  Board,
   SearchResult,
   Folder,
   FolderWithStats,
@@ -74,6 +75,20 @@ declare global {
       // Suggestions
       getSuggestions: (imageId: number) => Promise<TagSuggestion[]>;
       dismissSuggestion: (imageId: number, tagId: number) => Promise<void>;
+      // Boards
+      boards: {
+        list: () => Promise<Board[]>;
+        get: (tagId: number) => Promise<Board | null>;
+        getImages: (tagId: number, limit?: number, offset?: number) => Promise<Image[]>;
+        getImageSuggestions: (tagId: number) => Promise<Image[]>;
+        reorder: (tagId: number, orderedImageIds: number[]) => Promise<{ success: boolean }>;
+        addImage: (imageId: number, tagId: number) => Promise<{ success: boolean }>;
+        removeImage: (imageId: number, tagId: number) => Promise<{ success: boolean }>;
+        create: (name: string, color?: string) => Promise<Board>;
+        rename: (tagId: number, name: string) => Promise<{ success: boolean }>;
+        setColor: (tagId: number, color: string) => Promise<{ success: boolean }>;
+        delete: (tagId: number) => Promise<{ success: boolean }>;
+      };
       // Collections
       getCollections: () => Promise<Collection[]>;
       createCollection: (name: string, description?: string) => Promise<number>;

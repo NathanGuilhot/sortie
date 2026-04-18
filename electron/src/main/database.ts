@@ -16,6 +16,7 @@ import {
 import {
   Image,
   Tag,
+  Board,
   Face,
   Person,
   Folder,
@@ -567,20 +568,204 @@ export class DatabaseService {
         `INSERT OR IGNORE INTO tags (name, category) VALUES (?, 'user')`,
       );
       const getTagId = db.prepare(`SELECT id FROM tags WHERE name = ?`);
+      const nextPosition = db.prepare(
+        `SELECT COALESCE(MAX(position), -1) + 1 AS next FROM image_tags WHERE tag_id = ?`,
+      );
       const linkTag = db.prepare(
-        `INSERT OR IGNORE INTO image_tags (image_id, tag_id, source) VALUES (?, ?, 'user')`,
+        `INSERT OR IGNORE INTO image_tags (image_id, tag_id, source, position) VALUES (?, ?, 'user', ?)`,
       );
 
       for (const name of tagNames) {
         insertTag.run(name);
         const row = getTagId.get(name) as { id: number } | undefined;
         if (row) {
-          linkTag.run(imageId, row.id);
+          const { next } = nextPosition.get(row.id) as { next: number };
+          linkTag.run(imageId, row.id, next);
         }
       }
     });
     txn();
 
+    this.invalidateMetadataCaches();
+  }
+
+  private queryBoards(extraWhere: string = '', params: unknown[] = []): Board[] {
+    if (!this.db) throw new Error('Database not initialized');
+    const rows = this.db
+      .getDatabase()
+      .prepare(
+        `WITH cover AS (
+           SELECT it.tag_id, it.image_id, img.file_path,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY it.tag_id
+                    ORDER BY COALESCE(it.position, 1000000000), it.created_at DESC
+                  ) AS rn
+           FROM image_tags it
+           INNER JOIN images img ON img.id = it.image_id
+           WHERE img.hidden = 0 AND img.missing = 0
+         ),
+         previews AS (
+           SELECT tag_id, json_group_array(file_path) AS paths
+           FROM (
+             SELECT tag_id, file_path, rn FROM cover WHERE rn <= 4 ORDER BY tag_id, rn
+           )
+           GROUP BY tag_id
+         )
+         SELECT
+           t.id,
+           t.name,
+           t.color,
+           COALESCE(SUM(CASE WHEN i.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS image_count,
+           (SELECT c.image_id FROM cover c WHERE c.tag_id = t.id AND c.rn = 1) AS cover_image_id,
+           (SELECT c.file_path FROM cover c WHERE c.tag_id = t.id AND c.rn = 1) AS cover_image_path,
+           (SELECT p.paths FROM previews p WHERE p.tag_id = t.id) AS preview_paths_json
+         FROM tags t
+         LEFT JOIN image_tags it ON t.id = it.tag_id
+         LEFT JOIN images i ON i.id = it.image_id AND i.hidden = 0 AND i.missing = 0
+         WHERE t.category IN ('user', 'ai')${extraWhere ? ` AND ${extraWhere}` : ''}
+         GROUP BY t.id
+         ORDER BY image_count DESC, t.name ASC`,
+      )
+      .all(...(params as never[])) as Array<{
+      id: number;
+      name: string;
+      color: string;
+      image_count: number;
+      cover_image_id: number | null;
+      cover_image_path: string | null;
+      preview_paths_json: string | null;
+    }>;
+    return rows.map((row) => {
+      const { preview_paths_json, ...rest } = row;
+      let preview_image_paths: string[] = [];
+      if (preview_paths_json) {
+        try {
+          const parsed = JSON.parse(preview_paths_json);
+          if (Array.isArray(parsed)) {
+            preview_image_paths = parsed.filter((p): p is string => typeof p === 'string');
+          }
+        } catch {
+          preview_image_paths = [];
+        }
+      }
+      return { ...rest, preview_image_paths };
+    });
+  }
+
+  async getBoards(): Promise<Board[]> {
+    return this.queryBoards();
+  }
+
+  async getBoard(tagId: number): Promise<Board | null> {
+    return this.queryBoards('t.id = ?', [tagId])[0] ?? null;
+  }
+
+  async getBoardImages(
+    tagId: number,
+    limit: number = 100,
+    offset: number = 0,
+  ): Promise<Image[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    const rows = this.db
+      .getDatabase()
+      .prepare(
+        `SELECT i.id AS id
+         FROM images i
+         INNER JOIN image_tags it ON i.id = it.image_id
+         WHERE it.tag_id = ? AND i.hidden = 0 AND i.missing = 0
+         ORDER BY COALESCE(it.position, 1000000000), it.created_at DESC
+         LIMIT ? OFFSET ?`,
+      )
+      .all(tagId, limit, offset) as Array<{ id: number }>;
+    return this.fetchImagesByIdsInOrder(rows.map((r) => r.id));
+  }
+
+  async reorderBoardImages(tagId: number, orderedImageIds: number[]): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db.getDatabase();
+    const stmt = db.prepare(
+      `UPDATE image_tags SET position = ? WHERE tag_id = ? AND image_id = ?`,
+    );
+    const txn = db.transaction(() => {
+      orderedImageIds.forEach((imageId, index) => {
+        stmt.run(index, tagId, imageId);
+      });
+    });
+    txn();
+    this.invalidateMetadataCaches();
+  }
+
+  async addImageToBoard(imageId: number, tagId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db.getDatabase();
+    const txn = db.transaction(() => {
+      const { next } = db
+        .prepare(
+          `SELECT COALESCE(MAX(position), -1) + 1 AS next FROM image_tags WHERE tag_id = ?`,
+        )
+        .get(tagId) as { next: number };
+      db.prepare(
+        `INSERT OR IGNORE INTO image_tags (image_id, tag_id, source, position)
+         VALUES (?, ?, 'user', ?)`,
+      ).run(imageId, tagId, next);
+    });
+    txn();
+    this.invalidateMetadataCaches();
+  }
+
+  async removeImageFromBoard(imageId: number, tagId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db
+      .getDatabase()
+      .prepare(`DELETE FROM image_tags WHERE image_id = ? AND tag_id = ?`)
+      .run(imageId, tagId);
+    this.invalidateMetadataCaches();
+  }
+
+  async createBoard(name: string, color?: string): Promise<Board> {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db.getDatabase();
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('Board name cannot be empty');
+    const insert = db.prepare(
+      `INSERT INTO tags (name, category, color) VALUES (?, 'user', COALESCE(?, '#6B7280'))
+       ON CONFLICT(name) DO UPDATE SET category = COALESCE(tags.category, 'user')`,
+    );
+    insert.run(trimmed, color ?? null);
+    const row = db
+      .prepare(`SELECT id, name, color FROM tags WHERE name = ?`)
+      .get(trimmed) as { id: number; name: string; color: string };
+    return {
+      ...row,
+      image_count: 0,
+      cover_image_id: null,
+      cover_image_path: null,
+      preview_image_paths: [],
+    };
+  }
+
+  async renameBoard(tagId: number, name: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('Board name cannot be empty');
+    this.db
+      .getDatabase()
+      .prepare(`UPDATE tags SET name = ? WHERE id = ?`)
+      .run(trimmed, tagId);
+    this.invalidateMetadataCaches();
+  }
+
+  async setBoardColor(tagId: number, color: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db
+      .getDatabase()
+      .prepare(`UPDATE tags SET color = ? WHERE id = ?`)
+      .run(color, tagId);
+  }
+
+  async deleteBoard(tagId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db.getDatabase().prepare(`DELETE FROM tags WHERE id = ?`).run(tagId);
     this.invalidateMetadataCaches();
   }
 
@@ -784,6 +969,13 @@ export class DatabaseService {
   async dismissSuggestion(imageId: number, tagId: number): Promise<void> {
     if (!this.suggestionEngine) throw new Error('Suggestion engine not initialized');
     this.suggestionEngine.dismissSuggestion(imageId, tagId);
+  }
+
+  async getBoardImageSuggestions(tagId: number): Promise<Image[]> {
+    if (!this.suggestionEngine) throw new Error('Suggestion engine not initialized');
+    const suggestions = await this.suggestionEngine.generateImageSuggestionsForBoard(tagId, 20);
+    if (suggestions.length === 0) return [];
+    return this.fetchImagesByIdsInOrder(suggestions.map((s) => s.imageId));
   }
 
   async getCollections(): Promise<Collection[]> {

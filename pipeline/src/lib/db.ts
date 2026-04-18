@@ -117,6 +117,7 @@ export class DatabaseManager {
         tag_id INTEGER NOT NULL,
         source TEXT DEFAULT 'user',
         confidence REAL,
+        position INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (image_id, tag_id),
         FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
@@ -397,6 +398,20 @@ export class DatabaseManager {
       }
       this.db.pragma('user_version = 8');
     }
+
+    if (version < 9) {
+      const imageTagCols = this.db
+        .prepare('PRAGMA table_info(image_tags)')
+        .all() as Array<{ name: string }>;
+      const imageTagColNames = new Set(imageTagCols.map((c) => c.name));
+      if (!imageTagColNames.has('position')) {
+        this.db.exec('ALTER TABLE image_tags ADD COLUMN position INTEGER');
+      }
+      this.db.exec(
+        'CREATE INDEX IF NOT EXISTS idx_image_tags_position ON image_tags(tag_id, position)',
+      );
+      this.db.pragma('user_version = 9');
+    }
   }
 
   insertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): number {
@@ -488,6 +503,24 @@ export class DatabaseManager {
     return this.db
       .prepare('SELECT * FROM dismissed_suggestions WHERE image_id = ?')
       .all(imageId) as DismissedDbRow[];
+  }
+
+  getDismissedSuggestionsByTag(tagId: number): DismissedDbRow[] {
+    return this.db
+      .prepare('SELECT * FROM dismissed_suggestions WHERE tag_id = ?')
+      .all(tagId) as DismissedDbRow[];
+  }
+
+  getBoardImageIds(tagId: number): number[] {
+    const rows = this.db
+      .prepare(
+        `SELECT it.image_id AS image_id
+         FROM image_tags it
+         INNER JOIN images img ON img.id = it.image_id
+         WHERE it.tag_id = ? AND img.hidden = 0 AND img.missing = 0`,
+      )
+      .all(tagId) as Array<{ image_id: number }>;
+    return rows.map((r) => r.image_id);
   }
 
   dismissSuggestion(imageId: number, tagId: number): void {

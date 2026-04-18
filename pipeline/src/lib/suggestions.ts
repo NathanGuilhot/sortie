@@ -1,7 +1,7 @@
 import { DatabaseManager } from './db';
 import kmeans from 'kmeans-ts';
 import { LRUCache } from 'lru-cache';
-import { EmbeddingRow, Tag, DismissedSuggestion } from 'shared';
+import { EmbeddingRow, ImageSuggestion, Tag, DismissedSuggestion } from 'shared';
 
 export interface TagSuggestion {
   tagId: number;
@@ -249,6 +249,48 @@ export class SuggestionEngine {
     }
     candidates.sort((a, b) => b.confidence - a.confidence);
     return candidates.slice(0, 5);
+  }
+
+  /**
+   * Suggest images to add to a board (tag), ranked by cosine similarity to
+   * the centroid of embeddings for images already in the board. Excludes
+   * images already in the board and images dismissed for this tag.
+   */
+  async generateImageSuggestionsForBoard(
+    tagId: number,
+    topK: number = 20,
+  ): Promise<ImageSuggestion[]> {
+    const boardImageIds = this.db.getBoardImageIds(tagId);
+    if (boardImageIds.length === 0) return [];
+
+    const boardEmbeddings: number[][] = [];
+    for (const id of boardImageIds) {
+      const emb = await this.getEmbedding(id);
+      if (emb.length > 0) boardEmbeddings.push(emb);
+    }
+    if (boardEmbeddings.length === 0) return [];
+
+    const dim = boardEmbeddings[0].length;
+    const centroid = new Array<number>(dim).fill(0);
+    for (const emb of boardEmbeddings) {
+      for (let d = 0; d < dim; d++) centroid[d] += emb[d];
+    }
+    for (let d = 0; d < dim; d++) centroid[d] /= boardEmbeddings.length;
+
+    const boardSet = new Set(boardImageIds);
+    const dismissedSet = new Set(
+      this.db.getDismissedSuggestionsByTag(tagId).map((r) => r.image_id),
+    );
+
+    const allRows = await this.getAllEmbeddings();
+    const scored: ImageSuggestion[] = [];
+    for (const row of allRows) {
+      if (boardSet.has(row.rowid) || dismissedSet.has(row.rowid)) continue;
+      const sim = this.cosineSimilarity(centroid, row.embedding);
+      scored.push({ imageId: row.rowid, confidence: sim });
+    }
+    scored.sort((a, b) => b.confidence - a.confidence);
+    return scored.slice(0, topK);
   }
 
   private cosineSimilarity(a: number[], b: number[]): number {

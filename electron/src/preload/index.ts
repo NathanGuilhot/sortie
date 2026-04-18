@@ -63,6 +63,29 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   dismissSuggestion: (imageId: number, tagId: number) =>
     ipcRenderer.invoke('dismiss-suggestion', { imageId, tagId }),
 
+  // Boards
+  boards: {
+    list: () => ipcRenderer.invoke('boards:list'),
+    get: (tagId: number) => ipcRenderer.invoke('boards:get', { tagId }),
+    getImages: (tagId: number, limit?: number, offset?: number) =>
+      ipcRenderer.invoke('boards:get-images', { tagId, limit, offset }),
+    getImageSuggestions: (tagId: number) =>
+      ipcRenderer.invoke('boards:get-image-suggestions', { tagId }),
+    reorder: (tagId: number, orderedImageIds: number[]) =>
+      ipcRenderer.invoke('boards:reorder', { tagId, orderedImageIds }),
+    addImage: (imageId: number, tagId: number) =>
+      ipcRenderer.invoke('boards:add-image', { imageId, tagId }),
+    removeImage: (imageId: number, tagId: number) =>
+      ipcRenderer.invoke('boards:remove-image', { imageId, tagId }),
+    create: (name: string, color?: string) =>
+      ipcRenderer.invoke('boards:create', { name, color }),
+    rename: (tagId: number, name: string) =>
+      ipcRenderer.invoke('boards:rename', { tagId, name }),
+    setColor: (tagId: number, color: string) =>
+      ipcRenderer.invoke('boards:set-color', { tagId, color }),
+    delete: (tagId: number) => ipcRenderer.invoke('boards:delete', { tagId }),
+  },
+
   // Collections
   getCollections: () => ipcRenderer.invoke('get-collections'),
   createCollection: (name: string, description?: string) =>

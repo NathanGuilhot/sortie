@@ -16,6 +16,9 @@ interface TagInputProps {
   placeholder?: string;
   allowNew?: boolean;
   tagCategories?: Map<string, string>;
+  // Restrict autocomplete suggestions to tags in these categories. Tags with
+  // null categories are always excluded when this prop is provided.
+  suggestionCategories?: Array<'user' | 'ai' | 'location' | 'camera'>;
 }
 
 const CATEGORY_CLASSES: Record<string, string> = {
@@ -39,6 +42,7 @@ export function TagInput({
   placeholder = 'Add tags...',
   allowNew: _allowNew = true,
   tagCategories,
+  suggestionCategories,
 }: TagInputProps) {
   const { tags, fetchTags } = useTagStore();
   const [inputValue, setInputValue] = useState('');
@@ -49,17 +53,23 @@ export function TagInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const visibleTags = useMemo(() => {
+    if (!suggestionCategories || suggestionCategories.length === 0) return tags;
+    const allowed = new Set(suggestionCategories);
+    return tags.filter((t) => t.category && allowed.has(t.category));
+  }, [tags, suggestionCategories]);
+
   // Build suggestion objects with extra metadata encoded as strings
   const suggestions = useMemo(
     () =>
-      tags.map((tag) => ({
+      visibleTags.map((tag) => ({
         id: tag.id.toString(),
         text: tag.name,
         className: '',
         usageCount: tag.usage_count.toString(),
         category: tag.category || '',
       })),
-    [tags],
+    [visibleTags],
   );
 
   // Fuse.js index for fuzzy matching

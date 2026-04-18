@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Image, Face } from 'shared';
-import { TagInput } from './TagInput';
+import { AddToBoardButton } from './AddToBoardButton';
 import { CopyText } from './CopyText';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { useImageStore } from '../stores/imageStore';
+import { useBoardStore } from '../stores/boardStore';
 
 interface TagSuggestion {
   tagId: number;
@@ -90,14 +91,14 @@ function CopyImageButton({
 
 export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
   const {
-    updateImageTags,
     hideImage,
     deleteImage,
     updateImageMetadata,
+    addToBoard,
     setSelectedImage,
     fetchImages,
   } = useImageStore();
-  const [tags, setTags] = useState<string[]>([]);
+  const fetchBoards = useBoardStore((s) => s.fetchBoards);
   const [date, setDate] = useState<string>('');
   const [location, setLocation] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
@@ -111,29 +112,24 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     'idle',
   );
   const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
-  const [tagCategories, setTagCategories] = useState<Map<string, string>>(new Map());
   const [faces, setFaces] = useState<Face[]>([]);
 
   // Reset form when image changes
   useEffect(() => {
     if (image) {
-      setTags(image.tags?.map((t) => t.name) || []);
       setDate(image.captured_at ? new Date(image.captured_at).toISOString().split('T')[0] : '');
       setLocation([image.city, image.country].filter(Boolean).join(', ') || '');
       setWebsiteLink(image.website_link || '');
       setDescription(image.description || '');
       setIsFavorite(image.favorite || false);
-
-      // Build tag category map
-      const catMap = new Map<string, string>();
-      image.tags?.forEach((t) => {
-        if (t.category) catMap.set(t.name, t.category);
-      });
-      setTagCategories(catMap);
     } else {
       resetForm();
     }
   }, [image]);
+
+  useEffect(() => {
+    void fetchBoards();
+  }, [fetchBoards]);
 
   // Fetch AI suggestions when image changes
   useEffect(() => {
@@ -166,14 +162,12 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
   }, [image?.id]);
 
   const resetForm = () => {
-    setTags([]);
     setDate('');
     setLocation('');
     setWebsiteLink('');
     setDescription('');
     setIsFavorite(false);
     setSuggestions([]);
-    setTagCategories(new Map());
   };
 
   const normalizeWebsiteLink = (raw: string): string | null => {
@@ -196,7 +190,6 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     if (!image) return;
     setIsSaving(true);
     try {
-      await updateImageTags(image.id, tags);
       const [city, country] = location.includes(',')
         ? location.split(',').map((s) => s.trim())
         : [location.trim(), ''];
@@ -258,13 +251,11 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     }
   };
 
-  const handleAcceptSuggestion = (suggestion: TagSuggestion) => {
-    if (!tags.includes(suggestion.tagName)) {
-      setTags([...tags, suggestion.tagName]);
-      tagCategories.set(suggestion.tagName, 'ai');
-      setTagCategories(new Map(tagCategories));
-    }
+  const handleAcceptSuggestion = async (suggestion: TagSuggestion) => {
+    if (!image) return;
+    await addToBoard(image.id, suggestion.tagId);
     setSuggestions(suggestions.filter((s) => s.tagId !== suggestion.tagId));
+    void fetchBoards();
   };
 
   const handleDismissSuggestion = (suggestion: TagSuggestion) => {
@@ -275,7 +266,6 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
 
   if (!image) return null;
 
-  const originalTags = image.tags?.map((t) => t.name) || [];
   const originalDate = image.captured_at ? new Date(image.captured_at).toISOString().split('T')[0] : '';
   const originalLocation = [image.city, image.country].filter(Boolean).join(', ') || '';
   const originalDescription = image.description || '';
@@ -285,8 +275,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     description !== originalDescription ||
     date !== originalDate ||
     location !== originalLocation ||
-    (savedWebsiteLink ?? '') !== originalWebsiteLink ||
-    JSON.stringify([...tags].sort()) !== JSON.stringify([...originalTags].sort());
+    (savedWebsiteLink ?? '') !== originalWebsiteLink;
 
   const hasCamera =
     image.camera_make || image.camera_model || image.aperture || image.iso || image.exposure_time || image.focal_length;
@@ -403,17 +392,12 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"
+                d="M4 6a2 2 0 012-2h3l2 2h7a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
               />
             </svg>
-            Tags
+            Boards
           </label>
-          <TagInput
-            selectedTags={tags}
-            onChange={setTags}
-            placeholder="Add tags..."
-            tagCategories={tagCategories}
-          />
+          <AddToBoardButton imageId={image.id} imageTags={image.tags || []} />
         </div>
 
         {/* AI Tag Suggestions */}
@@ -439,9 +423,9 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
                 >
                   {s.tagName}
                   <button
-                    onClick={() => handleAcceptSuggestion(s)}
+                    onClick={() => void handleAcceptSuggestion(s)}
                     className="w-6 h-6 flex items-center justify-center rounded-full text-ink/60 hover:text-ink hover:bg-lavender/30 transition-colors"
-                    title="Accept"
+                    title="Add to board"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path

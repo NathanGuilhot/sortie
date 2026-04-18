@@ -4,6 +4,8 @@ import { GalleryScreen } from './screens/GalleryScreen';
 import { FoldersScreen } from './screens/FoldersScreen';
 import { CleanupScreen } from './screens/CleanupScreen';
 import { PeopleScreen } from './screens/PeopleScreen';
+import { BoardsIndexScreen } from './screens/BoardsIndexScreen';
+import { BoardDetailScreen } from './screens/BoardDetailScreen';
 
 export const routes: RouteObject[] = [
   {
@@ -11,6 +13,8 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate to="/gallery" replace /> },
       { path: 'gallery', element: <GalleryScreen /> },
+      { path: 'boards', element: <BoardsIndexScreen /> },
+      { path: 'boards/:id', element: <BoardDetailScreen /> },
       { path: 'folders', element: <FoldersScreen /> },
       { path: 'cleanup', element: <CleanupScreen /> },
       { path: 'people', element: <PeopleScreen /> },

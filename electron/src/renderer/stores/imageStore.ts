@@ -18,6 +18,10 @@ interface ImageStore {
   searchImages: (query: string, limit?: number) => Promise<void>;
   searchMore: (limit?: number) => Promise<void>;
   updateImageTags: (imageId: number, tags: string[]) => Promise<void>;
+  addToBoard: (imageId: number, tagId: number) => Promise<void>;
+  removeFromBoard: (imageId: number, tagId: number) => Promise<void>;
+  fetchBoardImages: (tagId: number, limit?: number, offset?: number) => Promise<void>;
+  reorderBoardImages: (tagId: number, orderedImageIds: number[]) => Promise<void>;
   filterByTags: (tags: string[], limit?: number, offset?: number) => Promise<void>;
   fetchFavorites: (limit?: number, offset?: number) => Promise<void>;
   filterByPerson: (personId: number, limit?: number, offset?: number) => Promise<void>;
@@ -140,6 +144,65 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       set({ error: message });
+    }
+  },
+  addToBoard: async (imageId: number, tagId: number) => {
+    try {
+      await window.sortieAPI.boards.addImage(imageId, tagId);
+      const updated = await window.sortieAPI.getImage(imageId);
+      if (!updated) return;
+      set((state) => ({
+        images: state.images.map((img) => (img.id === imageId ? updated : img)),
+        selectedImage:
+          state.selectedImage?.id === imageId ? updated : state.selectedImage,
+      }));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message });
+    }
+  },
+  removeFromBoard: async (imageId: number, tagId: number) => {
+    try {
+      await window.sortieAPI.boards.removeImage(imageId, tagId);
+      const updated = await window.sortieAPI.getImage(imageId);
+      if (!updated) return;
+      set((state) => ({
+        images: state.images.map((img) => (img.id === imageId ? updated : img)),
+        selectedImage:
+          state.selectedImage?.id === imageId ? updated : state.selectedImage,
+      }));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message });
+    }
+  },
+  fetchBoardImages: async (tagId: number, limit = 200, offset = 0) => {
+    set({ loading: true, error: null });
+    try {
+      const images = await window.sortieAPI.boards.getImages(tagId, limit, offset);
+      set({
+        images,
+        loading: false,
+        hasMore: images.length >= limit,
+        activeSearchQuery: null,
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message, loading: false });
+    }
+  },
+  reorderBoardImages: async (tagId: number, orderedImageIds: number[]) => {
+    const previous = get().images;
+    const byId = new Map(previous.map((img) => [img.id, img]));
+    const optimistic = orderedImageIds
+      .map((id) => byId.get(id))
+      .filter((img): img is NonNullable<typeof img> => img != null);
+    set({ images: optimistic });
+    try {
+      await window.sortieAPI.boards.reorder(tagId, orderedImageIds);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ images: previous, error: message });
     }
   },
   fetchFavorites: async (limit = 100, offset = 0) => {

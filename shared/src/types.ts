@@ -70,7 +70,18 @@ export interface ImageTag {
   tag_id: number;
   source: 'user' | 'ai' | 'auto';
   confidence: number | null;
+  position: number | null;
   created_at: string;
+}
+
+export interface Board {
+  id: number;
+  name: string;
+  color: string;
+  image_count: number;
+  cover_image_id: number | null;
+  cover_image_path: string | null;
+  preview_image_paths: string[];
 }
 
 export interface EmbeddingRow {
@@ -99,6 +110,11 @@ export interface DismissedSuggestion {
   image_id: number;
   tag_id: number;
   dismissed_at: string;
+}
+
+export interface ImageSuggestion {
+  imageId: number;
+  confidence: number;
 }
 
 export interface MetadataChange {

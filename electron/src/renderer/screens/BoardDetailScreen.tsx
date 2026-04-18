@@ -1,0 +1,348 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Board, Image } from 'shared';
+import { useImageStore } from '../stores/imageStore';
+import { useBoardStore } from '../stores/boardStore';
+import { computeMasonryLayout, getVisibleIndices, type LayoutResult, type Position } from '../components/masonry-layout';
+import { MetadataModal } from '../components/MetadataModal';
+import { BoardSuggestionsRow } from '../components/BoardSuggestionsRow';
+
+const DND_TYPE = 'board-image';
+const OVERSCAN = 500;
+const GAP = 8;
+const MIN_COL_WIDTH = 220;
+const MIN_COLUMNS = 2;
+const MAX_COLUMNS = 5;
+
+export function BoardDetailScreen() {
+  const { id } = useParams<{ id: string }>();
+  const tagId = Number(id);
+  const navigate = useNavigate();
+
+  const images = useImageStore((s) => s.images);
+  const setImages = useImageStore((s) => s.setImages);
+  const fetchBoardImages = useImageStore((s) => s.fetchBoardImages);
+  const reorderBoardImages = useImageStore((s) => s.reorderBoardImages);
+  const removeFromBoard = useImageStore((s) => s.removeFromBoard);
+  const selectedImage = useImageStore((s) => s.selectedImage);
+  const setSelectedImage = useImageStore((s) => s.setSelectedImage);
+
+  const boards = useBoardStore((s) => s.boards);
+  const fetchBoards = useBoardStore((s) => s.fetchBoards);
+  const renameBoard = useBoardStore((s) => s.renameBoard);
+
+  const board: Board | undefined = useMemo(
+    () => boards.find((b) => b.id === tagId),
+    [boards, tagId],
+  );
+
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+
+  useEffect(() => {
+    if (!Number.isFinite(tagId)) return;
+    void fetchBoardImages(tagId);
+    if (boards.length === 0) void fetchBoards();
+  }, [tagId, fetchBoardImages, fetchBoards, boards.length]);
+
+  const handleReorder = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    const next = [...images];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setImages(next);
+  };
+
+  const handleDropCommit = () => {
+    void reorderBoardImages(tagId, images.map((img) => img.id));
+  };
+
+  const handleRemove = async (imageId: number) => {
+    await removeFromBoard(imageId, tagId);
+    setImages(images.filter((img) => img.id !== imageId));
+  };
+
+  const handleRenameSubmit = async () => {
+    const trimmed = nameDraft.trim();
+    if (trimmed && trimmed !== board?.name) {
+      await renameBoard(tagId, trimmed);
+    }
+    setRenaming(false);
+  };
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <DndProvider backend={HTML5Backend}>
+      <main className="flex-1 overflow-hidden">
+        <div ref={scrollContainerRef} className="h-full overflow-y-auto px-6 pt-6 pb-16">
+          <div className="flex items-center gap-3 mb-5">
+            <button
+              onClick={() => {
+                void navigate('/boards');
+              }}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-ink hover:bg-gray-100"
+              aria-label="Back to boards"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="flex-1 min-w-0">
+              {renaming ? (
+                <input
+                  autoFocus
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onBlur={() => void handleRenameSubmit()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleRenameSubmit();
+                    if (e.key === 'Escape') setRenaming(false);
+                  }}
+                  className="text-2xl font-semibold text-ink bg-transparent border-b border-gray-300 outline-none"
+                />
+              ) : (
+                <h1
+                  className="text-2xl font-semibold text-ink truncate cursor-text"
+                  onClick={() => {
+                    setNameDraft(board?.name ?? '');
+                    setRenaming(true);
+                  }}
+                  title="Click to rename"
+                >
+                  {board?.name ?? 'Board'}
+                </h1>
+              )}
+              <p className="text-sm text-gray-500 mt-0.5">
+                {images.length} {images.length === 1 ? 'image' : 'images'} · Drag to reorder
+              </p>
+            </div>
+          </div>
+
+          <BoardMasonry
+            images={images}
+            scrollContainerRef={scrollContainerRef}
+            onReorder={handleReorder}
+            onDropCommit={handleDropCommit}
+            onOpen={(img) => setSelectedImage(img)}
+            onRemove={(imageId) => void handleRemove(imageId)}
+          />
+
+          {images.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <p className="text-sm text-gray-600 mb-1">This board is empty</p>
+              <p className="text-xs text-gray-400">
+                Add images to this board from the metadata panel in the gallery.
+              </p>
+            </div>
+          )}
+
+          {Number.isFinite(tagId) && images.length > 0 && (
+            <BoardSuggestionsRow
+              tagId={tagId}
+              excludeIds={images.map((img) => img.id)}
+              onAdd={(img) => setImages([...images, img])}
+            />
+          )}
+        </div>
+
+        {selectedImage && (
+          <MetadataModal
+            image={selectedImage}
+            onClose={() => setSelectedImage(null)}
+            onNavigate={(img) => setSelectedImage(img)}
+          />
+        )}
+      </main>
+    </DndProvider>
+  );
+}
+
+interface BoardMasonryProps {
+  images: Image[];
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+  onReorder: (from: number, to: number) => void;
+  onDropCommit: () => void;
+  onOpen: (image: Image) => void;
+  onRemove: (imageId: number) => void;
+}
+
+function BoardMasonry({
+  images,
+  scrollContainerRef,
+  onReorder,
+  onDropCommit,
+  onOpen,
+  onRemove,
+}: BoardMasonryProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const rafRef = useRef(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setContainerWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const scrollEl = scrollContainerRef.current;
+    if (!scrollEl) return;
+    setViewportHeight(scrollEl.clientHeight);
+    const handleScroll = () => {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => setScrollTop(scrollEl.scrollTop));
+    };
+    const handleResize = () => setViewportHeight(scrollEl.clientHeight);
+    scrollEl.addEventListener('scroll', handleScroll, { passive: true });
+    const resizeObs = new ResizeObserver(handleResize);
+    resizeObs.observe(scrollEl);
+    return () => {
+      scrollEl.removeEventListener('scroll', handleScroll);
+      resizeObs.disconnect();
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [scrollContainerRef]);
+
+  const columns = useMemo(() => {
+    if (containerWidth <= 0) return MIN_COLUMNS;
+    const fit = Math.floor((containerWidth + GAP) / (MIN_COL_WIDTH + GAP));
+    return Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, fit));
+  }, [containerWidth]);
+
+  const layout: LayoutResult = useMemo(
+    () => computeMasonryLayout(images, containerWidth, columns, GAP, 0, undefined),
+    [images, containerWidth, columns],
+  );
+
+  const columnWidth =
+    containerWidth > 0 ? (containerWidth - (columns - 1) * GAP) / columns : 0;
+
+  const visibleIndices = useMemo(() => {
+    const top = scrollTop - OVERSCAN;
+    const bottom = scrollTop + viewportHeight + OVERSCAN;
+    return getVisibleIndices(layout, top, bottom);
+  }, [layout, scrollTop, viewportHeight]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        position: 'relative',
+        minHeight: layout.totalHeight,
+      }}
+    >
+      {visibleIndices.map((i) => (
+        <DraggableTile
+          key={images[i].id}
+          image={images[i]}
+          index={i}
+          position={layout.positions[i]}
+          columnWidth={columnWidth}
+          onReorder={onReorder}
+          onDropCommit={onDropCommit}
+          onOpen={() => onOpen(images[i])}
+          onRemove={() => onRemove(images[i].id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+interface DraggableTileProps {
+  image: Image;
+  index: number;
+  position: Position;
+  columnWidth: number;
+  onReorder: (from: number, to: number) => void;
+  onDropCommit: () => void;
+  onOpen: () => void;
+  onRemove: () => void;
+}
+
+function DraggableTile({
+  image,
+  index,
+  position,
+  columnWidth,
+  onReorder,
+  onDropCommit,
+  onOpen,
+  onRemove,
+}: DraggableTileProps) {
+  const [{ isDragging }, drag] = useDrag({
+    type: DND_TYPE,
+    item: { index },
+    end: () => onDropCommit(),
+    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
+  });
+
+  const [{ isOver }, drop] = useDrop({
+    accept: DND_TYPE,
+    hover: (item: { index: number }) => {
+      if (item.index === index) return;
+      onReorder(item.index, index);
+      item.index = index;
+    },
+    collect: (monitor) => ({ isOver: monitor.isOver() }),
+  });
+
+  const setRef = (node: HTMLDivElement | null) => {
+    drag(node);
+    drop(node);
+  };
+
+  const thumbWidth = Math.ceil((columnWidth * (window.devicePixelRatio || 1)) / 100) * 100;
+  const src = `sortie-thumb://${image.file_path}?w=${thumbWidth}`;
+
+  return (
+    <div
+      ref={setRef}
+      style={{
+        position: 'absolute',
+        top: position.y,
+        left: position.x,
+        width: position.width,
+        height: position.height,
+        borderRadius: 6,
+        overflow: 'hidden',
+        boxShadow: isOver ? '0 0 0 2px rgb(17 24 39)' : '0 2px 8px rgba(0,0,0,0.1)',
+        cursor: isDragging ? 'grabbing' : 'grab',
+        backgroundColor: '#f3f4f6',
+        opacity: isDragging ? 0.4 : 1,
+        transition: 'opacity 0.15s, box-shadow 0.15s',
+      }}
+      className="group"
+    >
+      <img
+        src={src}
+        alt={image.file_name}
+        draggable={false}
+        onClick={onOpen}
+        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+        className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+        title="Remove from board"
+        aria-label="Remove from board"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+}

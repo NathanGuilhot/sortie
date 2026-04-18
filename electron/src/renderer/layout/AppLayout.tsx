@@ -26,6 +26,18 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    to: '/boards',
+    label: 'Boards',
+    icon: (
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 5a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm9 0a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1h-5a1 1 0 01-1-1V5zM4 14a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1v-5zm9 0a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1h-5a1 1 0 01-1-1v-5z"
+      />
+    ),
+  },
+  {
     to: '/folders',
     label: 'Folders',
     icon: (
@@ -64,6 +76,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const STATUS_COPY: Record<string, string> = {
+  '/boards': 'Curate your photos into boards',
   '/folders': 'Manage your photo folders',
   '/cleanup': 'Find and remove duplicate images',
   '/people': 'Detect and manage people in your photos',
