@@ -118,7 +118,7 @@ export class FaceMatcher {
 
     const assignment = hungarian(padded);
 
-    const results: MatchResult[] = new Array(N);
+    const results: MatchResult[] = new Array<MatchResult>(N);
     const usedPersonIds = new Set<number>();
 
     for (let i = 0; i < N; i++) {

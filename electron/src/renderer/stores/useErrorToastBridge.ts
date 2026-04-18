@@ -34,7 +34,7 @@ export function useErrorToastBridge() {
     );
 
     const onUnhandled = (e: PromiseRejectionEvent) => {
-      const reason = e.reason;
+      const reason: unknown = e.reason;
       const message = reason instanceof Error ? reason.message : String(reason);
       toast.error(message);
     };

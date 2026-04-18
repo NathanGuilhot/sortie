@@ -124,11 +124,9 @@ function PersonDetail({
   const [selectedImage, setSelectedImage] = useState<Image | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (selectedImage && !personImages.some((i) => i.id === selectedImage.id)) {
-      setSelectedImage(null);
-    }
-  }, [personImages, selectedImage]);
+  if (selectedImage && !personImages.some((i) => i.id === selectedImage.id)) {
+    setSelectedImage(null);
+  }
 
   /* eslint-disable react-hooks/set-state-in-effect -- intentional reset on prop change */
   useEffect(() => {

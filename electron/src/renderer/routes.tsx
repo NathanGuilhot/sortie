@@ -2,7 +2,6 @@ import { Navigate, type RouteObject } from 'react-router-dom';
 import { AppLayout } from './layout/AppLayout';
 import { GalleryScreen } from './screens/GalleryScreen';
 import { FoldersScreen } from './screens/FoldersScreen';
-import { CleanupScreen } from './screens/CleanupScreen';
 import { PeopleScreen } from './screens/PeopleScreen';
 import { BoardsIndexScreen } from './screens/BoardsIndexScreen';
 import { BoardDetailScreen } from './screens/BoardDetailScreen';

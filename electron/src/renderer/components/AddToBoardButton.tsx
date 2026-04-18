@@ -29,12 +29,12 @@ export function AddToBoardButton({ imageId, imageTags }: AddToBoardButtonProps) 
     [currentBoards],
   );
 
-  const handleAdd = async (board: Board) => {
-    await addToBoard(imageId, board.id);
+  const handleAdd = (board: Board) => {
+    void addToBoard(imageId, board.id);
   };
 
-  const handleRemove = async (board: Board) => {
-    await removeFromBoard(imageId, board.id);
+  const handleRemove = (board: Board) => {
+    void removeFromBoard(imageId, board.id);
   };
 
   return (
@@ -51,7 +51,7 @@ export function AddToBoardButton({ imageId, imageTags }: AddToBoardButtonProps) 
             />
             {board.name}
             <button
-              onClick={() => void handleRemove(board)}
+              onClick={() => handleRemove(board)}
               className="w-4 h-4 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-200"
               aria-label={`Remove from ${board.name}`}
             >

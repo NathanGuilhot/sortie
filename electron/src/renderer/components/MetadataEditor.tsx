@@ -145,7 +145,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     return () => {
       cancelled = true;
     };
-  }, [image?.id]);
+  }, [image]);
 
   // Fetch faces for this image
   useEffect(() => {
@@ -160,7 +160,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
     return () => {
       cancelled = true;
     };
-  }, [image?.id]);
+  }, [image]);
 
   const resetForm = () => {
     setDate('');

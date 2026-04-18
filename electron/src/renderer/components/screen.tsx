@@ -87,7 +87,7 @@ export function ProgressPanel({
           <div className="w-full bg-lavender/50 rounded-full h-2">
             <div
               className="bg-ink h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(current! / total!) * 100}%` }}
+              style={{ width: `${(current / total) * 100}%` }}
             />
           </div>
           {currentFile && (

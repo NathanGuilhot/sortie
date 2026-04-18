@@ -24,11 +24,16 @@ function hostnameOf(url: string): string {
 export function LinkPreviewCard({ url }: Props) {
   const [preview, setPreview] = useState<LinkPreview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastUrl, setLastUrl] = useState(url);
+
+  if (url !== lastUrl) {
+    setLastUrl(url);
+    setPreview(null);
+    setLoading(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setPreview(null);
 
     const run = async () => {
       const cached = await window.sortieAPI.getLinkPreview(url);
@@ -144,7 +149,7 @@ export function LinkPreviewCard({ url }: Props) {
       </button>
       <button
         type="button"
-        onClick={handleRefresh}
+        onClick={(e) => void handleRefresh(e)}
         title="Refresh preview"
         className="absolute top-2 right-2 p-1 rounded-md bg-white/80 text-gray-400 hover:text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
       >

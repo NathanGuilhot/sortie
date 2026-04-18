@@ -108,7 +108,7 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
           .filter((g) => g.images.length >= 2),
       }));
     } catch (error: unknown) {
-      throw new Error(cleanIpcErrorMessage(error));
+      throw new Error(cleanIpcErrorMessage(error), { cause: error });
     }
   },
 }));

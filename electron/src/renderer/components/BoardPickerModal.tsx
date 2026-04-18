@@ -149,7 +149,7 @@ export function BoardPickerModal({
         {canCreate && (
           <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50">
             <button
-              onClick={handleCreate}
+              onClick={() => void handleCreate()}
               disabled={creating}
               className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg bg-ink text-white hover:bg-ink/90 disabled:opacity-60"
             >

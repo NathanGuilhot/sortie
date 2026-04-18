@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { version } from '../../../../package.json';
 import { AboutModal } from '../components/AboutModal';
 import { Logo } from '../components/Logo';
 import { useImageStore } from '../stores/imageStore';
@@ -94,7 +95,7 @@ export function AppLayout() {
     if (location.pathname === '/gallery') {
       requestScrollGalleryToTop();
     } else {
-      navigate('/gallery');
+      void navigate('/gallery');
     }
   };
 
@@ -108,7 +109,7 @@ export function AppLayout() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        navigate('/gallery');
+        void navigate('/gallery');
         requestFocusSearch();
       }
     };
@@ -161,7 +162,7 @@ export function AppLayout() {
         </nav>
 
         <div className="p-4 border-t border-white/10">
-          <div className="text-center text-xs text-white/50">v0.1</div>
+          <div className="text-center text-xs text-white/50">v{version}</div>
         </div>
       </div>
 

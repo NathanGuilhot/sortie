@@ -640,7 +640,7 @@ export class DatabaseService {
       let preview_image_paths: string[] = [];
       if (preview_paths_json) {
         try {
-          const parsed = JSON.parse(preview_paths_json);
+          const parsed: unknown = JSON.parse(preview_paths_json);
           if (Array.isArray(parsed)) {
             preview_image_paths = parsed.filter((p): p is string => typeof p === 'string');
           }
