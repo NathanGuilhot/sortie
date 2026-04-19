@@ -7,6 +7,8 @@ import {
   Collection,
   extractExif,
   computeFileHash,
+  extractPalette,
+  hexToOklab,
   FaceDetector,
   FaceMatcher,
 } from 'pipeline';
@@ -18,6 +20,7 @@ import {
   Person,
   Folder,
   FolderWithStats,
+  Query,
   SearchResult,
   DuplicateGroup,
   FaceScanProgress,
@@ -27,6 +30,7 @@ import {
   BackfillExifResult,
   EmbedderStatus,
   LinkPreview,
+  PaletteColor,
   SUPPORTED_IMAGE_EXTENSIONS,
 } from 'shared';
 import { fetchLinkPreview, hashUrl } from './linkPreview';
@@ -35,8 +39,18 @@ import fs from 'fs/promises';
 
 const IMAGE_EXTENSIONS = new Set(SUPPORTED_IMAGE_EXTENSIONS);
 
-interface ImageDbRow extends Omit<Image, 'embedded'> {
+interface ImageDbRow extends Omit<Image, 'embedded' | 'palette'> {
   embedded: number;
+  palette_json?: string | null;
+}
+
+function hydratePalette(row: ImageDbRow): PaletteColor[] | null {
+  if (!row.palette_json) return null;
+  try {
+    return JSON.parse(row.palette_json) as PaletteColor[];
+  } catch {
+    return null;
+  }
 }
 
 const MIME_TYPES: Record<string, string> = {
@@ -155,7 +169,10 @@ export class DatabaseService {
     const images: Image[] = [];
     for (const id of ids) {
       const row = byId.get(id);
-      if (row) images.push({ ...row, embedded: !!row.embedded });
+      if (row) {
+        const { palette_json: _ignored, ...rest } = row;
+        images.push({ ...rest, embedded: !!row.embedded, palette: hydratePalette(row) });
+      }
     }
     for (const image of images) {
       image.tags = this.db.getImageTags(image.id) as Tag[];
@@ -189,7 +206,8 @@ export class DatabaseService {
     `);
     const row = stmt.get(id) as ImageDbRow | undefined;
     if (!row) return null;
-    const image: Image = { ...row, embedded: !!row.embedded };
+    const { palette_json: _ignored, ...rest } = row;
+    const image: Image = { ...rest, embedded: !!row.embedded, palette: hydratePalette(row) };
     image.tags = this.db.getImageTags(image.id) as Tag[];
     return image;
   }
@@ -217,79 +235,130 @@ export class DatabaseService {
     }
   }
 
-  async getFavoriteImages(limit: number = 100, offset: number = 0): Promise<Image[]> {
+  async queryImages(q: Query): Promise<SearchResult[]> {
     if (!this.db) throw new Error('Database not initialized');
-    const allIds = this.getOrBuildShuffledIds(
-      'favorites',
-      `SELECT id FROM images WHERE favorite = 1 AND hidden = 0 AND missing = 0`,
+    const limit = q.limit ?? 100;
+    const offset = q.offset ?? 0;
+
+    const hasText = !!q.text && q.text.trim().length > 0;
+    const hasBytes = !!q.imageBytes && q.imageBytes.byteLength > 0;
+    const hasPalette = !!q.palette && q.palette.length > 0;
+
+    const setIds = this.buildSetFilterIds(q);
+
+    if (hasText || hasBytes) {
+      if (!this.embedder) throw new Error('Embedder not initialized');
+      const embedding = hasText
+        ? await this.embedder.embedText(q.text!)
+        : await this.embedder.embedImage(Buffer.from(q.imageBytes!));
+      return this.embeddingQuery(embedding, setIds, limit, offset);
+    }
+    if (hasPalette) {
+      return this.paletteQuery(q.palette!, setIds, limit, offset);
+    }
+
+    const ids =
+      setIds ??
+      this.getOrBuildShuffledIds(
+        'default',
+        `SELECT id FROM images WHERE hidden = 0 AND missing = 0`,
+      );
+    const pageIds = ids.slice(offset, offset + limit);
+    return this.fetchImagesByIdsInOrder(pageIds) as SearchResult[];
+  }
+
+  // Returns ids matching every active set filter, or null if none are active.
+  private buildSetFilterIds(q: Query): number[] | null {
+    const where: string[] = [];
+    const params: unknown[] = [];
+
+    where.push(q.includeHidden ? 'i.missing = 0' : 'i.hidden = 0 AND i.missing = 0');
+
+    let active = false;
+    if (q.favorites) {
+      where.push('i.favorite = 1');
+      active = true;
+    }
+    if (q.personId != null) {
+      where.push(
+        'EXISTS (SELECT 1 FROM faces f WHERE f.image_id = i.id AND f.person_id = ?)',
+      );
+      params.push(q.personId);
+      active = true;
+    }
+    if (q.folderId != null) {
+      where.push(
+        "EXISTS (SELECT 1 FROM folders fo WHERE fo.id = ? AND i.file_path LIKE fo.path || '/%')",
+      );
+      params.push(q.folderId);
+      active = true;
+    }
+    if (q.tags && q.tags.length > 0) {
+      const placeholders = q.tags.map(() => '?').join(',');
+      where.push(
+        `(SELECT COUNT(DISTINCT t.id)
+            FROM image_tags it JOIN tags t ON it.tag_id = t.id
+            WHERE it.image_id = i.id AND t.name IN (${placeholders})) = ?`,
+      );
+      params.push(...q.tags, q.tags.length);
+      active = true;
+    }
+    if (q.dateRange?.start) {
+      where.push('i.captured_at >= ?');
+      params.push(q.dateRange.start);
+      active = true;
+    }
+    if (q.dateRange?.end) {
+      where.push('i.captured_at <= ?');
+      params.push(q.dateRange.end);
+      active = true;
+    }
+    if (q.includeHidden) active = true;
+
+    if (!active) return null;
+
+    const cacheKey = this.setFilterCacheKey(q);
+    return this.getOrBuildShuffledIds(
+      cacheKey,
+      `SELECT i.id FROM images i WHERE ${where.join(' AND ')}`,
+      params,
     );
-    const pageIds = allIds.slice(offset, offset + limit);
-    return this.fetchImagesByIdsInOrder(pageIds);
   }
 
-  async getImagesByTags(
-    tagNames: string[],
-    limit: number = 100,
-    offset: number = 0,
-  ): Promise<Image[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    if (tagNames.length === 0) return this.getImages(limit, offset);
-
-    const placeholders = tagNames.map(() => '?').join(',');
-    // Cache key must be deterministic for a given tag set — sort first.
-    const keyTags = [...tagNames].sort().join(',');
-    const allIds = this.getOrBuildShuffledIds(
-      `tags:${keyTags}`,
-      `SELECT i.id AS id
-       FROM images i
-       INNER JOIN image_tags it ON i.id = it.image_id
-       INNER JOIN tags t ON it.tag_id = t.id
-       WHERE i.hidden = 0 AND i.missing = 0 AND t.name IN (${placeholders})
-       GROUP BY i.id
-       HAVING COUNT(DISTINCT t.id) = ?`,
-      [...tagNames, tagNames.length],
-    );
-    const pageIds = allIds.slice(offset, offset + limit);
-    return this.fetchImagesByIdsInOrder(pageIds);
+  private setFilterCacheKey(q: Query): string {
+    const parts: string[] = [];
+    if (q.favorites) parts.push('fav');
+    if (q.includeHidden) parts.push('hid');
+    if (q.personId != null) parts.push(`p${q.personId}`);
+    if (q.folderId != null) parts.push(`f${q.folderId}`);
+    if (q.tags && q.tags.length > 0) parts.push(`t=${[...q.tags].sort().join(',')}`);
+    if (q.dateRange?.start) parts.push(`ds=${q.dateRange.start}`);
+    if (q.dateRange?.end) parts.push(`de=${q.dateRange.end}`);
+    return `set:${parts.join('|')}`;
   }
 
-  async searchImages(
-    query: string,
-    limit: number = 50,
-    offset: number = 0,
-  ): Promise<SearchResult[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    if (!this.embedder) throw new Error('Embedder not initialized');
-
-    const embedding = await this.embedder.embedText(query);
-    return this.runEmbeddingSearch(embedding, limit, offset);
+  // Widen `k` when set filters are active so post-filter intersection still fills a page. `cap` is the knn hard ceiling.
+  private scoredOverfetch(limit: number, setIds: number[] | null, cap: number): number {
+    const desired = setIds
+      ? Math.min(Math.max(limit * 50, 500), Math.max(setIds.length, limit + 100))
+      : limit + 100;
+    return Math.min(desired, cap);
   }
 
-  async searchImagesByBytes(
-    bytes: Buffer,
-    limit: number = 50,
-    offset: number = 0,
-  ): Promise<SearchResult[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    if (!this.embedder) throw new Error('Embedder not initialized');
-
-    const embedding = await this.embedder.embedImage(bytes);
-    return this.runEmbeddingSearch(embedding, limit, offset);
-  }
-
-  private runEmbeddingSearch(
+  private embeddingQuery(
     embedding: number[],
+    setIds: number[] | null,
     limit: number,
     offset: number,
   ): SearchResult[] {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db;
 
-    // Embeddings are L2-normalized, so distance ∈ [0, 2]. Below ~1.3 corresponds
-    // to cosine similarity > ~0.15, which empirically separates real matches
-    // from noise for CLIP ViT-B/32 with "a photo of …" prompts.
     const SIMILARITY_DISTANCE_THRESHOLD = 1.3;
-    const k = offset + limit + 100;
+    // sqlite-vec knn queries cap `k` at 4096.
+    const VEC_K_LIMIT = 4096;
+    const k = this.scoredOverfetch(offset + limit, setIds, VEC_K_LIMIT);
+    const setIdSet = setIds ? new Set(setIds) : null;
 
     const stmt = db.getDatabase().prepare(`
       SELECT sub.rowid, sub.distance
@@ -302,13 +371,19 @@ export class DatabaseService {
       WHERE sub.distance < ?
       ORDER BY sub.distance
     `);
-    const allResults = stmt.all(
+    const ranked = stmt.all(
       JSON.stringify(embedding),
       k,
       SIMILARITY_DISTANCE_THRESHOLD,
     ) as Array<{ rowid: number; distance: number }>;
 
-    const page = allResults.slice(offset, offset + limit);
+    const kept: Array<{ rowid: number; distance: number }> = [];
+    for (const r of ranked) {
+      if (setIdSet && !setIdSet.has(r.rowid)) continue;
+      kept.push(r);
+    }
+
+    const page = kept.slice(offset, offset + limit);
     const imageIds = page.map((r) => r.rowid);
     if (imageIds.length === 0) return [];
 
@@ -316,17 +391,76 @@ export class DatabaseService {
     const imageStmt = db.getDatabase().prepare(`
       SELECT * FROM images WHERE id IN (${placeholders})
     `);
-    const images = imageStmt.all(...imageIds) as Image[];
-
+    const rows = imageStmt.all(...imageIds) as ImageDbRow[];
+    const byId = new Map(rows.map((r) => [r.id, r]));
     const distanceMap = new Map(page.map((r) => [r.rowid, r.distance]));
-    const searchResults = images.map((img) => ({
-      ...img,
-      distance: distanceMap.get(img.id),
-      tags: db.getImageTags(img.id) as Tag[],
-    }));
-    searchResults.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
 
-    return searchResults;
+    const results: SearchResult[] = [];
+    for (const id of imageIds) {
+      const row = byId.get(id);
+      if (!row) continue;
+      results.push({
+        ...row,
+        embedded: true,
+        palette: hydratePalette(row),
+        distance: distanceMap.get(id),
+        tags: db.getImageTags(id) as Tag[],
+      });
+    }
+    return results;
+  }
+
+  private paletteQuery(
+    hexColors: string[],
+    setIds: number[] | null,
+    limit: number,
+    offset: number,
+  ): SearchResult[] {
+    if (!this.db) throw new Error('Database not initialized');
+    const labs: Array<[number, number, number]> = [];
+    for (const hex of hexColors) {
+      const lab = hexToOklab(hex);
+      if (lab) labs.push(lab);
+    }
+    if (labs.length === 0) return [];
+
+    // findImagesByColors multiplies by 10 internally; sqlite-vec's k caps at 4096.
+    const PALETTE_LIMIT_CAP = 409;
+    const overfetch = this.scoredOverfetch(offset + limit, setIds, PALETTE_LIMIT_CAP);
+    const ranked = this.db.findImagesByColors(labs, overfetch);
+    const setIdSet = setIds ? new Set(setIds) : null;
+
+    const kept: Array<{ imageId: number; score: number }> = [];
+    for (const m of ranked) {
+      if (setIdSet && !setIdSet.has(m.imageId)) continue;
+      kept.push(m);
+    }
+
+    const page = kept.slice(offset, offset + limit);
+    if (page.length === 0) return [];
+
+    const db = this.db;
+    const placeholders = page.map(() => '?').join(',');
+    const imageStmt = db.getDatabase().prepare(
+      `SELECT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
+       FROM images i WHERE i.id IN (${placeholders})`,
+    );
+    const rows = imageStmt.all(...page.map((m) => m.imageId)) as ImageDbRow[];
+    const byId = new Map(rows.map((r) => [r.id, r]));
+
+    const results: SearchResult[] = [];
+    for (const m of page) {
+      const row = byId.get(m.imageId);
+      if (!row) continue;
+      results.push({
+        ...row,
+        embedded: !!row.embedded,
+        palette: hydratePalette(row),
+        distance: m.score,
+        tags: db.getImageTags(row.id) as Tag[],
+      });
+    }
+    return results;
   }
 
   async findSimilarImages(imageId: number, limit: number = 20): Promise<SearchResult[]> {
@@ -367,11 +501,13 @@ export class DatabaseService {
     const imageStmt = db.prepare(`
       SELECT * FROM images WHERE id IN (${placeholders})
     `);
-    const images = imageStmt.all(...imageIds) as Image[];
+    const images = imageStmt.all(...imageIds) as ImageDbRow[];
 
     const distanceMap = new Map(results.map((r) => [r.rowid, r.distance]));
-    const resultImages = images.map((img) => ({
+    const resultImages: SearchResult[] = images.map((img) => ({
       ...img,
+      embedded: true,
+      palette: hydratePalette(img),
       distance: distanceMap.get(img.id),
       tags: dbManager.getImageTags(img.id) as Tag[],
     }));
@@ -510,24 +646,6 @@ export class DatabaseService {
     }));
   }
 
-  async getImagesByFolder(
-    folderId: number,
-    limit: number = 100,
-    offset: number = 0,
-  ): Promise<Image[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    const allIds = this.getOrBuildShuffledIds(
-      `folder:${folderId}`,
-      `SELECT i.id AS id
-       FROM images i
-       JOIN folders f ON i.file_path LIKE f.path || '/%'
-       WHERE f.id = ? AND i.hidden = 0 AND i.missing = 0`,
-      [folderId],
-    );
-    const pageIds = allIds.slice(offset, offset + limit);
-    return this.fetchImagesByIdsInOrder(pageIds);
-  }
-
   async removeFolder(folderPath: string): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db.getDatabase();
@@ -541,8 +659,14 @@ export class DatabaseService {
 
       if (imageIds.length > 0) {
         const deleteVec = db.prepare('DELETE FROM vec_images WHERE rowid = ?');
+        const deletePaletteVec = db.prepare('DELETE FROM vec_palette WHERE rowid = ?');
+        const selectPaletteIds = db.prepare('SELECT id FROM palette_colors WHERE image_id = ?');
         for (const { id } of imageIds) {
           deleteVec.run(id);
+          const colorIds = selectPaletteIds.all(id) as Array<{ id: number }>;
+          for (const { id: colorId } of colorIds) {
+            deletePaletteVec.run(BigInt(colorId));
+          }
         }
         db.prepare('DELETE FROM images WHERE file_path LIKE ?').run(pattern);
       }
@@ -578,6 +702,8 @@ export class DatabaseService {
       db.prepare('DELETE FROM faces').run();
       db.prepare('DELETE FROM persons').run();
       db.prepare('DELETE FROM vec_images').run();
+      db.prepare('DELETE FROM vec_palette').run();
+      db.prepare('DELETE FROM palette_colors').run();
       db.prepare('DELETE FROM images').run();
       db.prepare('DELETE FROM collections').run();
       db.prepare('DELETE FROM tags').run();
@@ -1249,6 +1375,8 @@ export class DatabaseService {
   async mergePersons(keepPersonId: number, mergePersonId: number): Promise<void> {
     if (!this.faceMatcher) throw new Error('FaceMatcher not initialized');
     this.faceMatcher.mergePersons(keepPersonId, mergePersonId);
+    this.shuffledIdCache.delete(`person:${keepPersonId}`);
+    this.shuffledIdCache.delete(`person:${mergePersonId}`);
   }
 
   async splitFaceFromPerson(faceId: number): Promise<number> {
@@ -1264,14 +1392,6 @@ export class DatabaseService {
   async setPersonThumbnail(personId: number, faceId: number): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     this.db.updatePersonThumbnail(personId, faceId);
-  }
-
-  async filterImagesByPerson(
-    personId: number,
-    limit: number = 100,
-    offset: number = 0,
-  ): Promise<Image[]> {
-    return this.getPersonImages(personId, limit, offset);
   }
 
   async deletePerson(personId: number): Promise<void> {
@@ -1327,11 +1447,29 @@ export class DatabaseService {
 
     const imageId = this.db.insertImage(imageData);
 
-    try {
-      const embedding = await this.embedder.embedImage(filePath);
-      this.db.insertEmbedding(imageId, embedding);
-    } catch (error) {
-      console.error(`Failed to generate embedding for ${filePath}:`, error);
+    const [embeddingResult, paletteResult] = await Promise.allSettled([
+      this.embedder.embedImage(filePath),
+      extractPalette(filePath),
+    ]);
+
+    if (embeddingResult.status === 'fulfilled') {
+      try {
+        this.db.insertEmbedding(imageId, embeddingResult.value);
+      } catch (error) {
+        console.error(`Failed to insert embedding for ${filePath}:`, error);
+      }
+    } else {
+      console.error(`Failed to generate embedding for ${filePath}:`, embeddingResult.reason);
+    }
+
+    if (paletteResult.status === 'fulfilled') {
+      try {
+        this.db.insertPalette(imageId, paletteResult.value);
+      } catch (error) {
+        console.error(`Failed to insert palette for ${filePath}:`, error);
+      }
+    } else {
+      console.error(`Failed to extract palette for ${filePath}:`, paletteResult.reason);
     }
 
     const folder = this.getFolderForPath(filePath);
@@ -1358,6 +1496,43 @@ export class DatabaseService {
     const embedding = await this.embedder.embedImage(row.file_path);
     this.db.insertEmbedding(imageId, embedding);
     this.invalidateImageCache();
+  }
+
+  async recomputePalette(imageId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    const stmt = this.db.getDatabase().prepare('SELECT file_path FROM images WHERE id = ?');
+    const row = stmt.get(imageId) as { file_path: string } | undefined;
+    if (!row) throw new Error(`Image ${imageId} not found`);
+    const palette = await extractPalette(row.file_path);
+    this.db.insertPalette(imageId, palette);
+    this.invalidateImageCache();
+  }
+
+  async computeMissingPalettes(
+    onProgress?: (progress: { current: number; total: number; currentFile: string }) => void,
+    signal?: AbortSignal,
+  ): Promise<{ computed: number; cancelled: boolean }> {
+    if (!this.db) throw new Error('Database not initialized');
+    const pending = this.db.getImagesMissingPalette();
+    let computed = 0;
+    let cancelled = false;
+    for (let i = 0; i < pending.length; i++) {
+      if (signal?.aborted) {
+        cancelled = true;
+        break;
+      }
+      const { id, file_path } = pending[i];
+      try {
+        const palette = await extractPalette(file_path);
+        this.db.insertPalette(id, palette);
+        computed++;
+      } catch (error) {
+        console.error(`Failed to extract palette for ${file_path}:`, error);
+      }
+      onProgress?.({ current: i + 1, total: pending.length, currentFile: file_path });
+    }
+    if (computed > 0) this.invalidateImageCache();
+    return { computed, cancelled };
   }
 
   async computeMissingHashes(

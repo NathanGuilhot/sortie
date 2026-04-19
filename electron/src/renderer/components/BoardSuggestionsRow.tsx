@@ -62,60 +62,65 @@ export function BoardSuggestionsRow({ tagId, excludeIds, onAdd }: BoardSuggestio
       </label>
       <div className="overflow-x-auto pb-2">
         <div className="flex gap-2">
-        {loading && visible.length === 0
-          ? Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={i}
-                style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
-                className="flex-shrink-0 rounded-md bg-gray-100 animate-pulse"
-              />
-            ))
-          : visible.map((image) => {
-              const gif = isGif(image);
-              const src = gif
-                ? `sortie-file://${image.file_path}`
-                : `sortie-thumb://${image.file_path}?w=${THUMB_FETCH_WIDTH}`;
-              return (
-              <div
-                key={image.id}
-                style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
-                className="group relative flex-shrink-0 rounded-md overflow-hidden bg-gray-100 cursor-pointer"
-                onClick={() => void handleAdd(image)}
-                title={`Add ${image.file_name} to board`}
-              >
-                <img
-                  src={src}
-                  alt={image.file_name}
-                  draggable={false}
-                  style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+          {loading && visible.length === 0
+            ? Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
+                  className="flex-shrink-0 rounded-md bg-gray-100 animate-pulse"
                 />
-                {gif && <GifBadge corner="bottom-right" />}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void handleDismiss(image.id);
-                  }}
-                  className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
-                  title="Dismiss suggestion"
-                  aria-label="Dismiss suggestion"
-                >
-                  <svg
-                    className="w-2.5 h-2.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+              ))
+            : visible.map((image) => {
+                const gif = isGif(image);
+                const src = gif
+                  ? `sortie-file://${image.file_path}`
+                  : `sortie-thumb://${image.file_path}?w=${THUMB_FETCH_WIDTH}`;
+                return (
+                  <div
+                    key={image.id}
+                    style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
+                    className="group relative flex-shrink-0 rounded-md overflow-hidden bg-gray-100 cursor-pointer"
+                    onClick={() => void handleAdd(image)}
+                    title={`Add ${image.file_name} to board`}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.5}
-                      d="M6 18L18 6M6 6l12 12"
+                    <img
+                      src={src}
+                      alt={image.file_name}
+                      draggable={false}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
                     />
-                  </svg>
-                </button>
-              </div>
-              );
-            })}
+                    {gif && <GifBadge corner="bottom-right" />}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleDismiss(image.id);
+                      }}
+                      className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                      title="Dismiss suggestion"
+                      aria-label="Dismiss suggestion"
+                    >
+                      <svg
+                        className="w-2.5 h-2.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
         </div>
       </div>
     </div>

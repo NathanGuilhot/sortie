@@ -8,57 +8,26 @@ interface MasonryGridProps {
 }
 
 export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
-  const {
-    images,
-    loading,
-    error,
-    fetchImages,
-    searchMore,
-    hasMore,
-    activeSearchQuery,
-    setSelectedImage,
-  } = useImageStore();
+  const { images, loading, error, loadMore, hasMore, setSelectedImage } = useImageStore();
   const loadingMore = useRef(false);
 
-  useEffect(() => {
-    void fetchImages();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const {
-    containerRef,
-    columnWidth,
-    layout,
-    visibleIndices,
-    scrollTop,
-    viewportHeight,
-    padding,
-  } = useMasonryLayout({
-    items: images,
-    scrollContainerRef,
-    resumeOnAppend: true,
-  });
+  const { containerRef, columnWidth, layout, visibleIndices, scrollTop, viewportHeight, padding } =
+    useMasonryLayout({
+      items: images,
+      scrollContainerRef,
+      resumeOnAppend: true,
+    });
 
   useEffect(() => {
     if (!hasMore || loadingMore.current) return;
     const bottomEdge = scrollTop + viewportHeight + DEFAULT_OVERSCAN;
     if (layout.totalHeight > 0 && bottomEdge >= layout.totalHeight) {
       loadingMore.current = true;
-      const loader = activeSearchQuery ? searchMore(50) : fetchImages(100, images.length, true);
-      void loader.finally(() => {
+      void loadMore().finally(() => {
         loadingMore.current = false;
       });
     }
-  }, [
-    scrollTop,
-    viewportHeight,
-    layout.totalHeight,
-    hasMore,
-    images.length,
-    fetchImages,
-    searchMore,
-    activeSearchQuery,
-  ]);
+  }, [scrollTop, viewportHeight, layout.totalHeight, hasMore, loadMore]);
 
   let content: React.ReactNode = null;
   if (loading && images.length === 0) {

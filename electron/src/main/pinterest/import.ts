@@ -150,7 +150,6 @@ export async function importPin(
   } = {};
   if (description) metadata.description = description;
   if (pin.sourceUrl) metadata.website_link = pin.sourceUrl;
-  
 
   if (Object.keys(metadata).length > 0) {
     // Don't swallow failures here — if the patch silently no-ops the user gets

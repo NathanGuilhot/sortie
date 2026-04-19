@@ -60,11 +60,7 @@ function urlEncode(params: Record<string, string>): string {
     .replace(/\+/g, '%20');
 }
 
-function buildGet(
-  endpoint: string,
-  options: Record<string, unknown>,
-  sourceUrl: string,
-): string {
+function buildGet(endpoint: string, options: Record<string, unknown>, sourceUrl: string): string {
   const query = urlEncode({
     source_url: sourceUrl,
     data: JSON.stringify({ options, context: {} }),
@@ -106,10 +102,7 @@ async function callApi<T>(url: string): Promise<PinterestEnvelope<T>> {
   }
   const apiError = json.resource_response?.error;
   if (apiError?.message) {
-    throw new PinterestAPIError(
-      apiError.message,
-      apiError.http_status,
-    );
+    throw new PinterestAPIError(apiError.message, apiError.http_status);
   }
   return json;
 }
@@ -118,8 +111,7 @@ const BOARD_URL_RE =
   /^https?:\/\/(?:[a-z0-9-]+\.)?pinterest\.[a-z.]+\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?(?:[?#].*)?$/i;
 
 const PIN_URL_RE = /^https?:\/\/(?:[a-z0-9-]+\.)?pinterest\.[a-z.]+\/pin\/(\d+)\/?/i;
-const SEARCH_URL_RE =
-  /^https?:\/\/(?:[a-z0-9-]+\.)?pinterest\.[a-z.]+\/search\/pins\/\?q=([^&]+)/i;
+const SEARCH_URL_RE = /^https?:\/\/(?:[a-z0-9-]+\.)?pinterest\.[a-z.]+\/search\/pins\/\?q=([^&]+)/i;
 
 export function parsePinterestInput(input: string): ParsedTarget {
   const trimmed = input.trim();
@@ -186,7 +178,10 @@ export async function searchPins(opts: SearchOptions): Promise<{
   );
   const env = await callApi<{ results?: unknown[] }>(url);
   const data = env.resource_response?.data;
-  const pins = (data && 'results' in (data as object) ? (data as { results?: unknown[] }).results : undefined) ?? [];
+  const pins =
+    (data && 'results' in (data as object)
+      ? (data as { results?: unknown[] }).results
+      : undefined) ?? [];
   const bookmarks = env.resource?.options?.bookmarks ?? [];
   return { pins, bookmarks };
 }
@@ -198,11 +193,7 @@ export interface BoardInfo {
 
 export async function getBoardInfo(username: string, slug: string): Promise<BoardInfo> {
   const sourceUrl = `/${username}/${slug}/`;
-  const url = buildGet(
-    ENDPOINTS.BOARD,
-    { username, slug, field_set_key: 'detailed' },
-    sourceUrl,
-  );
+  const url = buildGet(ENDPOINTS.BOARD, { username, slug, field_set_key: 'detailed' }, sourceUrl);
   const env = await callApi<{ id?: string; pin_count?: number }>(url);
   const data = env.resource_response?.data;
   if (!data || typeof data !== 'object' || !('id' in data) || typeof data.id !== 'string') {
@@ -243,7 +234,7 @@ export async function getBoardFeed(opts: BoardFeedOptions): Promise<{
     boardUrl,
   );
   const env = await callApi<unknown[]>(url);
-  const pins = (env.resource_response?.data) ?? [];
+  const pins = env.resource_response?.data ?? [];
   const bookmarks = env.resource?.options?.bookmarks ?? [];
   return { pins, bookmarks };
 }

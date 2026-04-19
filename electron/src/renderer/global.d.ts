@@ -3,6 +3,7 @@ import {
   Image,
   Board,
   SearchResult,
+  Query,
   Folder,
   FolderWithStats,
   DuplicateGroup,
@@ -42,9 +43,7 @@ type PinterestBulkImportStartResponse =
   | { ok: true; jobId: string }
   | { ok: false; message: string };
 
-type PinterestBulkImportCancelResponse =
-  | { ok: true }
-  | { ok: false; message: string };
+type PinterestBulkImportCancelResponse = { ok: true } | { ok: false; message: string };
 
 export {};
 
@@ -55,27 +54,15 @@ declare global {
       getImages: (limit?: number, offset?: number) => Promise<Image[]>;
       getImage: (id: number) => Promise<Image | null>;
       reshuffleImages: () => Promise<{ success: boolean }>;
-      searchImages: (query: string, limit?: number, offset?: number) => Promise<SearchResult[]>;
-      searchImagesByBytes: (
-        bytes: Uint8Array,
-        limit?: number,
-        offset?: number,
-      ) => Promise<SearchResult[]>;
+      query: (query: Query) => Promise<SearchResult[]>;
       getEmbedderStatus: () => Promise<EmbedderStatus>;
       onEmbedderStatus: (callback: (status: EmbedderStatus) => void) => () => void;
       findSimilarImages: (imageId: number, limit?: number) => Promise<SearchResult[]>;
-      getFavoriteImages: (limit?: number, offset?: number) => Promise<Image[]>;
-      filterImages: (tags: string[], limit?: number, offset?: number) => Promise<Image[]>;
       addFolder: (path: string) => Promise<number>;
       scanFolder: (path: string, opId: string) => Promise<ScanFolderResult>;
       cancelOperation: (opId: string) => Promise<{ cancelled: boolean }>;
       getFolders: () => Promise<Folder[]>;
       getFoldersWithStats: () => Promise<FolderWithStats[]>;
-      filterImagesByFolder: (
-        folderId: number,
-        limit?: number,
-        offset?: number,
-      ) => Promise<Image[]>;
       removeFolder: (path: string) => Promise<{ success: boolean }>;
       getAllTags: () => Promise<
         Array<{
@@ -134,6 +121,12 @@ declare global {
       organizeImages: () => Promise<number[]>;
       // Embedding
       recomputeEmbedding: (imageId: number) => Promise<{ success: boolean }>;
+      // Palette
+      recomputePalette: (imageId: number) => Promise<{ success: boolean }>;
+      computeMissingPalettes: (opId: string) => Promise<{ computed: number; cancelled: boolean }>;
+      onPaletteProgress: (
+        callback: (progress: { current: number; total: number; currentFile: string }) => void,
+      ) => () => void;
       // Watcher control
       watchFolder: (path: string) => Promise<{ watching: boolean }>;
       unwatchFolder: (path: string) => Promise<{ watching: boolean }>;
@@ -166,7 +159,6 @@ declare global {
       setPersonThumbnail: (personId: number, faceId: number) => Promise<{ success: boolean }>;
       processFaces: (opId: string) => Promise<FaceScanResult>;
       resetFaceData: () => Promise<{ success: boolean }>;
-      filterImagesByPerson: (personId: number, limit?: number, offset?: number) => Promise<Image[]>;
       deletePerson: (personId: number) => Promise<{ success: boolean }>;
       onFaceScanProgress: (callback: (progress: FaceScanProgress) => void) => () => void;
       // System
@@ -202,12 +194,8 @@ declare global {
           hideAiGenerated: boolean;
         }) => Promise<PinterestBulkImportStartResponse>;
         cancelBulkImport: (jobId: string) => Promise<PinterestBulkImportCancelResponse>;
-        onBulkImportProgress: (
-          cb: (progress: PinterestBulkImportProgress) => void,
-        ) => () => void;
-        onBulkImportComplete: (
-          cb: (summary: PinterestBulkImportSummary) => void,
-        ) => () => void;
+        onBulkImportProgress: (cb: (progress: PinterestBulkImportProgress) => void) => () => void;
+        onBulkImportComplete: (cb: (summary: PinterestBulkImportSummary) => void) => () => void;
         revealImportFolder: () => Promise<{ success: boolean }>;
         getImportFolder: () => Promise<string>;
       };

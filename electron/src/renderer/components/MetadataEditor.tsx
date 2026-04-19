@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Image, Face } from 'shared';
+import { PaletteRow } from './PaletteRow';
 import { AddToBoardButton } from './AddToBoardButton';
 import { CopyText } from './CopyText';
 import { LinkPreviewCard } from './LinkPreviewCard';
@@ -92,12 +93,10 @@ function CopyImageButton({
 }
 
 export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
-  const { hideImage, deleteImage, updateImageMetadata, addToBoard, setSelectedImage, fetchImages } =
+  const { hideImage, deleteImage, updateImageMetadata, addToBoard, setSelectedImage } =
     useImageStore();
   const fetchBoards = useBoardStore((s) => s.fetchBoards);
-  const canDeleteFile = useFolderStore((s) =>
-    image ? s.isWritable(image.file_path) : false,
-  );
+  const canDeleteFile = useFolderStore((s) => (image ? s.isWritable(image.file_path) : false));
   const [date, setDate] = useState<string>('');
   const [location, setLocation] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
@@ -200,10 +199,8 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
         country: country || undefined,
         website_link: savedWebsiteLink,
       });
-      await fetchImages();
-      const updatedImages = useImageStore.getState().images;
-      const updated = updatedImages.find((img) => img.id === image.id);
-      if (updated) setSelectedImage(updated);
+      const refreshed = useImageStore.getState().selectedImage;
+      if (refreshed) setSelectedImage(refreshed);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (error) {
@@ -395,6 +392,13 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
           {image.file_path}
         </CopyText>
       </div>
+
+      {/* Color palette */}
+      {image.palette && image.palette.length > 0 && (
+        <div className="mb-5">
+          <PaletteRow palette={image.palette} />
+        </div>
+      )}
 
       {/* [C] Editable fields */}
       <div className="space-y-4 mb-6">

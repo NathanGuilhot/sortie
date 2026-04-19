@@ -1,38 +1,35 @@
 import { create } from 'zustand';
-import { Image, SearchResult } from 'shared';
+import { Image, Query, SearchResult } from 'shared';
 
 interface ActiveImageQuery {
   previewUrl: string;
+  bytes: Uint8Array;
 }
 
+const DEFAULT_PAGE = 100;
+
 interface ImageStore {
-  images: Image[];
-  searchResults: SearchResult[];
+  images: SearchResult[];
   loading: boolean;
   error: string | null;
   hasMore: boolean;
-  activeSearchQuery: string | null;
+  lastQuery: Query | null;
   activeImageQuery: ActiveImageQuery | null;
   selectedImage: Image | null;
-  setImages: (images: Image[]) => void;
-  setSearchResults: (results: SearchResult[]) => void;
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
+
   setSelectedImage: (image: Image | null) => void;
-  fetchImages: (limit?: number, offset?: number, append?: boolean) => Promise<void>;
-  searchImages: (query: string, limit?: number) => Promise<void>;
-  searchImagesByBytes: (bytes: Uint8Array, previewUrl: string, limit?: number) => Promise<void>;
+  setImages: (images: SearchResult[]) => void;
+
+  runQuery: (q: Query) => Promise<void>;
+  loadMore: () => Promise<void>;
+  setActiveImageQuery: (entry: ActiveImageQuery | null) => void;
   clearImageQuery: () => void;
-  searchMore: (limit?: number) => Promise<void>;
+
   updateImageTags: (imageId: number, tags: string[]) => Promise<void>;
   addToBoard: (imageId: number, tagId: number) => Promise<void>;
   removeFromBoard: (imageId: number, tagId: number) => Promise<void>;
   fetchBoardImages: (tagId: number, limit?: number, offset?: number) => Promise<void>;
   reorderBoardImages: (tagId: number, orderedImageIds: number[]) => Promise<void>;
-  filterByTags: (tags: string[], limit?: number, offset?: number) => Promise<void>;
-  fetchFavorites: (limit?: number, offset?: number) => Promise<void>;
-  filterByPerson: (personId: number, limit?: number, offset?: number) => Promise<void>;
-  filterByFolder: (folderId: number, limit?: number, offset?: number) => Promise<void>;
   hideImage: (imageId: number) => Promise<void>;
   deleteImage: (imageId: number) => Promise<void>;
   updateImageMetadata: (
@@ -48,110 +45,65 @@ interface ImageStore {
   ) => Promise<void>;
 }
 
-// Revoke the prior image-query preview URL whenever we transition away from
-// image-query mode. Every action that sets `activeImageQuery: null` funnels
-// through this so we never leak object URLs.
 function releasePreviewUrl(current: ActiveImageQuery | null) {
   if (current) URL.revokeObjectURL(current.previewUrl);
 }
 
+// Only pure set-filter queries paginate; scored queries return their full ranked set.
+function isPaginated(q: Query): boolean {
+  const hasText = !!q.text && q.text.trim().length > 0;
+  const hasBytes = !!q.imageBytes && q.imageBytes.byteLength > 0;
+  const hasPalette = !!q.palette && q.palette.length > 0;
+  return !(hasText || hasBytes || hasPalette);
+}
+
 export const useImageStore = create<ImageStore>((set, get) => ({
   images: [],
-  searchResults: [],
   loading: false,
   error: null,
   hasMore: true,
-  activeSearchQuery: null,
+  lastQuery: null,
   activeImageQuery: null,
   selectedImage: null,
-  setImages: (images) => set({ images }),
-  setSearchResults: (results) => set({ searchResults: results }),
-  setLoading: (loading) => set({ loading }),
-  setError: (error) => set({ error }),
+
   setSelectedImage: (image) => set({ selectedImage: image }),
-  fetchImages: async (limit = 100, offset = 0, append = false) => {
+  setImages: (images) => set({ images }),
+
+  runQuery: async (q: Query) => {
+    const limit = q.limit ?? DEFAULT_PAGE;
+    const query: Query = { ...q, limit, offset: 0 };
     set({ loading: true, error: null });
     try {
-      const fetched = await window.sortieAPI.getImages(limit, offset);
-      const hasMore = fetched.length >= limit;
-      if (append) {
-        set((state) => {
-          const existing = new Set(state.images.map((img) => img.id));
-          const deduped = fetched.filter((img) => !existing.has(img.id));
-          return { images: [...state.images, ...deduped], loading: false, hasMore };
-        });
-      } else {
-        releasePreviewUrl(get().activeImageQuery);
-        set({
-          images: fetched,
-          loading: false,
-          hasMore,
-          activeSearchQuery: null,
-          activeImageQuery: null,
-        });
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message, loading: false });
-    }
-  },
-  searchImages: async (query: string, limit = 50) => {
-    set({ loading: true, error: null });
-    try {
-      const results = await window.sortieAPI.searchImages(query, limit, 0);
-      releasePreviewUrl(get().activeImageQuery);
+      const results = await window.sortieAPI.query(query);
       set({
-        searchResults: results,
         images: results,
-        hasMore: results.length >= limit,
-        activeSearchQuery: query,
-        activeImageQuery: null,
         loading: false,
+        hasMore: isPaginated(query) && results.length >= limit,
+        lastQuery: query,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       set({ error: message, loading: false });
     }
   },
-  searchImagesByBytes: async (bytes: Uint8Array, previewUrl: string, limit = 100) => {
+
+  loadMore: async () => {
+    const { lastQuery, images, loading, hasMore } = get();
+    if (!lastQuery || !hasMore || loading) return;
+    if (!isPaginated(lastQuery)) return;
+    const limit = lastQuery.limit ?? DEFAULT_PAGE;
     set({ loading: true, error: null });
     try {
-      const results = await window.sortieAPI.searchImagesByBytes(bytes, limit, 0);
-      // Only revoke the prior preview after the IPC succeeds — if it throws,
-      // the user's chip should stay on screen with the old preview.
-      releasePreviewUrl(get().activeImageQuery);
-      set({
-        searchResults: results,
-        images: results,
-        hasMore: false, // v1: no pagination for image queries
-        activeSearchQuery: null,
-        activeImageQuery: { previewUrl },
-        loading: false,
+      const more = await window.sortieAPI.query({
+        ...lastQuery,
+        limit,
+        offset: images.length,
       });
-    } catch (error: unknown) {
-      URL.revokeObjectURL(previewUrl);
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message, loading: false });
-    }
-  },
-  clearImageQuery: () => {
-    releasePreviewUrl(get().activeImageQuery);
-    set({ activeImageQuery: null });
-  },
-  searchMore: async (limit = 50) => {
-    const { activeSearchQuery, activeImageQuery, images, loading } = get();
-    // Image queries are single-shot in v1 — don't attempt to paginate.
-    if (activeImageQuery) return;
-    if (!activeSearchQuery || loading) return;
-    set({ loading: true, error: null });
-    try {
-      const more = await window.sortieAPI.searchImages(activeSearchQuery, limit, images.length);
       set((state) => {
         const existing = new Set(state.images.map((img) => img.id));
         const deduped = more.filter((img) => !existing.has(img.id));
         return {
           images: [...state.images, ...deduped],
-          searchResults: [...state.searchResults, ...deduped],
           hasMore: more.length >= limit,
           loading: false,
         };
@@ -161,37 +113,24 @@ export const useImageStore = create<ImageStore>((set, get) => ({
       set({ error: message, loading: false });
     }
   },
-  filterByTags: async (tags: string[], limit = 100, offset = 0) => {
-    if (tags.length === 0) {
-      await get().fetchImages(limit, offset);
-      return;
-    }
-    set({ loading: true, error: null });
-    try {
-      const images = await window.sortieAPI.filterImages(tags, limit, offset);
-      releasePreviewUrl(get().activeImageQuery);
-      set({
-        images,
-        loading: false,
-        hasMore: images.length >= limit,
-        activeSearchQuery: null,
-        activeImageQuery: null,
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message, loading: false });
-    }
+
+  setActiveImageQuery: (entry) => {
+    releasePreviewUrl(get().activeImageQuery);
+    set({ activeImageQuery: entry });
   },
+
+  clearImageQuery: () => {
+    releasePreviewUrl(get().activeImageQuery);
+    set({ activeImageQuery: null });
+  },
+
   updateImageTags: async (imageId: number, tags: string[]) => {
     try {
       await window.sortieAPI.updateImageTags(imageId, tags);
-      // Patch the edited image in place so the grid doesn't refetch the whole
-      // list (which would discard scroll position and — now that the default
-      // order is randomized per session — show a jarring re-shuffle).
       const updated = await window.sortieAPI.getImage(imageId);
       if (!updated) return;
       set((state) => ({
-        images: state.images.map((img) => (img.id === imageId ? updated : img)),
+        images: state.images.map((img) => (img.id === imageId ? { ...img, ...updated } : img)),
         selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
       }));
     } catch (error: unknown) {
@@ -205,7 +144,7 @@ export const useImageStore = create<ImageStore>((set, get) => ({
       const updated = await window.sortieAPI.getImage(imageId);
       if (!updated) return;
       set((state) => ({
-        images: state.images.map((img) => (img.id === imageId ? updated : img)),
+        images: state.images.map((img) => (img.id === imageId ? { ...img, ...updated } : img)),
         selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
       }));
     } catch (error: unknown) {
@@ -219,7 +158,7 @@ export const useImageStore = create<ImageStore>((set, get) => ({
       const updated = await window.sortieAPI.getImage(imageId);
       if (!updated) return;
       set((state) => ({
-        images: state.images.map((img) => (img.id === imageId ? updated : img)),
+        images: state.images.map((img) => (img.id === imageId ? { ...img, ...updated } : img)),
         selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
       }));
     } catch (error: unknown) {
@@ -236,7 +175,7 @@ export const useImageStore = create<ImageStore>((set, get) => ({
         images,
         loading: false,
         hasMore: images.length >= limit,
-        activeSearchQuery: null,
+        lastQuery: null,
         activeImageQuery: null,
       });
     } catch (error: unknown) {
@@ -256,57 +195,6 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       set({ images: previous, error: message });
-    }
-  },
-  fetchFavorites: async (limit = 100, offset = 0) => {
-    set({ loading: true, error: null });
-    try {
-      const fetched = await window.sortieAPI.getFavoriteImages(limit, offset);
-      releasePreviewUrl(get().activeImageQuery);
-      set({
-        images: fetched,
-        loading: false,
-        hasMore: fetched.length >= limit,
-        activeSearchQuery: null,
-        activeImageQuery: null,
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message, loading: false });
-    }
-  },
-  filterByPerson: async (personId: number, limit = 100, offset = 0) => {
-    set({ loading: true, error: null });
-    try {
-      const images = await window.sortieAPI.filterImagesByPerson(personId, limit, offset);
-      releasePreviewUrl(get().activeImageQuery);
-      set({
-        images,
-        loading: false,
-        hasMore: images.length >= limit,
-        activeSearchQuery: null,
-        activeImageQuery: null,
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message, loading: false });
-    }
-  },
-  filterByFolder: async (folderId: number, limit = 100, offset = 0) => {
-    set({ loading: true, error: null });
-    try {
-      const images = await window.sortieAPI.filterImagesByFolder(folderId, limit, offset);
-      releasePreviewUrl(get().activeImageQuery);
-      set({
-        images,
-        loading: false,
-        hasMore: images.length >= limit,
-        activeSearchQuery: null,
-        activeImageQuery: null,
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message, loading: false });
     }
   },
   hideImage: async (imageId: number) => {
@@ -333,23 +221,13 @@ export const useImageStore = create<ImageStore>((set, get) => ({
       set({ error: message });
     }
   },
-  updateImageMetadata: async (
-    imageId: number,
-    metadata: {
-      description?: string;
-      favorite?: boolean;
-      captured_at?: string | null;
-      city?: string | null;
-      country?: string | null;
-      website_link?: string | null;
-    },
-  ) => {
+  updateImageMetadata: async (imageId, metadata) => {
     try {
       await window.sortieAPI.updateImageMetadata(imageId, metadata);
       const updated = await window.sortieAPI.getImage(imageId);
       if (!updated) return;
       set((state) => ({
-        images: state.images.map((img) => (img.id === imageId ? updated : img)),
+        images: state.images.map((img) => (img.id === imageId ? { ...img, ...updated } : img)),
         selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
       }));
     } catch (error: unknown) {

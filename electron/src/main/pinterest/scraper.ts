@@ -18,7 +18,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function dedupeByPinId(existing: PinterestResult[], incoming: PinterestResult[]): PinterestResult[] {
+function dedupeByPinId(
+  existing: PinterestResult[],
+  incoming: PinterestResult[],
+): PinterestResult[] {
   if (existing.length === 0) return incoming;
   const seen = new Set(existing.map((r) => r.pinId));
   const merged = existing.slice();

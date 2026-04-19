@@ -425,7 +425,10 @@ export function ImportScreen() {
                         ? `${boardPinCount} pin${boardPinCount !== 1 ? 's' : ''}`
                         : `${visibleResults.length} loaded`}
                       {hiddenAiCount > 0 && (
-                        <span className="text-gray-400"> · {hiddenAiCount} AI-generated hidden</span>
+                        <span className="text-gray-400">
+                          {' '}
+                          · {hiddenAiCount} AI-generated hidden
+                        </span>
                       )}
                     </div>
                   </div>

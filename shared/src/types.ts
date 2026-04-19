@@ -28,6 +28,14 @@ export interface Image {
   dhash?: string | null;
   website_link?: string | null;
   tags?: Tag[];
+  palette?: PaletteColor[] | null;
+}
+
+export interface PaletteColor {
+  hex: string;
+  rgb: [number, number, number];
+  lab: [number, number, number];
+  weight: number;
 }
 
 export interface LinkPreview {
@@ -131,6 +139,25 @@ export type SearchResult = Image & {
   distance?: number;
   tags?: Tag[];
 };
+
+// Unified filter/search request. Every dimension is optional; active ones
+// are AND-composed. Only one of `text` / `imageBytes` may be set — they
+// both drive CLIP embedding search and conflict. When any scored dimension
+// (text / imageBytes / palette) is present, results are ranked by distance;
+// otherwise they're returned in the current shuffled order.
+export interface Query {
+  text?: string;
+  imageBytes?: Uint8Array;
+  personId?: number;
+  folderId?: number;
+  tags?: string[];
+  palette?: string[];
+  favorites?: boolean;
+  includeHidden?: boolean;
+  dateRange?: { start: string | null; end: string | null };
+  limit?: number;
+  offset?: number;
+}
 
 export interface Person {
   id: number;

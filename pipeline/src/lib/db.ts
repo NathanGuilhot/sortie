@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { Image, Face, Person, FACE_EMBEDDING_DIM, normalizeVector } from 'shared';
+import { Image, Face, Person, PaletteColor, FACE_EMBEDDING_DIM, normalizeVector } from 'shared';
 
 interface EmbeddingDbRow {
   rowid: number;
@@ -441,6 +441,61 @@ export class DatabaseManager {
       }
       this.db.pragma('user_version = 10');
     }
+
+    if (version < 11) {
+      const imageCols = this.db.prepare('PRAGMA table_info(images)').all() as Array<{
+        name: string;
+      }>;
+      const imageColNames = new Set(imageCols.map((c) => c.name));
+      if (!imageColNames.has('palette_json')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN palette_json TEXT');
+      }
+
+      // Regular table holds per-color metadata (image_id, slot, weight) and
+      // owns the autoincrement id used as the vec_palette rowid. Mirrors the
+      // faces + vec_faces split.
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS palette_colors (
+          id INTEGER PRIMARY KEY,
+          image_id INTEGER NOT NULL,
+          color_idx INTEGER NOT NULL,
+          weight REAL NOT NULL,
+          FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+        )
+      `);
+      this.db.exec(
+        'CREATE INDEX IF NOT EXISTS idx_palette_colors_image ON palette_colors(image_id)',
+      );
+
+      if (this.vecLoaded) {
+        // Default L2 on Lab approximates Delta E 76; lightness magnitude matters here.
+        this.db.exec(`
+          CREATE VIRTUAL TABLE IF NOT EXISTS vec_palette USING vec0(
+            lab float[3]
+          )
+        `);
+      }
+
+      this.db.pragma('user_version = 11');
+    }
+
+    if (version < 12) {
+      // Palette space switched from CIELAB to OKLab. Stored vectors and query
+      // vectors must share a space or nearest-neighbor search is garbage, so
+      // wipe existing palette data — `getImagesMissingPalette` will surface
+      // these for recomputation.
+      if (this.vecLoaded) {
+        try {
+          this.db.exec('DELETE FROM vec_palette');
+        } catch {
+          // table may not exist yet in older installs
+        }
+      }
+      this.db.exec('DELETE FROM palette_colors');
+      this.db.exec('UPDATE images SET palette_json = NULL');
+
+      this.db.pragma('user_version = 12');
+    }
   }
 
   insertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): number {
@@ -480,10 +535,133 @@ export class DatabaseManager {
   }
 
   insertEmbedding(rowid: number, embedding: number[]) {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO vec_images (rowid, embedding) VALUES (?, ?)
+    // vec0 tables don't support REPLACE; delete then insert.
+    this.db.prepare('DELETE FROM vec_images WHERE rowid = ?').run(BigInt(rowid));
+    this.db
+      .prepare('INSERT INTO vec_images (rowid, embedding) VALUES (?, ?)')
+      .run(BigInt(rowid), new Float32Array(embedding));
+  }
+
+  insertPalette(imageId: number, palette: PaletteColor[]): void {
+    const txn = this.db.transaction((pal: PaletteColor[]) => {
+      // Clear any previous palette for this image.
+      const oldIds = this.db
+        .prepare('SELECT id FROM palette_colors WHERE image_id = ?')
+        .all(imageId) as Array<{ id: number }>;
+      if (this.vecLoaded) {
+        const delVec = this.db.prepare('DELETE FROM vec_palette WHERE rowid = ?');
+        for (const { id } of oldIds) {
+          delVec.run(BigInt(id));
+        }
+      }
+      this.db.prepare('DELETE FROM palette_colors WHERE image_id = ?').run(imageId);
+
+      const insertMeta = this.db.prepare(
+        'INSERT INTO palette_colors (image_id, color_idx, weight) VALUES (?, ?, ?)',
+      );
+      const insertVec = this.vecLoaded
+        ? this.db.prepare('INSERT INTO vec_palette (rowid, lab) VALUES (?, ?)')
+        : null;
+
+      for (let i = 0; i < pal.length; i++) {
+        const color = pal[i];
+        const result = insertMeta.run(imageId, i, color.weight);
+        const rowid = result.lastInsertRowid as number;
+        if (insertVec) {
+          insertVec.run(BigInt(rowid), new Float32Array(color.lab));
+        }
+      }
+
+      this.db
+        .prepare('UPDATE images SET palette_json = ? WHERE id = ?')
+        .run(JSON.stringify(pal), imageId);
+    });
+    txn(palette);
+  }
+
+  getPalette(imageId: number): PaletteColor[] | null {
+    const row = this.db.prepare('SELECT palette_json FROM images WHERE id = ?').get(imageId) as
+      | { palette_json: string | null }
+      | undefined;
+    if (!row?.palette_json) return null;
+    try {
+      return JSON.parse(row.palette_json) as PaletteColor[];
+    } catch {
+      return null;
+    }
+  }
+
+  getImagesMissingPalette(): Array<{ id: number; file_path: string }> {
+    return this.db
+      .prepare(
+        `SELECT id, file_path FROM images
+         WHERE palette_json IS NULL AND hidden = 0 AND missing = 0`,
+      )
+      .all() as Array<{ id: number; file_path: string }>;
+  }
+
+  /**
+   * Given a set of query colors in Lab space, return the N nearest images.
+   * For each image, we take the minimum distance to any of its palette
+   * colors per query, then aggregate per image by summing those minima
+   * (so "red + blue" favors images that contain both red AND blue).
+   */
+  findImagesByColors(
+    queryLabs: Array<[number, number, number]>,
+    limit: number,
+  ): Array<{ imageId: number; score: number }> {
+    if (!this.vecLoaded || queryLabs.length === 0) return [];
+
+    // Oversample per query to give the aggregator enough candidates.
+    const perQueryK = Math.max(200, limit * 10);
+
+    const perImageMin = new Map<number, number[]>();
+    const queryDist = this.db.prepare(`
+      SELECT v.rowid, v.distance, pc.image_id
+      FROM vec_palette v
+      JOIN palette_colors pc ON pc.id = v.rowid
+      JOIN images i ON i.id = pc.image_id
+      WHERE v.lab MATCH ? AND k = ? AND i.hidden = 0 AND i.missing = 0
+      ORDER BY v.distance
     `);
-    stmt.run(BigInt(rowid), new Float32Array(embedding));
+
+    for (let qi = 0; qi < queryLabs.length; qi++) {
+      const rows = queryDist.all(new Float32Array(queryLabs[qi]), perQueryK) as Array<{
+        rowid: number;
+        distance: number;
+        image_id: number;
+      }>;
+
+      const seen = new Set<number>();
+      for (const r of rows) {
+        if (seen.has(r.image_id)) continue;
+        seen.add(r.image_id);
+        let arr = perImageMin.get(r.image_id);
+        if (!arr) {
+          arr = new Array(queryLabs.length).fill(Infinity);
+          perImageMin.set(r.image_id, arr);
+        }
+        arr[qi] = r.distance;
+      }
+    }
+
+    const aggregated: Array<{ imageId: number; score: number }> = [];
+    for (const [imageId, dists] of perImageMin) {
+      // Only keep images that matched every requested color (otherwise
+      // searching for red + blue returns images with only red).
+      let score = 0;
+      let complete = true;
+      for (const d of dists) {
+        if (!Number.isFinite(d)) {
+          complete = false;
+          break;
+        }
+        score += d;
+      }
+      if (complete) aggregated.push({ imageId, score });
+    }
+    aggregated.sort((a, b) => a.score - b.score);
+    return aggregated.slice(0, limit);
   }
 
   close() {

@@ -7,6 +7,7 @@ import type {
   PinterestImportResult,
   PinterestBulkImportProgress,
   PinterestBulkImportSummary,
+  Query,
 } from 'shared';
 
 type PinterestTarget =
@@ -29,9 +30,7 @@ type PinterestBulkImportStartResponse =
   | { ok: true; jobId: string }
   | { ok: false; message: string };
 
-type PinterestBulkImportCancelResponse =
-  | { ok: true }
-  | { ok: false; message: string };
+type PinterestBulkImportCancelResponse = { ok: true } | { ok: false; message: string };
 
 contextBridge.exposeInMainWorld('sortieAPI', {
   // Image operations
@@ -42,11 +41,7 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   reshuffleImages: () => ipcRenderer.invoke('reshuffle-images'),
 
-  searchImages: (query: string, limit?: number, offset?: number) =>
-    ipcRenderer.invoke('search-images', { query, limit, offset }),
-
-  searchImagesByBytes: (bytes: Uint8Array, limit?: number, offset?: number) =>
-    ipcRenderer.invoke('search-images-by-bytes', { bytes, limit, offset }),
+  query: (query: Query) => ipcRenderer.invoke('query-images', query),
 
   getEmbedderStatus: (): Promise<EmbedderStatus> => ipcRenderer.invoke('get-embedder-status'),
 
@@ -61,12 +56,6 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   findSimilarImages: (imageId: number, limit?: number) =>
     ipcRenderer.invoke('find-similar-images', { imageId, limit }),
 
-  getFavoriteImages: (limit?: number, offset?: number) =>
-    ipcRenderer.invoke('get-favorite-images', { limit, offset }),
-
-  filterImages: (tags: string[], limit?: number, offset?: number) =>
-    ipcRenderer.invoke('filter-images', { tags, limit, offset }),
-
   addFolder: (path: string) => ipcRenderer.invoke('add-folder', { path }),
 
   scanFolder: (path: string, opId: string) => ipcRenderer.invoke('scan-folder', { path, opId }),
@@ -76,9 +65,6 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   getFolders: () => ipcRenderer.invoke('get-folders'),
 
   getFoldersWithStats: () => ipcRenderer.invoke('get-folders-with-stats'),
-
-  filterImagesByFolder: (folderId: number, limit?: number, offset?: number) =>
-    ipcRenderer.invoke('filter-images-by-folder', { folderId, limit, offset }),
 
   removeFolder: (path: string) => ipcRenderer.invoke('remove-folder', { path }),
 
@@ -137,6 +123,23 @@ contextBridge.exposeInMainWorld('sortieAPI', {
     ipcRenderer.invoke('set-folder-face-scan-exclusion', { path, excluded }),
 
   recomputeEmbedding: (imageId: number) => ipcRenderer.invoke('recompute-embedding', { imageId }),
+
+  // Palette
+  recomputePalette: (imageId: number) => ipcRenderer.invoke('recompute-palette', { imageId }),
+  computeMissingPalettes: (opId: string) =>
+    ipcRenderer.invoke('compute-missing-palettes', { opId }),
+  onPaletteProgress: (
+    callback: (progress: { current: number; total: number; currentFile: string }) => void,
+  ) => {
+    const handler = (
+      _event: unknown,
+      progress: { current: number; total: number; currentFile: string },
+    ) => callback(progress);
+    ipcRenderer.on('palette-progress', handler);
+    return () => {
+      ipcRenderer.removeListener('palette-progress', handler);
+    };
+  },
 
   // Cleanup / Duplicate detection
   computeMissingHashes: (opId: string) => ipcRenderer.invoke('compute-missing-hashes', { opId }),
@@ -201,9 +204,6 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   processFaces: (opId: string) => ipcRenderer.invoke('process-faces', { opId }),
   resetFaceData: () => ipcRenderer.invoke('reset-face-data'),
-
-  filterImagesByPerson: (personId: number, limit?: number, offset?: number) =>
-    ipcRenderer.invoke('filter-images-by-person', { personId, limit, offset }),
 
   deletePerson: (personId: number) => ipcRenderer.invoke('delete-person', { personId }),
 

@@ -1,4 +1,8 @@
-import type { PinterestBulkImportProgress, PinterestBulkImportSummary, PinterestResult } from 'shared';
+import type {
+  PinterestBulkImportProgress,
+  PinterestBulkImportSummary,
+  PinterestResult,
+} from 'shared';
 import type { DatabaseService } from '../database';
 import { getBoardFeed, getBoardInfo, isEndBookmark, PinterestAPIError } from './api';
 import { parsePins } from './parser';

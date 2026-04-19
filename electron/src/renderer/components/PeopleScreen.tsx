@@ -210,7 +210,7 @@ function PersonDetail({
             onClick={onStartMerge}
             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
           >
-            Merge
+            Merge into
           </button>
           {confirmDelete ? (
             <button

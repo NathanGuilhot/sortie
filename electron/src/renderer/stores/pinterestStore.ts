@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { PinterestBulkImportProgress, PinterestBulkImportSummary, PinterestResult } from 'shared';
+import type {
+  PinterestBulkImportProgress,
+  PinterestBulkImportSummary,
+  PinterestResult,
+} from 'shared';
 
 type PinterestTarget =
   | { kind: 'search'; query: string }

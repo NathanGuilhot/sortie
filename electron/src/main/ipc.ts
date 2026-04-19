@@ -14,7 +14,7 @@ import {
 import { getImportFolder, importPin } from './pinterest/import';
 import { bulkImportBoard } from './pinterest/bulkImport';
 import { randomUUID } from 'crypto';
-import type { PinterestResult } from 'shared';
+import type { PinterestResult, Query } from 'shared';
 
 export function setupIpcHandlers(
   dbService: DatabaseService,
@@ -47,29 +47,17 @@ export function setupIpcHandlers(
     return { success: true };
   });
 
-  ipcMain.handle(
-    'search-images',
-    async (
-      _event,
-      { query, limit, offset }: { query: string; limit?: number; offset?: number },
-    ) => {
-      return await dbService.searchImages(query, limit, offset);
-    },
-  );
-
-  ipcMain.handle(
-    'search-images-by-bytes',
-    async (
-      _event,
-      { bytes, limit, offset }: { bytes: Uint8Array; limit?: number; offset?: number },
-    ) => {
+  ipcMain.handle('query-images', async (_event, query: Query) => {
+    if (query.imageBytes) {
       const MAX_QUERY_BYTES = 25 * 1024 * 1024;
-      if (bytes.byteLength > MAX_QUERY_BYTES) {
-        throw new Error(`Image too large (${bytes.byteLength} bytes, max ${MAX_QUERY_BYTES})`);
+      if (query.imageBytes.byteLength > MAX_QUERY_BYTES) {
+        throw new Error(
+          `Image too large (${query.imageBytes.byteLength} bytes, max ${MAX_QUERY_BYTES})`,
+        );
       }
-      return await dbService.searchImagesByBytes(Buffer.from(bytes), limit, offset);
-    },
-  );
+    }
+    return await dbService.queryImages(query);
+  });
 
   ipcMain.handle('get-embedder-status', () => dbService.getEmbedderStatus());
 
@@ -77,23 +65,6 @@ export function setupIpcHandlers(
     'find-similar-images',
     async (_event, { imageId, limit }: { imageId: number; limit?: number }) => {
       return await dbService.findSimilarImages(imageId, limit);
-    },
-  );
-
-  ipcMain.handle(
-    'get-favorite-images',
-    async (_event, { limit, offset }: { limit?: number; offset?: number } = {}) => {
-      return await dbService.getFavoriteImages(limit, offset);
-    },
-  );
-
-  ipcMain.handle(
-    'filter-images',
-    async (
-      _event,
-      { tags, limit, offset }: { tags: string[]; limit?: number; offset?: number },
-    ) => {
-      return await dbService.getImagesByTags(tags, limit, offset);
     },
   );
 
@@ -134,16 +105,6 @@ export function setupIpcHandlers(
   ipcMain.handle('get-folders-with-stats', async () => {
     return await dbService.getFoldersWithStats();
   });
-
-  ipcMain.handle(
-    'filter-images-by-folder',
-    async (
-      _event,
-      { folderId, limit, offset }: { folderId: number; limit?: number; offset?: number },
-    ) => {
-      return await dbService.getImagesByFolder(folderId, limit, offset);
-    },
-  );
 
   ipcMain.handle('remove-folder', async (_event, { path }: { path: string }) => {
     watcherService.stopWatching(path);
@@ -351,6 +312,24 @@ export function setupIpcHandlers(
     return { success: true };
   });
 
+  ipcMain.handle('recompute-palette', async (_event, { imageId }: { imageId: number }) => {
+    await dbService.recomputePalette(imageId);
+    return { success: true };
+  });
+
+  ipcMain.handle('compute-missing-palettes', async (event, { opId }: { opId: string }) => {
+    const webContents = event.sender;
+    const signal = registerOperation(opId);
+    try {
+      return await dbService.computeMissingPalettes(
+        (progress) => webContents.send('palette-progress', progress),
+        signal,
+      );
+    } finally {
+      clearOperation(opId);
+    }
+  });
+
   ipcMain.handle('get-database-path', async () => {
     return dbPath;
   });
@@ -472,16 +451,6 @@ export function setupIpcHandlers(
     }
   });
 
-  ipcMain.handle(
-    'filter-images-by-person',
-    async (
-      _event,
-      { personId, limit, offset }: { personId: number; limit?: number; offset?: number },
-    ) => {
-      return await dbService.filterImagesByPerson(personId, limit, offset);
-    },
-  );
-
   ipcMain.handle('delete-person', async (_event, { personId }: { personId: number }) => {
     await dbService.deletePerson(personId);
     return { success: true };
@@ -551,18 +520,15 @@ export function setupIpcHandlers(
     },
   );
 
-  ipcMain.handle(
-    'pinterest:import-pin',
-    async (_event, { pin }: { pin: PinterestResult }) => {
-      try {
-        const result = await importPin(pin, { dbService });
-        return { ok: true as const, result };
-      } catch (err) {
-        const error = asPinterestError(err);
-        return { ok: false as const, message: error.message };
-      }
-    },
-  );
+  ipcMain.handle('pinterest:import-pin', async (_event, { pin }: { pin: PinterestResult }) => {
+    try {
+      const result = await importPin(pin, { dbService });
+      return { ok: true as const, result };
+    } catch (err) {
+      const error = asPinterestError(err);
+      return { ok: false as const, message: error.message };
+    }
+  });
 
   // Tracks in-flight bulk-import jobs so the renderer can cancel them.
   // Cleared on completion. Jobs don't survive app restart.

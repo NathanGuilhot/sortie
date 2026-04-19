@@ -1,6 +1,5 @@
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { useImageStore } from '../stores/imageStore';
-import { useUIStore } from '../stores/uiStore';
 import { toast } from '../stores/toastStore';
 
 interface RefreshControlProps {
@@ -25,37 +24,27 @@ const REST_DELAY_MS = 320;
 const INDICATOR_SHOW_AT = 16;
 
 export function RefreshControl({ scrollContainerRef }: RefreshControlProps) {
-  const activeSearchQuery = useImageStore((s) => s.activeSearchQuery);
-  const fetchImages = useImageStore((s) => s.fetchImages);
-  const fetchFavorites = useImageStore((s) => s.fetchFavorites);
-  const filterByTags = useImageStore((s) => s.filterByTags);
-  const filterByPerson = useImageStore((s) => s.filterByPerson);
-  const showFavoritesOnly = useUIStore((s) => s.showFavoritesOnly);
-  const tagFilters = useUIStore((s) => s.tagFilters);
-  const personFilter = useUIStore((s) => s.personFilter);
+  const lastQuery = useImageStore((s) => s.lastQuery);
+  const runQuery = useImageStore((s) => s.runQuery);
 
   const [refreshing, setRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const pullDistanceRef = useRef(0);
 
-  // Semantic search has its own relevance-based order — the reshuffle control
-  // is meaningless there.
-  const disabled = !!activeSearchQuery;
+  // Scored queries own their own order; disable reshuffle in that case.
+  const hasScoredDimension =
+    !!lastQuery &&
+    ((!!lastQuery.text && lastQuery.text.length > 0) ||
+      !!lastQuery.imageBytes ||
+      (!!lastQuery.palette && lastQuery.palette.length > 0));
+  const disabled = hasScoredDimension;
 
   const triggerRefresh = useCallback(async () => {
     if (disabled || refreshing) return;
     setRefreshing(true);
     try {
       await window.sortieAPI.reshuffleImages();
-      if (personFilter !== null) {
-        await filterByPerson(personFilter);
-      } else if (showFavoritesOnly) {
-        await fetchFavorites();
-      } else if (tagFilters.length > 0) {
-        await filterByTags(tagFilters);
-      } else {
-        await fetchImages();
-      }
+      await runQuery(lastQuery ?? {});
       scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -63,18 +52,7 @@ export function RefreshControl({ scrollContainerRef }: RefreshControlProps) {
     } finally {
       setRefreshing(false);
     }
-  }, [
-    disabled,
-    refreshing,
-    personFilter,
-    showFavoritesOnly,
-    tagFilters,
-    filterByPerson,
-    fetchFavorites,
-    filterByTags,
-    fetchImages,
-    scrollContainerRef,
-  ]);
+  }, [disabled, refreshing, lastQuery, runQuery, scrollContainerRef]);
 
   // Pull-to-refresh via wheel overscroll while the container is already at
   // the top. A pull only engages if the user was *at rest* at the top before

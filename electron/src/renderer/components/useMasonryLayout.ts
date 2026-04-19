@@ -114,8 +114,7 @@ export function useMasonryLayout<T extends MasonryItem>({
     return next;
   }, [items, containerWidth, columns, gap, padding, resumeOnAppend]);
 
-  const columnWidth =
-    containerWidth > 0 ? (containerWidth - (columns - 1) * gap) / columns : 0;
+  const columnWidth = containerWidth > 0 ? (containerWidth - (columns - 1) * gap) / columns : 0;
 
   const visibleIndices = useMemo(() => {
     const top = scrollTop - overscan;

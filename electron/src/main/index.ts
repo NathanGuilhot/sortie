@@ -118,6 +118,20 @@ async function initializeServices() {
   }
 
   availabilityMonitor.start();
+
+  // Background palette backfill for libraries that predate this feature.
+  // Runs silently; new images get palettes during addImage.
+  const service = dbService;
+  void (async () => {
+    try {
+      const result = await service.computeMissingPalettes();
+      if (result.computed > 0) {
+        console.log(`[palette] backfilled ${result.computed} images`);
+      }
+    } catch (err) {
+      console.warn('[palette] backfill failed:', err);
+    }
+  })();
 }
 
 void app.whenReady().then(async () => {

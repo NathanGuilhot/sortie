@@ -9,6 +9,7 @@ export { Organizer, Collection } from './lib/organizer';
 export { computeFileHash } from './lib/dhash';
 export { FaceDetector, DetectedFace } from './lib/face';
 export { FaceMatcher, MatchResult } from './lib/face-matcher';
+export { extractPalette, hexToOklab, hexToRgb, rgbToHex, PALETTE_SIZE } from './lib/palette';
 
 export async function initializePipeline() {
   const dbPath = process.env.DATABASE_PATH || './sortie.db';

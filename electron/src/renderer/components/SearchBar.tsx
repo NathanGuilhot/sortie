@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useEffect, useRef, RefObject } from 'react';
-import { Person, FolderWithStats } from 'shared';
+import React, { useState, useCallback, useEffect, useMemo, useRef, RefObject } from 'react';
+import { Person, FolderWithStats, Query } from 'shared';
 import { useUIStore } from '../stores/uiStore';
 import { useImageStore } from '../stores/imageStore';
 import { useEmbedderStore } from '../stores/embedderStore';
 import { toast } from '../stores/toastStore';
 import { TagInput } from './TagInput';
+import { PaletteSearchPicker } from './PaletteSearchPicker';
 import { buildFaceThumbUrl } from './faceThumb';
 
 interface SearchBarProps {
@@ -90,19 +91,11 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     setPersonFilter,
     folderFilter,
     setFolderFilter,
+    paletteFilters,
+    setPaletteFilters,
     clearFilters,
   } = useUIStore();
-  const {
-    searchImages,
-    searchImagesByBytes,
-    clearImageQuery,
-    fetchImages,
-    filterByTags,
-    filterByPerson,
-    filterByFolder,
-    fetchFavorites,
-    loading,
-  } = useImageStore();
+  const { runQuery, setActiveImageQuery, clearImageQuery, loading } = useImageStore();
   const activeImageQuery = useImageStore((s) => s.activeImageQuery);
   const embedderStatus = useEmbedderStore((s) => s.status);
 
@@ -140,33 +133,6 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
       });
   }, []);
 
-  // React to person filter changes
-  useEffect(() => {
-    if (folderFilter !== null) return;
-    if (personFilter !== null) {
-      void filterByPerson(personFilter);
-    } else if (tagFilters.length > 0) {
-      void filterByTags(tagFilters);
-    } else if (!showFavoritesOnly && !localQuery.trim()) {
-      void fetchImages();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personFilter]);
-
-  // React to folder filter changes
-  useEffect(() => {
-    if (folderFilter !== null) {
-      void filterByFolder(folderFilter);
-    } else if (personFilter !== null) {
-      void filterByPerson(personFilter);
-    } else if (tagFilters.length > 0) {
-      void filterByTags(tagFilters);
-    } else if (!showFavoritesOnly && !localQuery.trim()) {
-      void fetchImages();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folderFilter]);
-
   const hasActiveFilters =
     tagFilters.length > 0 ||
     dateRange.start !== null ||
@@ -174,7 +140,8 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     showHidden ||
     showFavoritesOnly ||
     personFilter !== null ||
-    folderFilter !== null;
+    folderFilter !== null ||
+    paletteFilters.length > 0;
 
   // Debounce search query to store
   useEffect(() => {
@@ -186,30 +153,45 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     return () => clearTimeout(timer);
   }, [localQuery, setSearchQuery, searchQuery]);
 
-  // React to tag filter changes
-  useEffect(() => {
-    if (folderFilter !== null) return; // folder filter takes precedence
-    if (showFavoritesOnly) return; // favorites filter takes precedence
-    if (tagFilters.length > 0) {
-      void filterByTags(tagFilters);
-    } else if (!localQuery.trim()) {
-      void fetchImages();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tagFilters]);
+  // AND-compose every active filter into one Query.
+  const paletteKey = paletteFilters.join('|');
+  const tagKey = tagFilters.join('|');
+  const dateStart = dateRange.start ? dateRange.start.toISOString() : null;
+  const dateEnd = dateRange.end ? dateRange.end.toISOString() : null;
+  const imageBytes = activeImageQuery?.bytes ?? null;
 
-  // React to favorites filter changes
-  useEffect(() => {
-    if (folderFilter !== null) return; // folder filter takes precedence
-    if (showFavoritesOnly) {
-      void fetchFavorites();
-    } else if (tagFilters.length > 0) {
-      void filterByTags(tagFilters);
-    } else if (!localQuery.trim()) {
-      void fetchImages();
-    }
+  const builtQuery = useMemo<Query>(() => {
+    const q: Query = {};
+    const text = searchQuery.trim();
+    if (imageBytes) q.imageBytes = imageBytes;
+    else if (text) q.text = text;
+    if (personFilter !== null) q.personId = personFilter;
+    if (folderFilter !== null) q.folderId = folderFilter;
+    if (tagFilters.length > 0) q.tags = tagFilters;
+    if (paletteFilters.length > 0) q.palette = paletteFilters;
+    if (showFavoritesOnly) q.favorites = true;
+    if (showHidden) q.includeHidden = true;
+    if (dateStart || dateEnd) q.dateRange = { start: dateStart, end: dateEnd };
+    return q;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showFavoritesOnly]);
+  }, [
+    searchQuery,
+    imageBytes,
+    personFilter,
+    folderFilter,
+    tagKey,
+    paletteKey,
+    showFavoritesOnly,
+    showHidden,
+    dateStart,
+    dateEnd,
+  ]);
+
+  useEffect(() => {
+    void runQuery(builtQuery);
+    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [builtQuery]);
 
   // Click-outside dismissal
   useEffect(() => {
@@ -224,22 +206,19 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   }, []);
 
   const handleSearch = useCallback(() => {
-    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
     if (localQuery.trim()) {
-      void searchImages(localQuery);
+      setSearchQuery(localQuery);
     } else {
       clearFilters();
-      void fetchImages();
+      setLocalQuery('');
     }
-  }, [localQuery, searchImages, clearFilters, fetchImages, scrollContainerRef]);
+  }, [localQuery, setSearchQuery, clearFilters]);
 
   const handleClear = useCallback(() => {
     setLocalQuery('');
     clearFilters();
-    void fetchImages();
-    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
     inputRef?.current?.focus();
-  }, [clearFilters, fetchImages, inputRef, scrollContainerRef]);
+  }, [clearFilters, inputRef]);
 
   const runImageSearch = useCallback(
     async (file: File) => {
@@ -256,33 +235,26 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
         toast.error(`Image too large (${Math.round(file.size / 1024 / 1024)}MB, max 25MB)`);
         return;
       }
-      let previewUrl: string | null = null;
       try {
         const buffer = await file.arrayBuffer();
         const bytes = new Uint8Array(buffer);
-        previewUrl = URL.createObjectURL(file);
-        // Clear the text query so text-mode UI (suggestions, AddFromWebPill
-        // deep-link) doesn't linger behind the image chip.
+        const previewUrl = URL.createObjectURL(file);
         setLocalQuery('');
         setSearchQuery('');
-        scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
-        await searchImagesByBytes(bytes, previewUrl);
-        // On success, the store owns the URL and will revoke it on clear.
+        // The store owns previewUrl from here on and revokes it on clear.
+        setActiveImageQuery({ bytes, previewUrl });
       } catch (error) {
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
         const message = error instanceof Error ? error.message : String(error);
         toast.error(`Reverse image search failed: ${message}`);
       }
     },
-    [embedderStatus, scrollContainerRef, searchImagesByBytes, setSearchQuery],
+    [embedderStatus, setActiveImageQuery, setSearchQuery],
   );
 
   const handleClearImageQuery = useCallback(() => {
     clearImageQuery();
-    void fetchImages();
-    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
     inputRef?.current?.focus();
-  }, [clearImageQuery, fetchImages, inputRef, scrollContainerRef]);
+  }, [clearImageQuery, inputRef]);
 
   const handleDragEnter = (e: React.DragEvent) => {
     if (!Array.from(e.dataTransfer.types).includes('Files')) return;
@@ -354,7 +326,6 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   const handleSuggestionClick = (term: string) => {
     setLocalQuery(term);
     setSearchQuery(term);
-    void searchImages(term);
     setIsFocused(false);
   };
 
@@ -517,7 +488,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
 
       {/* Dropdown panel */}
       {showDropdown && (
-        <div className="mt-2 bg-white rounded-2xl border border-gray-200/60 shadow-xl shadow-black/5 overflow-hidden animate-dropdown-in">
+        <div className="mt-2 bg-white rounded-2xl border border-gray-200/60 shadow-xl shadow-black/5 animate-dropdown-in">
           {/* Suggestion pills — only when focused and no query */}
           {isFocused && !localQuery && (
             <div className="px-4 py-3 flex flex-wrap items-center gap-2">
@@ -594,6 +565,14 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
                   </div>
                 </div>
               )}
+
+              {/* Color palette */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                  Filter by color
+                </label>
+                <PaletteSearchPicker colors={paletteFilters} onChange={setPaletteFilters} />
+              </div>
 
               {/* Date range */}
               <div>
