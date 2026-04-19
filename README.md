@@ -4,7 +4,7 @@
 
 # Sortie - your local-first pinboard ദ്ദി(˵ •̀ ᴗ - ˵ ) ✧
 
-Sortie is a private image gallery that doesn't compromise on cool features. 
+Sortie is a private image gallery with zero compromise on cool features. 
 
 Point it to your photos folder and it builds a gallery you can search, filters, and organise into boards/tags.
 Everything stays on your machine.
