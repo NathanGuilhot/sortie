@@ -5,6 +5,7 @@ import { CopyText } from './CopyText';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { useImageStore } from '../stores/imageStore';
 import { useBoardStore } from '../stores/boardStore';
+import { useFolderStore } from '../stores/folderStore';
 import { toast } from '../stores/toastStore';
 
 interface TagSuggestion {
@@ -94,6 +95,9 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
   const { hideImage, deleteImage, updateImageMetadata, addToBoard, setSelectedImage, fetchImages } =
     useImageStore();
   const fetchBoards = useBoardStore((s) => s.fetchBoards);
+  const canDeleteFile = useFolderStore((s) =>
+    image ? s.isWritable(image.file_path) : false,
+  );
   const [date, setDate] = useState<string>('');
   const [location, setLocation] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
@@ -762,14 +766,23 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             </p>
           </div>
         ) : (
-          !confirmingDelete && (
+          !confirmingDelete &&
+          (canDeleteFile ? (
             <button
               onClick={() => void handleFileDelete()}
               className="w-full px-3 py-2 text-xs font-medium text-red-500 hover:text-red-600 transition-colors text-center"
             >
               Delete file permanently
             </button>
-          )
+          ) : (
+            <button
+              disabled
+              title="This file lives on a read-only volume and cannot be deleted from Sortie."
+              className="w-full px-3 py-2 text-xs font-medium text-gray-400 cursor-not-allowed text-center"
+            >
+              Read-only — cannot delete file
+            </button>
+          ))
         )}
       </div>
     </div>

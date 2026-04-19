@@ -6,10 +6,7 @@ import {
   TagSuggestion,
   Collection,
   extractExif,
-  computeDHash,
   computeFileHash,
-  hammingDistance,
-  DHASH_DUPLICATE_THRESHOLD,
   FaceDetector,
   FaceMatcher,
 } from 'pipeline';
@@ -825,31 +822,38 @@ export class DatabaseService {
   async setFolderAvailability(
     folderPath: string,
     available: boolean,
+    writable: boolean,
   ): Promise<{ changed: boolean }> {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db.getDatabase();
     const normalized = path.resolve(folderPath);
-    const current = db.prepare('SELECT available FROM folders WHERE path = ?').get(normalized) as
-      | { available: number }
-      | undefined;
+    const current = db
+      .prepare('SELECT available, writable FROM folders WHERE path = ?')
+      .get(normalized) as { available: number; writable: number } | undefined;
     if (!current) return { changed: false };
-    const currentBool = !!current.available;
-    if (currentBool === available) return { changed: false };
+    const availableChanged = !!current.available !== available;
+    const writableChanged = !!current.writable !== writable;
+    if (!availableChanged && !writableChanged) return { changed: false };
 
     const txn = db.transaction(() => {
-      db.prepare('UPDATE folders SET available = ? WHERE path = ?').run(
+      db.prepare('UPDATE folders SET available = ?, writable = ? WHERE path = ?').run(
         available ? 1 : 0,
+        writable ? 1 : 0,
         normalized,
       );
-      const pattern = normalized + '/%';
-      db.prepare('UPDATE images SET missing = ? WHERE file_path LIKE ?').run(
-        available ? 0 : 1,
-        pattern,
-      );
+      if (availableChanged) {
+        const pattern = normalized + '/%';
+        db.prepare('UPDATE images SET missing = ? WHERE file_path LIKE ?').run(
+          available ? 0 : 1,
+          pattern,
+        );
+      }
     });
     txn();
 
-    this.invalidateImageCache();
+    if (availableChanged) {
+      this.invalidateImageCache();
+    }
     return { changed: true };
   }
 
@@ -1281,10 +1285,9 @@ export class DatabaseService {
     const ext = path.extname(filePath).toLowerCase();
     const mimeType = MIME_TYPES[ext] || null;
 
-    const [exifData, fileHash, dhash] = await Promise.all([
+    const [exifData, fileHash] = await Promise.all([
       extractExif(filePath),
       computeFileHash(filePath),
-      computeDHash(filePath),
     ]);
 
     const imageData: Omit<Image, 'id' | 'created_at' | 'modified_at'> = {
@@ -1310,7 +1313,7 @@ export class DatabaseService {
       exposure_time: exifData.exposureTime,
       focal_length: exifData.focalLength,
       file_hash: fileHash,
-      dhash: dhash,
+      dhash: null,
     };
 
     const imageId = this.db.insertImage(imageData);
@@ -1357,7 +1360,7 @@ export class DatabaseService {
 
     const rows = db
       .prepare(
-        'SELECT id, file_path FROM images WHERE hidden = 0 AND missing = 0 AND (file_hash IS NULL OR dhash IS NULL)',
+        'SELECT id, file_path FROM images WHERE hidden = 0 AND missing = 0 AND file_hash IS NULL',
       )
       .all() as Array<{ id: number; file_path: string }>;
 
@@ -1370,15 +1373,8 @@ export class DatabaseService {
       }
       const row = rows[i];
       try {
-        const [fileHash, dhash] = await Promise.all([
-          computeFileHash(row.file_path),
-          computeDHash(row.file_path),
-        ]);
-        db.prepare('UPDATE images SET file_hash = ?, dhash = ? WHERE id = ?').run(
-          fileHash,
-          dhash,
-          row.id,
-        );
+        const fileHash = await computeFileHash(row.file_path);
+        db.prepare('UPDATE images SET file_hash = ? WHERE id = ?').run(fileHash, row.id);
         computed++;
       } catch (err) {
         console.warn(`Failed to hash ${row.file_path}:`, err);
@@ -1394,93 +1390,106 @@ export class DatabaseService {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db.getDatabase();
 
+    // Cosine distance threshold for "near-duplicate" via CLIP embeddings.
+    // Embeddings are L2-normalized so distance ∈ [0, 2]; near-identical photos
+    // (re-encodes, light edits, crops) sit well under 0.10. Stricter than the
+    // search threshold (1.3) by design.
+    const NEAR_DUPLICATE_DISTANCE = 0.1;
+    // Per-image candidate pool when querying sqlite-vec. Small enough to be
+    // fast, large enough to capture all true near-duplicates of a single image.
+    const VEC_K = 12;
+
     const images = db
       .prepare(
         `SELECT id, file_path, file_name, file_size, mime_type, width, height,
                 created_at, modified_at, captured_at, latitude, longitude,
-                city, country, description, favorite, hidden, file_hash, dhash
-         FROM images WHERE hidden = 0 AND missing = 0 AND dhash IS NOT NULL`,
+                city, country, description, favorite, hidden, file_hash
+         FROM images WHERE hidden = 0 AND missing = 0`,
       )
       .all() as Image[];
+    const imagesById = new Map(images.map((img) => [img.id, img]));
 
-    // Load dismissed pairs into a set for fast lookup
     const dismissed = db
       .prepare('SELECT image_id_1, image_id_2 FROM dismissed_duplicates')
       .all() as Array<{ image_id_1: number; image_id_2: number }>;
-    const dismissedSet = new Set(
-      dismissed.map(
-        (d) => `${Math.min(d.image_id_1, d.image_id_2)}_${Math.max(d.image_id_1, d.image_id_2)}`,
-      ),
-    );
+    const pairKey = (a: number, b: number) => `${Math.min(a, b)}_${Math.max(a, b)}`;
+    const dismissedSet = new Set(dismissed.map((d) => pairKey(d.image_id_1, d.image_id_2)));
 
-    // Union-Find
-    const parent = new Map<number, number>();
-    const find = (x: number): number => {
-      if (!parent.has(x)) parent.set(x, x);
-      if (parent.get(x) !== x) parent.set(x, find(parent.get(x)!));
-      return parent.get(x)!;
-    };
-    const union = (a: number, b: number) => {
-      const ra = find(a),
-        rb = find(b);
-      if (ra !== rb) parent.set(ra, rb);
-    };
-
-    // Phase 1: exact matches via file_hash
-    const hashGroups = new Map<string, number[]>();
-    for (const img of images) {
-      if (img.file_hash) {
-        const group = hashGroups.get(img.file_hash) || [];
-        group.push(img.id);
-        hashGroups.set(img.file_hash, group);
-      }
-    }
-    for (const [, ids] of hashGroups) {
-      if (ids.length > 1) {
-        for (let i = 1; i < ids.length; i++) {
-          const key = `${Math.min(ids[0], ids[i])}_${Math.max(ids[0], ids[i])}`;
-          if (!dismissedSet.has(key)) {
-            union(ids[0], ids[i]);
-          }
-        }
-      }
-    }
-
-    // Phase 2: visual matches via dHash Hamming distance
-    for (let i = 0; i < images.length; i++) {
-      for (let j = i + 1; j < images.length; j++) {
-        if (!images[i].dhash || !images[j].dhash) continue;
-        const key = `${Math.min(images[i].id, images[j].id)}_${Math.max(images[i].id, images[j].id)}`;
-        if (dismissedSet.has(key)) continue;
-
-        const dist = hammingDistance(images[i].dhash!, images[j].dhash!);
-        if (dist <= DHASH_DUPLICATE_THRESHOLD) {
-          union(images[i].id, images[j].id);
-        }
-      }
-    }
-
-    // Collect groups
-    const groupMap = new Map<number, Image[]>();
-    for (const img of images) {
-      const root = find(img.id);
-      if (!groupMap.has(root)) groupMap.set(root, []);
-      groupMap.get(root)!.push(img);
-    }
-
-    // Filter to groups with 2+ members
     const groups: DuplicateGroup[] = [];
-    for (const [, groupImages] of groupMap) {
-      if (groupImages.length < 2) continue;
+    const seenPairs = new Set<string>();
 
-      const hashes = groupImages.map((i) => i.file_hash).filter(Boolean);
-      const hasExact = new Set(hashes).size < hashes.length;
-
-      groups.push({
-        groupId: Math.min(...groupImages.map((i) => i.id)),
-        images: groupImages,
-        matchType: hasExact ? 'exact' : 'visual',
+    // Phase 1: exact matches via file_hash. One group per hash bucket so users
+    // can resolve N-way exact duplicates in one go.
+    const hashBuckets = new Map<string, Image[]>();
+    for (const img of images) {
+      if (!img.file_hash) continue;
+      const bucket = hashBuckets.get(img.file_hash) ?? [];
+      bucket.push(img);
+      hashBuckets.set(img.file_hash, bucket);
+    }
+    for (const bucket of hashBuckets.values()) {
+      if (bucket.length < 2) continue;
+      const filtered = bucket.filter((img, idx) => {
+        if (idx === 0) return true;
+        return !dismissedSet.has(pairKey(bucket[0].id, img.id));
       });
+      if (filtered.length < 2) continue;
+      for (let i = 0; i < filtered.length; i++) {
+        for (let j = i + 1; j < filtered.length; j++) {
+          seenPairs.add(pairKey(filtered[i].id, filtered[j].id));
+        }
+      }
+      groups.push({
+        groupId: Math.min(...filtered.map((i) => i.id)),
+        images: filtered,
+        matchType: 'exact',
+      });
+    }
+
+    // Phase 2: visual matches via CLIP embeddings, emitted as pairwise groups.
+    // Skipping single-edge unions avoids the transitive false-grouping problem
+    // dHash had ("A≈B and B≈C therefore A,C grouped" even when A and C are
+    // unrelated).
+    const matchStmt = db.prepare(`
+      SELECT v.rowid, v.distance
+      FROM vec_images v
+      WHERE v.embedding MATCH ? AND k = ?
+      ORDER BY v.distance
+    `);
+
+    for (const img of images) {
+      const embRow = db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(img.id) as
+        | { embedding: Buffer }
+        | undefined;
+      if (!embRow) continue;
+
+      const buf = embRow.embedding;
+      const floats = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+      const queryJson = JSON.stringify(Array.from(floats));
+
+      const matches = matchStmt.all(queryJson, VEC_K) as Array<{
+        rowid: number;
+        distance: number;
+      }>;
+
+      for (const match of matches) {
+        if (match.rowid === img.id) continue;
+        if (match.distance > NEAR_DUPLICATE_DISTANCE) break;
+        // Pair each image with the lower id once to dedupe and skip self.
+        if (img.id >= match.rowid) continue;
+
+        const other = imagesById.get(match.rowid);
+        if (!other) continue;
+        const key = pairKey(img.id, match.rowid);
+        if (dismissedSet.has(key) || seenPairs.has(key)) continue;
+        seenPairs.add(key);
+
+        groups.push({
+          groupId: Math.min(img.id, match.rowid),
+          images: [img, other],
+          matchType: 'visual',
+        });
+      }
     }
 
     groups.sort((a, b) => b.images.length - a.images.length || a.groupId - b.groupId);

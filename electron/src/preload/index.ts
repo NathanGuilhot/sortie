@@ -215,9 +215,13 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   recheckFolderAvailability: (folderPath?: string) =>
     ipcRenderer.invoke('recheck-folder-availability', { path: folderPath }),
 
-  onFolderAvailability: (callback: (change: { path: string; available: boolean }) => void) => {
-    const handler = (_event: unknown, change: { path: string; available: boolean }) =>
-      callback(change);
+  onFolderAvailability: (
+    callback: (change: { path: string; available: boolean; writable: boolean }) => void,
+  ) => {
+    const handler = (
+      _event: unknown,
+      change: { path: string; available: boolean; writable: boolean },
+    ) => callback(change);
     ipcRenderer.on('folder-availability-changed', handler);
     return () => {
       ipcRenderer.removeListener('folder-availability-changed', handler);

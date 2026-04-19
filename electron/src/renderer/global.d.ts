@@ -165,10 +165,10 @@ declare global {
       pickFolder: () => Promise<string | null>;
       // Folder availability (external drives)
       recheckFolderAvailability: (folderPath?: string) => Promise<{
-        changes: Array<{ path: string; available: boolean }>;
+        changes: Array<{ path: string; available: boolean; writable: boolean }>;
       }>;
       onFolderAvailability: (
-        callback: (change: { path: string; available: boolean }) => void,
+        callback: (change: { path: string; available: boolean; writable: boolean }) => void,
       ) => () => void;
       // App info
       app: {

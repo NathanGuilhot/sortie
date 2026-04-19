@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCleanupStore } from '../stores/cleanupStore';
+import { useFolderStore } from '../stores/folderStore';
 import { CopyText } from './CopyText';
 import { DuplicateGroup, Image } from 'shared';
 import {
@@ -10,6 +11,17 @@ import {
   PrimaryButton,
   CancelButton,
 } from './screen';
+
+const LockIcon = (
+  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M12 11c0-1.1.9-2 2-2s2 .9 2 2v4H8v-4c0-1.1.9-2 2-2zm-5 4h10a1 1 0 011 1v5a1 1 0 01-1 1H7a1 1 0 01-1-1v-5a1 1 0 011-1z"
+    />
+  </svg>
+);
 
 const SearchIcon = (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,6 +81,11 @@ function DuplicateGroupCard({
   onKeep: (group: DuplicateGroup, keepId: number) => void;
   onDismiss: (group: DuplicateGroup) => void;
 }) {
+  const isWritable = useFolderStore((s) => s.isWritable);
+  const deletableImages = group.images.filter((img) => isWritable(img.file_path));
+  const allReadOnly = deletableImages.length === 0;
+  const someReadOnly = deletableImages.length < group.images.length;
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5">
       {/* Header */}
@@ -82,6 +99,14 @@ function DuplicateGroupCard({
             {group.matchType === 'exact' ? 'Exact Match' : 'Visual Match'}
           </span>
           <span className="text-xs text-gray-400">{group.images.length} files</span>
+          {allReadOnly && (
+            <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+              Read-only — review only
+            </span>
+          )}
+          {!allReadOnly && someReadOnly && (
+            <span className="text-xs text-amber-700">Some files are read-only</span>
+          )}
         </div>
         <button
           onClick={() => onDismiss(group)}
@@ -97,15 +122,23 @@ function DuplicateGroupCard({
         style={{ gridTemplateColumns: `repeat(${Math.min(group.images.length, 4)}, 1fr)` }}
       >
         {group.images.map((img: Image) => {
-          const others = group.images.filter((o: Image) => o.id !== img.id);
-          const othersSize = others.reduce((s: number, o: Image) => s + (o.file_size || 0), 0);
+          const writable = isWritable(img.file_path);
+          // "Keep this one" means delete the others — only the writable ones.
+          const othersToDelete = group.images.filter(
+            (o) => o.id !== img.id && isWritable(o.file_path),
+          );
+          const deleteSize = othersToDelete.reduce(
+            (s: number, o: Image) => s + (o.file_size || 0),
+            0,
+          );
           return (
             <ImageCard
               key={img.id}
               image={img}
+              writable={writable}
               onKeep={() => onKeep(group, img.id)}
-              deleteCount={others.length}
-              deleteSize={othersSize}
+              deleteCount={othersToDelete.length}
+              deleteSize={deleteSize}
             />
           );
         })}
@@ -116,16 +149,22 @@ function DuplicateGroupCard({
 
 function ImageCard({
   image,
+  writable,
   onKeep,
   deleteCount,
   deleteSize,
 }: {
   image: Image;
+  writable: boolean;
   onKeep: () => void;
   deleteCount: number;
   deleteSize: number;
 }) {
   const [confirming, setConfirming] = useState(false);
+  // If there's nothing to delete (all siblings are read-only), disable the
+  // action — "Keep this one" only makes sense when we can actually remove the
+  // others.
+  const canAct = writable && deleteCount > 0;
 
   return (
     <div className="flex flex-col">
@@ -137,6 +176,15 @@ function ImageCard({
           className="w-full h-full object-cover"
           loading="lazy"
         />
+        {!writable && (
+          <div
+            className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-medium"
+            title="This file lives on a read-only volume and cannot be deleted from Sortie."
+          >
+            {LockIcon}
+            Read-only
+          </div>
+        )}
       </div>
 
       {/* Metadata */}
@@ -163,7 +211,19 @@ function ImageCard({
       </div>
 
       {/* Keep button */}
-      {confirming ? (
+      {!canAct ? (
+        <button
+          disabled
+          title={
+            !writable
+              ? 'This file lives on a read-only volume and cannot be deleted.'
+              : 'The other files in this group are read-only and cannot be deleted.'
+          }
+          className="w-full px-2 py-1.5 text-xs text-gray-400 border border-gray-200 rounded bg-gray-50 cursor-not-allowed"
+        >
+          {!writable ? 'Read-only' : 'Nothing to delete'}
+        </button>
+      ) : confirming ? (
         <div className="flex gap-1">
           <button
             onClick={() => {
@@ -206,6 +266,7 @@ export function CleanupScreen() {
   } = useCleanupStore();
 
   const [hasScanned, setHasScanned] = useState(false);
+  const isWritable = useFolderStore((s) => s.isWritable);
 
   const handleScan = async () => {
     await scanForDuplicates();
@@ -213,7 +274,9 @@ export function CleanupScreen() {
   };
 
   const handleKeep = async (group: DuplicateGroup, keepImageId: number) => {
-    const toDelete = group.images.filter((img: Image) => img.id !== keepImageId);
+    const toDelete = group.images.filter(
+      (img: Image) => img.id !== keepImageId && isWritable(img.file_path),
+    );
     const failures: { fileName: string; message: string }[] = [];
     for (const img of toDelete) {
       try {

@@ -6,12 +6,7 @@ export { ClipEmbedder } from './lib/clip';
 export { extractExif } from './lib/exif';
 export { SuggestionEngine, TagSuggestion } from './lib/suggestions';
 export { Organizer, Collection } from './lib/organizer';
-export {
-  computeDHash,
-  computeFileHash,
-  hammingDistance,
-  DHASH_DUPLICATE_THRESHOLD,
-} from './lib/dhash';
+export { computeFileHash } from './lib/dhash';
 export { FaceDetector, DetectedFace } from './lib/face';
 export { FaceMatcher, MatchResult } from './lib/face-matcher';
 

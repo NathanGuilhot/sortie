@@ -6,6 +6,7 @@ import { PeopleScreen } from './screens/PeopleScreen';
 import { BoardsIndexScreen } from './screens/BoardsIndexScreen';
 import { BoardDetailScreen } from './screens/BoardDetailScreen';
 import { ImportScreen } from './screens/ImportScreen';
+import { CleanupScreen } from './screens/CleanupScreen';
 
 export const routes: RouteObject[] = [
   {
@@ -17,7 +18,7 @@ export const routes: RouteObject[] = [
       { path: 'boards/:id', element: <BoardDetailScreen /> },
       { path: 'folders', element: <FoldersScreen /> },
       { path: 'import', element: <ImportScreen /> },
-      // { path: 'cleanup', element: <CleanupScreen /> }, // Disabled until we have a better duplicate algorithm
+      { path: 'cleanup', element: <CleanupScreen /> },
       { path: 'people', element: <PeopleScreen /> },
       { path: '*', element: <Navigate to="/gallery" replace /> },
     ],

@@ -5,6 +5,7 @@ import { DatabaseService } from './database';
 export interface FolderAvailabilityChange {
   path: string;
   available: boolean;
+  writable: boolean;
 }
 
 export class FolderAvailabilityMonitor {
@@ -43,10 +44,14 @@ export class FolderAvailabilityMonitor {
       const folders = await this.dbService.getFolders();
       const targets = onlyPath ? folders.filter((f) => f.path === onlyPath) : folders;
       for (const folder of targets) {
-        const available = await this.probe(folder.path);
-        const result = await this.dbService.setFolderAvailability(folder.path, available);
+        const { available, writable } = await this.probe(folder.path);
+        const result = await this.dbService.setFolderAvailability(
+          folder.path,
+          available,
+          writable,
+        );
         if (result.changed) {
-          const change: FolderAvailabilityChange = { path: folder.path, available };
+          const change: FolderAvailabilityChange = { path: folder.path, available, writable };
           changes.push(change);
           this.broadcast(change);
         }
@@ -59,12 +64,19 @@ export class FolderAvailabilityMonitor {
     return changes;
   }
 
-  private async probe(folderPath: string): Promise<boolean> {
+  private async probe(folderPath: string): Promise<{ available: boolean; writable: boolean }> {
     try {
       const stat = await fs.stat(folderPath);
-      return stat.isDirectory();
+      if (!stat.isDirectory()) return { available: false, writable: false };
+      let writable = true;
+      try {
+        await fs.access(folderPath, fs.constants.W_OK);
+      } catch {
+        writable = false;
+      }
+      return { available: true, writable };
     } catch {
-      return false;
+      return { available: false, writable: false };
     }
   }
 

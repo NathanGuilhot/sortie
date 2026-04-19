@@ -3,6 +3,7 @@ import { FolderWithStats } from 'shared';
 import { CopyText } from './CopyText';
 import { ScreenShell, StatHeader, EmptyState, PrimaryButton } from './screen';
 import { toast } from '../stores/toastStore';
+import { useFolderStore } from '../stores/folderStore';
 
 const PlusIcon = (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -43,6 +44,7 @@ function formatSize(bytes: number): string {
 }
 
 export function FolderScanner() {
+  const refreshFolderStore = useFolderStore((s) => s.load);
   const [folders, setFolders] = useState<FolderWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanningFolder, setScanningFolder] = useState<string | null>(null);
@@ -59,7 +61,11 @@ export function FolderScanner() {
     void loadFolders();
     const unsubscribe = window.sortieAPI.onFolderAvailability((change) => {
       setFolders((prev) =>
-        prev.map((f) => (f.path === change.path ? { ...f, available: change.available } : f)),
+        prev.map((f) =>
+          f.path === change.path
+            ? { ...f, available: change.available, writable: change.writable }
+            : f,
+        ),
       );
     });
     return unsubscribe;
@@ -70,6 +76,7 @@ export function FolderScanner() {
     try {
       const data = await window.sortieAPI.getFoldersWithStats();
       setFolders(data);
+      void refreshFolderStore();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(message);
@@ -269,6 +276,14 @@ export function FolderScanner() {
                     {!folder.available && (
                       <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide rounded bg-amber-100 text-amber-700 border border-amber-200">
                         Drive offline
+                      </span>
+                    )}
+                    {folder.available && !folder.writable && (
+                      <span
+                        className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide rounded bg-amber-50 text-amber-700 border border-amber-200"
+                        title="This volume is read-only. Files in this folder cannot be deleted from Sortie."
+                      >
+                        Read-only
                       </span>
                     )}
                   </div>

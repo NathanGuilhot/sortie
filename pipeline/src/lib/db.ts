@@ -153,7 +153,9 @@ export class DatabaseManager {
         ignored BOOLEAN DEFAULT 0,
         exclude_from_face_scan BOOLEAN DEFAULT 0,
         last_scanned DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        available BOOLEAN DEFAULT 1,
+        writable BOOLEAN DEFAULT 1
       )
     `);
 
@@ -427,6 +429,17 @@ export class DatabaseManager {
         'CREATE INDEX IF NOT EXISTS idx_image_tags_position ON image_tags(tag_id, position)',
       );
       this.db.pragma('user_version = 9');
+    }
+
+    if (version < 10) {
+      const folderCols = this.db.prepare('PRAGMA table_info(folders)').all() as Array<{
+        name: string;
+      }>;
+      const folderColNames = new Set(folderCols.map((c) => c.name));
+      if (!folderColNames.has('writable')) {
+        this.db.exec('ALTER TABLE folders ADD COLUMN writable BOOLEAN DEFAULT 1');
+      }
+      this.db.pragma('user_version = 10');
     }
   }
 

@@ -96,6 +96,7 @@ export interface Folder {
   ignored: boolean;
   exclude_from_face_scan: boolean;
   available: boolean;
+  writable: boolean;
   last_scanned: string | null;
   created_at: string;
 }
