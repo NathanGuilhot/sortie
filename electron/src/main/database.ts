@@ -280,9 +280,7 @@ export class DatabaseService {
       active = true;
     }
     if (q.personId != null) {
-      where.push(
-        'EXISTS (SELECT 1 FROM faces f WHERE f.image_id = i.id AND f.person_id = ?)',
-      );
+      where.push('EXISTS (SELECT 1 FROM faces f WHERE f.image_id = i.id AND f.person_id = ?)');
       params.push(q.personId);
       active = true;
     }
@@ -371,11 +369,10 @@ export class DatabaseService {
       WHERE sub.distance < ?
       ORDER BY sub.distance
     `);
-    const ranked = stmt.all(
-      JSON.stringify(embedding),
-      k,
-      SIMILARITY_DISTANCE_THRESHOLD,
-    ) as Array<{ rowid: number; distance: number }>;
+    const ranked = stmt.all(JSON.stringify(embedding), k, SIMILARITY_DISTANCE_THRESHOLD) as Array<{
+      rowid: number;
+      distance: number;
+    }>;
 
     const kept: Array<{ rowid: number; distance: number }> = [];
     for (const r of ranked) {
