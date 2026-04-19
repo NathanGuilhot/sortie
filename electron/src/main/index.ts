@@ -143,7 +143,7 @@ void app.whenReady().then(async () => {
     const width = parseInt(url.searchParams.get('w') || '400', 10);
 
     const hash = crypto.createHash('sha256').update(filePath).digest('hex').slice(0, 16);
-    const cachePath = path.join(thumbDir, `${hash}_${width}.jpg`);
+    const cachePath = path.join(thumbDir, `${hash}_${width}.webp`);
 
     let srcStat: fs.Stats;
     try {
@@ -176,7 +176,7 @@ void app.whenReady().then(async () => {
         await sharp(filePath)
           .rotate()
           .resize(width, null, { withoutEnlargement: true })
-          .jpeg({ quality: 85 })
+          .webp({ quality: 85 })
           .toFile(cachePath);
       }
 

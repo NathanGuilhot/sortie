@@ -278,7 +278,7 @@ export function FolderScanner() {
                         Drive offline
                       </span>
                     )}
-                    {folder.available && !folder.writable && (
+                    {!!folder.available && !folder.writable && (
                       <span
                         className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide rounded bg-amber-50 text-amber-700 border border-amber-200"
                         title="This volume is read-only. Files in this folder cannot be deleted from Sortie."

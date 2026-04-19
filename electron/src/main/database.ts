@@ -1157,6 +1157,9 @@ export class DatabaseService {
     }
 
     this.db.markImageFacesScanned(imageId);
+    for (const personId of usedPersonIds) {
+      this.shuffledIdCache.delete(`person:${personId}`);
+    }
     return { count: faces.length, personIds: [...usedPersonIds] };
   }
 
@@ -1204,6 +1207,12 @@ export class DatabaseService {
 
       // Yield to event loop between images to prevent UI freezes
       await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    for (const key of Array.from(this.shuffledIdCache.keys())) {
+      if (key.startsWith('person:')) {
+        this.shuffledIdCache.delete(key);
+      }
     }
 
     return { scanned, detected: totalFaces, cancelled };

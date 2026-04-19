@@ -33,11 +33,9 @@ export const MasonryImage = memo(function MasonryImage({
         left: position.x,
         width: position.width,
         height: position.height,
-        borderRadius: 4,
-        overflow: 'hidden',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         cursor: 'pointer',
-        backgroundColor: '#f3f4f6',
+        backgroundColor: loaded ? 'transparent' : '#f3f4f6',
+        borderRadius: 4,
       }}
       onClick={onClick}
     >
@@ -50,13 +48,15 @@ export const MasonryImage = memo(function MasonryImage({
           width: '100%',
           height: '100%',
           objectFit: 'cover',
+          borderRadius: 4,
+          filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.1))',
           opacity: loaded ? 1 : 0,
           transition: 'opacity 0.3s ease',
         }}
         onLoad={() => setLoaded(true)}
       />
       {gif && loaded && <GifBadge corner="bottom-right" />}
-      {image.favorite && loaded && (
+      {!!image.favorite && loaded && (
         <div
           style={{
             position: 'absolute',
