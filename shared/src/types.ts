@@ -200,6 +200,9 @@ export interface PinterestResult {
   sourceUrl: string | null;
   sourceDomain: string | null;
   pinUrl: string;
+  // True when Pinterest has flagged the pin as AI-generated via its
+  // `digital_media_source_type` field (any non-null value).
+  isAiGenerated: boolean;
 }
 
 export interface PinterestSearchPage {

@@ -14,6 +14,7 @@ export const PinterestResultCard = memo(function PinterestResultCard({
 }: PinterestResultCardProps) {
   const importState = usePinterestStore((s) => s.imports[pin.pinId]);
   const importPin = usePinterestStore((s) => s.importPin);
+  const hideAiGenerated = usePinterestStore((s) => s.hideAiGenerated);
   const [loaded, setLoaded] = useState(false);
 
   const status = importState?.status ?? 'idle';
@@ -77,6 +78,14 @@ export const PinterestResultCard = memo(function PinterestResultCard({
               : 'bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100'
           }`}
         />
+
+        {/* AI-generated badge — top-left. Only visible when the user has
+            opted in to seeing AI results, so they can tell them apart. */}
+        {pin.isAiGenerated && !hideAiGenerated && !isImported && (
+          <div className="absolute top-2 left-2 px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase text-white bg-black/55 backdrop-blur rounded-full">
+            AI
+          </div>
+        )}
 
         {/* Domain chip — bottom-left */}
         {pin.sourceDomain && pin.sourceUrl && !isImported && (

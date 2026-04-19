@@ -17,6 +17,9 @@ interface RawPin {
   alt_text?: string | null;
   videos?: unknown;
   images?: { orig?: PinImageOrig };
+  // Pinterest's AI-generated flag: absent on normal pins, numeric code on
+  // AI-labelled pins (16 = "Generative AI" label, 11 = rarer AI-adjacent).
+  digital_media_source_type?: number | null;
 }
 
 // Pinterest uses this sentinel for user-uploaded pins that have no source URL.
@@ -73,8 +76,7 @@ export function parsePin(raw: unknown): PinterestResult | null {
   // URL doesn't parse cleanly.
   const sourceUrl = cleanString(p.link);
   const domainRaw = cleanString(p.domain);
-  const cleanDomain =
-    domainRaw && domainRaw.toLowerCase() !== NO_LINK_SENTINEL ? domainRaw : null;
+  const cleanDomain = domainRaw && domainRaw.toLowerCase() !== NO_LINK_SENTINEL ? domainRaw : null;
   const sourceDomain = sourceUrl ? (deriveDomainFromUrl(sourceUrl) ?? cleanDomain) : null;
 
   return {
@@ -87,6 +89,7 @@ export function parsePin(raw: unknown): PinterestResult | null {
     sourceUrl,
     sourceDomain,
     pinUrl: `https://www.pinterest.com/pin/${p.id}/`,
+    isAiGenerated: p.digital_media_source_type != null,
   };
 }
 

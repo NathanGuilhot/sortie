@@ -33,10 +33,18 @@ export function ImportScreen() {
     loadingMore,
     error,
     isEnd,
+    hideAiGenerated,
     search,
     loadMore,
     reset,
+    setHideAiGenerated,
   } = usePinterestStore();
+
+  const visibleResults = useMemo(
+    () => (hideAiGenerated ? results.filter((r) => !r.isAiGenerated) : results),
+    [results, hideAiGenerated],
+  );
+  const hiddenAiCount = results.length - visibleResults.length;
 
   const [input, setInput] = useState(initialQuery || storedQuery);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,8 +77,8 @@ export function ImportScreen() {
   // shifting between columns when more results stream in.
   const priorLayoutRef = useRef<LayoutResult | undefined>(undefined);
   const layoutItems = useMemo(
-    () => results.map((r) => ({ id: r.pinId, width: r.width, height: r.height })),
-    [results],
+    () => visibleResults.map((r) => ({ id: r.pinId, width: r.width, height: r.height })),
+    [visibleResults],
   );
   const layout = useMemo(() => {
     const next = computeMasonryLayout(
@@ -116,6 +124,25 @@ export function ImportScreen() {
     return () => el.removeEventListener('scroll', onScroll);
   }, [loading, loadingMore, isEnd, loadMore]);
 
+  // Auto-prefetch when AI filtering leaves the grid too sparse to trigger the
+  // scroll threshold. Without this, AI-heavy queries (midjourney etc.) land on
+  // an almost-empty screen and the user has no way to pull more pins.
+  useEffect(() => {
+    if (!hideAiGenerated) return;
+    if (loading || loadingMore || isEnd) return;
+    if (results.length === 0) return;
+    if (visibleResults.length >= 8) return;
+    void loadMore();
+  }, [
+    hideAiGenerated,
+    visibleResults.length,
+    results.length,
+    loading,
+    loadingMore,
+    isEnd,
+    loadMore,
+  ]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = input.trim();
@@ -134,6 +161,17 @@ export function ImportScreen() {
 
   const showEmpty = !loading && !error && results.length === 0 && storedQuery !== '';
   const showWelcome = !loading && !error && results.length === 0 && storedQuery === '';
+  // All fetched pins are AI-labelled and the user is hiding them — show a
+  // specific message instead of the generic "no results" so they know to
+  // toggle the filter off, not change their query.
+  const showAllHidden =
+    !loading &&
+    !loadingMore &&
+    !error &&
+    results.length > 0 &&
+    visibleResults.length === 0 &&
+    hideAiGenerated &&
+    isEnd;
 
   const targetLabel =
     target?.kind === 'board'
@@ -203,8 +241,21 @@ export function ImportScreen() {
               )}
             </button>
           </form>
-          <div className="mt-2 text-xs text-gray-400 text-center">
-            Click any image to add it to your library — the rest stay just for this session.
+          <div className="mt-2 flex items-center justify-center gap-3 text-xs text-gray-400">
+            <span>
+              Click any image to add it to your library — the rest stay just for this session.
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-center">
+            <label className="inline-flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 rounded border-gray-300 text-ink focus:ring-ink/40 cursor-pointer"
+                checked={hideAiGenerated}
+                onChange={(e) => setHideAiGenerated(e.target.checked)}
+              />
+              <span>Hide AI-generated</span>
+            </label>
           </div>
         </div>
       </div>
@@ -229,7 +280,9 @@ export function ImportScreen() {
                 <div
                   key={i}
                   className="rounded-lg bg-gray-200 animate-pulse"
-                  style={{ height: [220, 300, 260, 200, 320, 240, 280, 210, 290, 250, 230, 270][i] }}
+                  style={{
+                    height: [220, 300, 260, 200, 320, 240, 280, 210, 290, 250, 230, 270][i],
+                  }}
                 />
               ))}
             </div>
@@ -258,15 +311,32 @@ export function ImportScreen() {
             />
           )}
 
-          {results.length > 0 && (
+          {showAllHidden && (
+            <EmptyState
+              icon={BookIcon}
+              title="All results hidden"
+              description={
+                <>
+                  All {results.length} pin{results.length !== 1 ? 's' : ''} for {targetLabel} are
+                  AI-generated. Uncheck <em>Hide AI-generated</em> above to show them.
+                </>
+              }
+            />
+          )}
+
+          {results.length > 0 && !showAllHidden && (
             <>
               {targetLabel && (
                 <div className="max-w-2xl mx-auto mb-3 text-xs text-gray-400 text-center">
-                  {results.length} result{results.length !== 1 ? 's' : ''} for {targetLabel}
+                  {visibleResults.length} result{visibleResults.length !== 1 ? 's' : ''} for{' '}
+                  {targetLabel}
+                  {hiddenAiCount > 0 && (
+                    <span className="text-gray-300"> · {hiddenAiCount} AI-generated hidden</span>
+                  )}
                 </div>
               )}
               <div className="relative" style={{ height: layout.totalHeight }}>
-                {results.map((pin, i) => {
+                {visibleResults.map((pin, i) => {
                   const position = layout.positions[i];
                   if (!position) return null;
                   return <PinterestResultCard key={pin.pinId} pin={pin} position={position} />;
@@ -275,7 +345,7 @@ export function ImportScreen() {
               {loadingMore && (
                 <div className="mt-4 text-center text-xs text-gray-400">Loading more…</div>
               )}
-              {isEnd && results.length > 0 && (
+              {isEnd && visibleResults.length > 0 && (
                 <div className="mt-4 text-center text-xs text-gray-300">— end of results —</div>
               )}
             </>
