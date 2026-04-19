@@ -15,7 +15,26 @@ import {
   BackfillExifResult,
   EmbedderStatus,
   LinkPreview,
+  PinterestResult,
+  PinterestSearchPage,
+  PinterestImportResult,
 } from 'shared';
+
+type PinterestTarget =
+  | { kind: 'search'; query: string }
+  | { kind: 'board'; username: string; slug: string };
+
+type PinterestScrapeResponse =
+  | { ok: true; target: PinterestTarget; page: PinterestSearchPage }
+  | { ok: false; message: string };
+
+type PinterestLoadMoreResponse =
+  | { ok: true; page: PinterestSearchPage }
+  | { ok: false; message: string };
+
+type PinterestImportResponse =
+  | { ok: true; result: PinterestImportResult }
+  | { ok: false; message: string };
 
 export {};
 
@@ -147,6 +166,18 @@ declare global {
         openExternal: (url: string) => Promise<{ success: boolean }>;
         showAboutPanel: () => Promise<void>;
         onShowAbout: (callback: () => void) => () => void;
+      };
+      // Pinterest import
+      pinterest: {
+        scrape: (input: string, target?: number) => Promise<PinterestScrapeResponse>;
+        loadMore: (
+          target: PinterestTarget,
+          bookmarks: string[],
+          desired?: number,
+        ) => Promise<PinterestLoadMoreResponse>;
+        importPin: (pin: PinterestResult) => Promise<PinterestImportResponse>;
+        revealImportFolder: () => Promise<{ success: boolean }>;
+        getImportFolder: () => Promise<string>;
       };
     };
   }

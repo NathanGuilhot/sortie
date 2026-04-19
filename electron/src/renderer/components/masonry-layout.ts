@@ -1,4 +1,8 @@
-import { Image } from 'shared';
+export interface MasonryItem {
+  id: number | string;
+  width: number | null;
+  height: number | null;
+}
 
 export interface Position {
   x: number;
@@ -25,17 +29,17 @@ export interface LayoutResult {
   offset: number;
   imageCount: number;
   // IDs at the edges of the prefix this layout was computed from. Used to
-  // invalidate a prior layout when the images array was replaced (search,
+  // invalidate a prior layout when the items array was replaced (search,
   // filter, hide-from-middle) rather than appended to.
-  firstImageId: number | undefined;
-  lastImageId: number | undefined;
-  // buckets[i] lists the image indices whose rectangle intersects the i-th
+  firstImageId: number | string | undefined;
+  lastImageId: number | string | undefined;
+  // buckets[i] lists the item indices whose rectangle intersects the i-th
   // vertical band of height VISIBILITY_BUCKET_HEIGHT starting at y=0.
   buckets: number[][];
 }
 
-export function computeMasonryLayout(
-  images: Image[],
+export function computeMasonryLayout<T extends MasonryItem>(
+  images: T[],
   containerWidth: number,
   columnCount: number,
   gap: number,

@@ -8,6 +8,7 @@ import { WatcherService } from './watcher';
 import { FolderAvailabilityMonitor } from './folderAvailability';
 import { setupIpcHandlers } from './ipc';
 import { buildMenu } from './menu';
+import { ensureImportFolder } from './pinterest/import';
 
 app.setName('Sortie');
 
@@ -99,6 +100,15 @@ async function initializeServices() {
     mainWindow?.webContents.send('embedder-status', status);
   });
   void dbService.warmupEmbedder();
+
+  // Pre-create the Pinterest import folder so it's listed in /folders even
+  // before the user imports anything. NEVER add it to the watcher — the
+  // importer calls addImage explicitly.
+  try {
+    await ensureImportFolder(dbService);
+  } catch (err) {
+    console.warn('[boot] failed to ensure pinterest import folder:', err);
+  }
 
   const folders = await dbService.getFolders();
   for (const folder of folders) {

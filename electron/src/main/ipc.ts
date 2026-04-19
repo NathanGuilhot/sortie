@@ -5,6 +5,14 @@ import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
 import { FolderAvailabilityMonitor } from './folderAvailability';
 import { registerOperation, cancelOperation, clearOperation } from './operations';
+import {
+  PinterestAPIError,
+  loadMore as pinterestLoadMore,
+  parsePinterestInput,
+  scrapeFirstPage,
+} from './pinterest/scraper';
+import { getImportFolder, importPin } from './pinterest/import';
+import type { PinterestResult } from 'shared';
 
 export function setupIpcHandlers(
   dbService: DatabaseService,
@@ -468,4 +476,78 @@ export function setupIpcHandlers(
     await shell.openExternal(url);
     return { success: true };
   });
+
+  // --- Pinterest import ---
+
+  function asPinterestError(err: unknown): Error {
+    if (err instanceof PinterestAPIError) return err;
+    if (err instanceof Error) return err;
+    return new Error(String(err));
+  }
+
+  ipcMain.handle(
+    'pinterest:scrape',
+    async (_event, { input, target }: { input: string; target?: number }) => {
+      try {
+        const parsed = parsePinterestInput(input);
+        const page = await scrapeFirstPage(parsed, target ?? 50);
+        return { ok: true as const, target: parsed, page };
+      } catch (err) {
+        const error = asPinterestError(err);
+        return { ok: false as const, message: error.message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'pinterest:load-more',
+    async (
+      _event,
+      {
+        target,
+        bookmarks,
+        desired,
+      }: {
+        target:
+          | { kind: 'search'; query: string }
+          | { kind: 'board'; username: string; slug: string };
+        bookmarks: string[];
+        desired?: number;
+      },
+    ) => {
+      try {
+        const page = await pinterestLoadMore(target, bookmarks, desired ?? 50);
+        return { ok: true as const, page };
+      } catch (err) {
+        const error = asPinterestError(err);
+        return { ok: false as const, message: error.message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'pinterest:import-pin',
+    async (_event, { pin }: { pin: PinterestResult }) => {
+      try {
+        const result = await importPin(pin, { dbService });
+        return { ok: true as const, result };
+      } catch (err) {
+        const error = asPinterestError(err);
+        return { ok: false as const, message: error.message };
+      }
+    },
+  );
+
+  ipcMain.handle('pinterest:reveal-import-folder', async () => {
+    const dir = getImportFolder();
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+    } catch {
+      /* ignore */
+    }
+    await shell.openPath(dir);
+    return { success: true };
+  });
+
+  ipcMain.handle('pinterest:get-import-folder', () => getImportFolder());
 }

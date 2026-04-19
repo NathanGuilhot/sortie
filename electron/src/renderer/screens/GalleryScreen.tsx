@@ -3,6 +3,7 @@ import { SearchBar } from '../components/SearchBar';
 import { RefreshControl } from '../components/RefreshControl';
 import { MasonryGrid } from '../components/MasonryGrid';
 import { MetadataModal } from '../components/MetadataModal';
+import { AddFromWebPill } from '../components/AddFromWebPill';
 import { useImageStore } from '../stores/imageStore';
 import { useUIStore } from '../stores/uiStore';
 
@@ -45,6 +46,7 @@ export function GalleryScreen() {
             onNavigate={(img) => setSelectedImage(img)}
           />
         )}
+        <AddFromWebPill />
       </main>
     </>
   );

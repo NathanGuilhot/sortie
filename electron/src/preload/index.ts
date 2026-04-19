@@ -1,5 +1,27 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { FaceScanProgress, EmbedderStatus } from 'shared';
+import type {
+  FaceScanProgress,
+  EmbedderStatus,
+  PinterestResult,
+  PinterestSearchPage,
+  PinterestImportResult,
+} from 'shared';
+
+type PinterestTarget =
+  | { kind: 'search'; query: string }
+  | { kind: 'board'; username: string; slug: string };
+
+type PinterestScrapeResponse =
+  | { ok: true; target: PinterestTarget; page: PinterestSearchPage }
+  | { ok: false; message: string };
+
+type PinterestLoadMoreResponse =
+  | { ok: true; page: PinterestSearchPage }
+  | { ok: false; message: string };
+
+type PinterestImportResponse =
+  | { ok: true; result: PinterestImportResult }
+  | { ok: false; message: string };
 
 contextBridge.exposeInMainWorld('sortieAPI', {
   // Image operations
@@ -208,5 +230,20 @@ contextBridge.exposeInMainWorld('sortieAPI', {
         ipcRenderer.removeListener('show-about', handler);
       };
     },
+  },
+
+  pinterest: {
+    scrape: (input: string, target?: number): Promise<PinterestScrapeResponse> =>
+      ipcRenderer.invoke('pinterest:scrape', { input, target }),
+    loadMore: (
+      target: PinterestTarget,
+      bookmarks: string[],
+      desired?: number,
+    ): Promise<PinterestLoadMoreResponse> =>
+      ipcRenderer.invoke('pinterest:load-more', { target, bookmarks, desired }),
+    importPin: (pin: PinterestResult): Promise<PinterestImportResponse> =>
+      ipcRenderer.invoke('pinterest:import-pin', { pin }),
+    revealImportFolder: () => ipcRenderer.invoke('pinterest:reveal-import-folder'),
+    getImportFolder: (): Promise<string> => ipcRenderer.invoke('pinterest:get-import-folder'),
   },
 });

@@ -188,3 +188,27 @@ export type EmbedderStatus =
   | { state: 'warming' }
   | { state: 'ready' }
   | { state: 'error'; message: string };
+
+export interface PinterestResult {
+  pinId: string;
+  imageUrl: string;
+  width: number;
+  height: number;
+  alt: string | null;
+  description: string | null;
+  sourceUrl: string | null;
+  sourceDomain: string | null;
+  pinUrl: string;
+}
+
+export interface PinterestSearchPage {
+  results: PinterestResult[];
+  bookmarks: string[];
+  isEnd: boolean;
+}
+
+export interface PinterestImportResult {
+  imageId: number;
+  filePath: string;
+  alreadyImported: boolean;
+}
