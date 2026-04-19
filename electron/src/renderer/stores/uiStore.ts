@@ -8,6 +8,7 @@ interface UIStore {
   showHidden: boolean;
   showFavoritesOnly: boolean;
   personFilter: number | null;
+  folderFilter: number | null;
   focusSearchRequestedAt: number;
   scrollGalleryToTopRequestedAt: number;
   setSearchQuery: (query: string) => void;
@@ -16,6 +17,7 @@ interface UIStore {
   setShowHidden: (show: boolean) => void;
   setShowFavoritesOnly: (show: boolean) => void;
   setPersonFilter: (personId: number | null) => void;
+  setFolderFilter: (folderId: number | null) => void;
   requestFocusSearch: () => void;
   requestScrollGalleryToTop: () => void;
   clearFilters: () => void;
@@ -30,6 +32,7 @@ export const useUIStore = create<UIStore>()(
       showHidden: false,
       showFavoritesOnly: false,
       personFilter: null,
+      folderFilter: null,
       focusSearchRequestedAt: 0,
       scrollGalleryToTopRequestedAt: 0,
       setSearchQuery: (query) => set({ searchQuery: query }),
@@ -38,6 +41,7 @@ export const useUIStore = create<UIStore>()(
       setShowHidden: (show) => set({ showHidden: show }),
       setShowFavoritesOnly: (show) => set({ showFavoritesOnly: show }),
       setPersonFilter: (personId) => set({ personFilter: personId }),
+      setFolderFilter: (folderId) => set({ folderFilter: folderId }),
       requestFocusSearch: () => set({ focusSearchRequestedAt: Date.now() }),
       requestScrollGalleryToTop: () => set({ scrollGalleryToTopRequestedAt: Date.now() }),
       clearFilters: () =>
@@ -48,6 +52,7 @@ export const useUIStore = create<UIStore>()(
           showHidden: false,
           showFavoritesOnly: false,
           personFilter: null,
+          folderFilter: null,
         }),
     }),
     {
@@ -57,6 +62,7 @@ export const useUIStore = create<UIStore>()(
         tagFilters: state.tagFilters,
         showFavoritesOnly: state.showFavoritesOnly,
         personFilter: state.personFilter,
+        folderFilter: state.folderFilter,
       }),
     },
   ),

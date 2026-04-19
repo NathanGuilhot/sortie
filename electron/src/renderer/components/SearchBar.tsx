@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, RefObject } from 'react';
-import { Person } from 'shared';
+import { Person, FolderWithStats } from 'shared';
 import { useUIStore } from '../stores/uiStore';
 import { useImageStore } from '../stores/imageStore';
 import { useEmbedderStore } from '../stores/embedderStore';
@@ -88,13 +88,23 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     setShowFavoritesOnly,
     personFilter,
     setPersonFilter,
+    folderFilter,
+    setFolderFilter,
     clearFilters,
   } = useUIStore();
-  const { searchImages, fetchImages, filterByTags, filterByPerson, fetchFavorites, loading } =
-    useImageStore();
+  const {
+    searchImages,
+    fetchImages,
+    filterByTags,
+    filterByPerson,
+    filterByFolder,
+    fetchFavorites,
+    loading,
+  } = useImageStore();
   const embedderStatus = useEmbedderStore((s) => s.status);
 
   const [persons, setPersons] = useState<Person[]>([]);
+  const [folders, setFolders] = useState<FolderWithStats[]>([]);
 
   const [localQuery, setLocalQuery] = useState(searchQuery);
   const [isFocused, setIsFocused] = useState(false);
@@ -114,8 +124,20 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
       });
   }, []);
 
+  // Load folders list for the filter dropdown
+  useEffect(() => {
+    window.sortieAPI
+      .getFoldersWithStats()
+      .then(setFolders)
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`Failed to load folders: ${message}`);
+      });
+  }, []);
+
   // React to person filter changes
   useEffect(() => {
+    if (folderFilter !== null) return;
     if (personFilter !== null) {
       void filterByPerson(personFilter);
     } else if (tagFilters.length > 0) {
@@ -126,13 +148,28 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personFilter]);
 
+  // React to folder filter changes
+  useEffect(() => {
+    if (folderFilter !== null) {
+      void filterByFolder(folderFilter);
+    } else if (personFilter !== null) {
+      void filterByPerson(personFilter);
+    } else if (tagFilters.length > 0) {
+      void filterByTags(tagFilters);
+    } else if (!showFavoritesOnly && !localQuery.trim()) {
+      void fetchImages();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folderFilter]);
+
   const hasActiveFilters =
     tagFilters.length > 0 ||
     dateRange.start !== null ||
     dateRange.end !== null ||
     showHidden ||
     showFavoritesOnly ||
-    personFilter !== null;
+    personFilter !== null ||
+    folderFilter !== null;
 
   // Debounce search query to store
   useEffect(() => {
@@ -146,6 +183,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
 
   // React to tag filter changes
   useEffect(() => {
+    if (folderFilter !== null) return; // folder filter takes precedence
     if (showFavoritesOnly) return; // favorites filter takes precedence
     if (tagFilters.length > 0) {
       void filterByTags(tagFilters);
@@ -157,6 +195,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
 
   // React to favorites filter changes
   useEffect(() => {
+    if (folderFilter !== null) return; // folder filter takes precedence
     if (showFavoritesOnly) {
       void fetchFavorites();
     } else if (tagFilters.length > 0) {
@@ -367,6 +406,29 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
             <div
               className={`px-4 py-3 space-y-3 ${isFocused && !localQuery ? 'border-t border-gray-100' : ''}`}
             >
+              {/* Folder filter */}
+              {folders.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                    Filter by folder
+                  </label>
+                  <select
+                    value={folderFilter ?? ''}
+                    onChange={(e) =>
+                      setFolderFilter(e.target.value ? Number(e.target.value) : null)
+                    }
+                    className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors"
+                  >
+                    <option value="">All folders</option>
+                    {folders.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.folder_name} ({f.image_count})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Board filters */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">

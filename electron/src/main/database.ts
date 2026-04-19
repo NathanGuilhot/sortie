@@ -492,6 +492,24 @@ export class DatabaseService {
     }));
   }
 
+  async getImagesByFolder(
+    folderId: number,
+    limit: number = 100,
+    offset: number = 0,
+  ): Promise<Image[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    const allIds = this.getOrBuildShuffledIds(
+      `folder:${folderId}`,
+      `SELECT i.id AS id
+       FROM images i
+       JOIN folders f ON i.file_path LIKE f.path || '/%'
+       WHERE f.id = ? AND i.hidden = 0 AND i.missing = 0`,
+      [folderId],
+    );
+    const pageIds = allIds.slice(offset, offset + limit);
+    return this.fetchImagesByIdsInOrder(pageIds);
+  }
+
   async removeFolder(folderPath: string): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db.getDatabase();

@@ -56,6 +56,11 @@ declare global {
       cancelOperation: (opId: string) => Promise<{ cancelled: boolean }>;
       getFolders: () => Promise<Folder[]>;
       getFoldersWithStats: () => Promise<FolderWithStats[]>;
+      filterImagesByFolder: (
+        folderId: number,
+        limit?: number,
+        offset?: number,
+      ) => Promise<Image[]>;
       removeFolder: (path: string) => Promise<{ success: boolean }>;
       getAllTags: () => Promise<
         Array<{

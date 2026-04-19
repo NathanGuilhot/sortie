@@ -119,6 +119,16 @@ export function setupIpcHandlers(
     return await dbService.getFoldersWithStats();
   });
 
+  ipcMain.handle(
+    'filter-images-by-folder',
+    async (
+      _event,
+      { folderId, limit, offset }: { folderId: number; limit?: number; offset?: number },
+    ) => {
+      return await dbService.getImagesByFolder(folderId, limit, offset);
+    },
+  );
+
   ipcMain.handle('remove-folder', async (_event, { path }: { path: string }) => {
     watcherService.stopWatching(path);
     await dbService.removeFolder(path);

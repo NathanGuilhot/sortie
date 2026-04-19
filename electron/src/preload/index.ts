@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   getFoldersWithStats: () => ipcRenderer.invoke('get-folders-with-stats'),
 
+  filterImagesByFolder: (folderId: number, limit?: number, offset?: number) =>
+    ipcRenderer.invoke('filter-images-by-folder', { folderId, limit, offset }),
+
   removeFolder: (path: string) => ipcRenderer.invoke('remove-folder', { path }),
 
   getAllTags: () => ipcRenderer.invoke('get-all-tags'),
