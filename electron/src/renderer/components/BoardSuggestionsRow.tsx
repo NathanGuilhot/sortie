@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Image } from 'shared';
 import { useImageStore } from '../stores/imageStore';
+import { isGif, GifBadge } from './gif';
 
 const THUMB_SIZE = 96;
 const THUMB_FETCH_WIDTH = 200;
@@ -59,7 +60,8 @@ export function BoardSuggestionsRow({ tagId, excludeIds, onAdd }: BoardSuggestio
         </svg>
         Suggested to add
       </label>
-      <div className="flex gap-2 overflow-x-auto pb-2">
+      <div className="overflow-x-auto pb-2">
+        <div className="flex gap-2">
         {loading && visible.length === 0
           ? Array.from({ length: 8 }).map((_, i) => (
               <div
@@ -68,7 +70,12 @@ export function BoardSuggestionsRow({ tagId, excludeIds, onAdd }: BoardSuggestio
                 className="flex-shrink-0 rounded-md bg-gray-100 animate-pulse"
               />
             ))
-          : visible.map((image) => (
+          : visible.map((image) => {
+              const gif = isGif(image);
+              const src = gif
+                ? `sortie-file://${image.file_path}`
+                : `sortie-thumb://${image.file_path}?w=${THUMB_FETCH_WIDTH}`;
+              return (
               <div
                 key={image.id}
                 style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
@@ -77,11 +84,12 @@ export function BoardSuggestionsRow({ tagId, excludeIds, onAdd }: BoardSuggestio
                 title={`Add ${image.file_name} to board`}
               >
                 <img
-                  src={`sortie-thumb://${image.file_path}?w=${THUMB_FETCH_WIDTH}`}
+                  src={src}
                   alt={image.file_name}
                   draggable={false}
                   style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
                 />
+                {gif && <GifBadge corner="bottom-right" />}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -106,7 +114,9 @@ export function BoardSuggestionsRow({ tagId, excludeIds, onAdd }: BoardSuggestio
                   </svg>
                 </button>
               </div>
-            ))}
+              );
+            })}
+        </div>
       </div>
     </div>
   );

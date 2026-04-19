@@ -1,6 +1,7 @@
 import { useState, memo } from 'react';
 import { Image } from 'shared';
 import { type Position } from './masonry-layout';
+import { isGif, GifBadge } from './gif';
 
 export const MasonryImage = memo(function MasonryImage({
   image,
@@ -16,7 +17,13 @@ export const MasonryImage = memo(function MasonryImage({
   const [loaded, setLoaded] = useState(false);
 
   const thumbWidth = Math.ceil((columnWidth * (window.devicePixelRatio || 1)) / 100) * 100;
-  const src = `sortie-thumb://${image.file_path}?w=${thumbWidth}`;
+  const gif = isGif(image);
+  // GIFs lose their animation when resized through the sharp-backed thumb
+  // pipeline, so stream the original file. Static images still go through the
+  // thumb cache.
+  const src = gif
+    ? `sortie-file://${image.file_path}`
+    : `sortie-thumb://${image.file_path}?w=${thumbWidth}`;
 
   return (
     <div
@@ -48,6 +55,7 @@ export const MasonryImage = memo(function MasonryImage({
         }}
         onLoad={() => setLoaded(true)}
       />
+      {gif && loaded && <GifBadge corner="bottom-right" />}
       {image.favorite && loaded && (
         <div
           style={{

@@ -1,14 +1,7 @@
-import { useEffect, useState, useRef, useMemo, RefObject } from 'react';
+import { useEffect, useRef, RefObject } from 'react';
 import { useImageStore } from '../stores/imageStore';
-import { computeMasonryLayout, getVisibleIndices, type LayoutResult } from './masonry-layout';
 import { MasonryImage } from './masonry-utils';
-
-const OVERSCAN = 500;
-const GAP = 8;
-
-const MIN_COL_WIDTH = 220;
-const MIN_COLUMNS = 2;
-const MAX_COLUMNS = 5;
+import { useMasonryLayout, DEFAULT_OVERSCAN } from './useMasonryLayout';
 
 interface MasonryGridProps {
   scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -25,11 +18,6 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
     activeSearchQuery,
     setSelectedImage,
   } = useImageStore();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(0);
-  const rafRef = useRef(0);
   const loadingMore = useRef(false);
 
   useEffect(() => {
@@ -37,89 +25,23 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Track container width via ResizeObserver
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+  const {
+    containerRef,
+    columnWidth,
+    layout,
+    visibleIndices,
+    scrollTop,
+    viewportHeight,
+    padding,
+  } = useMasonryLayout({
+    items: images,
+    scrollContainerRef,
+    resumeOnAppend: true,
+  });
 
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        setContainerWidth(entry.contentRect.width);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // Track scroll position and viewport height
-  useEffect(() => {
-    const scrollEl = scrollContainerRef.current;
-    if (!scrollEl) return;
-
-    setViewportHeight(scrollEl.clientHeight);
-
-    const handleScroll = () => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        setScrollTop(scrollEl.scrollTop);
-      });
-    };
-
-    const handleResize = () => {
-      setViewportHeight(scrollEl.clientHeight);
-    };
-
-    scrollEl.addEventListener('scroll', handleScroll, { passive: true });
-    const resizeObs = new ResizeObserver(handleResize);
-    resizeObs.observe(scrollEl);
-
-    return () => {
-      scrollEl.removeEventListener('scroll', handleScroll);
-      resizeObs.disconnect();
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, [scrollContainerRef]);
-
-  // Compute responsive column count
-  const padding = 16; // p-4 = 16px
-  const layoutWidth = containerWidth; // contentRect already excludes CSS padding
-  const columns = useMemo(() => {
-    if (layoutWidth <= 0) return MIN_COLUMNS;
-    const fit = Math.floor((layoutWidth + GAP) / (MIN_COL_WIDTH + GAP));
-    return Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, fit));
-  }, [layoutWidth]);
-
-  // Hold the previous layout so that appending images only lays out the
-  // tail. `computeMasonryLayout` validates the prefix via edge ids and falls
-  // back to a full recompute if the images array was replaced.
-  const priorLayoutRef = useRef<LayoutResult | undefined>(undefined);
-  const layout = useMemo(() => {
-    const next = computeMasonryLayout(
-      images,
-      layoutWidth,
-      columns,
-      GAP,
-      padding,
-      priorLayoutRef.current,
-    );
-    priorLayoutRef.current = next;
-    return next;
-  }, [images, layoutWidth, columns]);
-
-  const columnWidth = layoutWidth > 0 ? (layoutWidth - (columns - 1) * GAP) / columns : 0;
-
-  // Determine visible items via the bucketed spatial index in `layout`.
-  const visibleIndices = useMemo(() => {
-    const top = scrollTop - OVERSCAN;
-    const bottom = scrollTop + viewportHeight + OVERSCAN;
-    return getVisibleIndices(layout, top, bottom);
-  }, [layout, scrollTop, viewportHeight]);
-
-  // Infinite scroll: load more when near bottom
   useEffect(() => {
     if (!hasMore || loadingMore.current) return;
-    const bottomEdge = scrollTop + viewportHeight + OVERSCAN;
+    const bottomEdge = scrollTop + viewportHeight + DEFAULT_OVERSCAN;
     if (layout.totalHeight > 0 && bottomEdge >= layout.totalHeight) {
       loadingMore.current = true;
       const loader = activeSearchQuery ? searchMore(50) : fetchImages(100, images.length, true);

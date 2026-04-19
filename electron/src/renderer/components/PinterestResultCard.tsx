@@ -2,6 +2,7 @@ import { useState, memo } from 'react';
 import type { PinterestResult } from 'shared';
 import { usePinterestStore } from '../stores/pinterestStore';
 import type { Position } from './masonry-layout';
+import { isGifUrl, GifBadge } from './gif';
 
 interface PinterestResultCardProps {
   pin: PinterestResult;
@@ -21,6 +22,7 @@ export const PinterestResultCard = memo(function PinterestResultCard({
   const isPending = status === 'pending';
   const isImported = status === 'imported';
   const isError = status === 'error';
+  const gif = isGifUrl(pin.imageUrl);
 
   const handleClick = () => {
     if (isPending || isImported) return;
@@ -86,6 +88,8 @@ export const PinterestResultCard = memo(function PinterestResultCard({
             AI
           </div>
         )}
+
+        {gif && !isImported && <GifBadge corner="bottom-right" />}
 
         {/* Domain chip — bottom-left */}
         {pin.sourceDomain && pin.sourceUrl && !isImported && (

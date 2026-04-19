@@ -5,21 +5,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Board, Image } from 'shared';
 import { useImageStore } from '../stores/imageStore';
 import { useBoardStore } from '../stores/boardStore';
-import {
-  computeMasonryLayout,
-  getVisibleIndices,
-  type LayoutResult,
-  type Position,
-} from '../components/masonry-layout';
+import { type Position } from '../components/masonry-layout';
+import { useMasonryLayout } from '../components/useMasonryLayout';
 import { MetadataModal } from '../components/MetadataModal';
 import { BoardSuggestionsRow } from '../components/BoardSuggestionsRow';
+import { isGif, GifBadge } from '../components/gif';
 
 const DND_TYPE = 'board-image';
-const OVERSCAN = 500;
-const GAP = 8;
-const MIN_COL_WIDTH = 220;
-const MIN_COLUMNS = 2;
-const MAX_COLUMNS = 5;
 
 export function BoardDetailScreen() {
   const { id } = useParams<{ id: string }>();
@@ -85,8 +77,8 @@ export function BoardDetailScreen() {
   return (
     <DndProvider backend={HTML5Backend}>
       <main className="flex-1 overflow-hidden">
-        <div ref={scrollContainerRef} className="h-full overflow-y-auto px-6 pt-6 pb-16">
-          <div className="flex items-center gap-3 mb-5">
+        <div ref={scrollContainerRef} className="h-full overflow-y-auto pt-6 pb-16">
+          <div className="flex items-center gap-3 mb-5 px-4">
             <button
               onClick={() => {
                 void navigate('/boards');
@@ -144,7 +136,7 @@ export function BoardDetailScreen() {
           />
 
           {images.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="flex flex-col items-center justify-center py-20 text-center px-4">
               <p className="text-sm text-gray-600 mb-1">This board is empty</p>
               <p className="text-xs text-gray-400">
                 Add images to this board from the metadata panel in the gallery.
@@ -153,11 +145,13 @@ export function BoardDetailScreen() {
           )}
 
           {Number.isFinite(tagId) && images.length > 0 && (
-            <BoardSuggestionsRow
-              tagId={tagId}
-              excludeIds={images.map((img) => img.id)}
-              onAdd={(img) => setImages([...images, img])}
-            />
+            <div className="px-4">
+              <BoardSuggestionsRow
+                tagId={tagId}
+                excludeIds={images.map((img) => img.id)}
+                onAdd={(img) => setImages([...images, img])}
+              />
+            </div>
           )}
         </div>
 
@@ -190,67 +184,18 @@ function BoardMasonry({
   onOpen,
   onRemove,
 }: BoardMasonryProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(0);
-  const rafRef = useRef(0);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) setContainerWidth(entry.contentRect.width);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const scrollEl = scrollContainerRef.current;
-    if (!scrollEl) return;
-    setViewportHeight(scrollEl.clientHeight);
-    const handleScroll = () => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => setScrollTop(scrollEl.scrollTop));
-    };
-    const handleResize = () => setViewportHeight(scrollEl.clientHeight);
-    scrollEl.addEventListener('scroll', handleScroll, { passive: true });
-    const resizeObs = new ResizeObserver(handleResize);
-    resizeObs.observe(scrollEl);
-    return () => {
-      scrollEl.removeEventListener('scroll', handleScroll);
-      resizeObs.disconnect();
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, [scrollContainerRef]);
-
-  const columns = useMemo(() => {
-    if (containerWidth <= 0) return MIN_COLUMNS;
-    const fit = Math.floor((containerWidth + GAP) / (MIN_COL_WIDTH + GAP));
-    return Math.max(MIN_COLUMNS, Math.min(MAX_COLUMNS, fit));
-  }, [containerWidth]);
-
-  const layout: LayoutResult = useMemo(
-    () => computeMasonryLayout(images, containerWidth, columns, GAP, 0, undefined),
-    [images, containerWidth, columns],
-  );
-
-  const columnWidth = containerWidth > 0 ? (containerWidth - (columns - 1) * GAP) / columns : 0;
-
-  const visibleIndices = useMemo(() => {
-    const top = scrollTop - OVERSCAN;
-    const bottom = scrollTop + viewportHeight + OVERSCAN;
-    return getVisibleIndices(layout, top, bottom);
-  }, [layout, scrollTop, viewportHeight]);
+  const { containerRef, columnWidth, layout, visibleIndices, padding } = useMasonryLayout({
+    items: images,
+    scrollContainerRef,
+  });
 
   return (
     <div
       ref={containerRef}
+      className="p-4"
       style={{
         position: 'relative',
-        minHeight: layout.totalHeight,
+        minHeight: layout.totalHeight + padding,
       }}
     >
       {visibleIndices.map((i) => (
@@ -314,7 +259,10 @@ function DraggableTile({
   };
 
   const thumbWidth = Math.ceil((columnWidth * (window.devicePixelRatio || 1)) / 100) * 100;
-  const src = `sortie-thumb://${image.file_path}?w=${thumbWidth}`;
+  const gif = isGif(image);
+  const src = gif
+    ? `sortie-file://${image.file_path}`
+    : `sortie-thumb://${image.file_path}?w=${thumbWidth}`;
 
   return (
     <div
@@ -342,6 +290,7 @@ function DraggableTile({
         onClick={onOpen}
         style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
       />
+      {gif && <GifBadge corner="bottom-right" />}
       <button
         onClick={(e) => {
           e.stopPropagation();
