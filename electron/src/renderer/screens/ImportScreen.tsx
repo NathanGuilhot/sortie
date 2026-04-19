@@ -3,11 +3,23 @@ import { useSearchParams } from 'react-router-dom';
 import { usePinterestStore } from '../stores/pinterestStore';
 import { PinterestResultCard } from '../components/PinterestResultCard';
 import { computeMasonryLayout, type LayoutResult } from '../components/masonry-layout';
+import { EmptyState } from '../components/screen';
 
 const GAP = 8;
 const MIN_COL_WIDTH = 200;
 const MIN_COLUMNS = 2;
 const MAX_COLUMNS = 6;
+
+const BookIcon = (
+  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+    />
+  </svg>
+);
 
 export function ImportScreen() {
   const [params, setParams] = useSearchParams();
@@ -224,23 +236,26 @@ export function ImportScreen() {
           )}
 
           {showWelcome && (
-            <div className="max-w-xl mx-auto mt-16 text-center text-gray-500">
-              <div className="text-5xl mb-4">🌐</div>
-              <h2 className="text-lg font-medium text-gray-700 mb-2">Add more from the web</h2>
-              <p className="text-sm">
-                Search Pinterest by keyword, or paste a board URL like
-                <br />
-                <code className="text-xs px-1.5 py-0.5 bg-gray-100 rounded mt-2 inline-block">
-                  https://www.pinterest.com/&lt;user&gt;/&lt;board&gt;/
-                </code>
-              </p>
-            </div>
+            <EmptyState
+              icon={BookIcon}
+              title="Add more from the web"
+              description={
+                <>
+                  Search Pinterest by keyword, or paste a board URL like{' '}
+                  <code className="text-xs px-1.5 py-0.5 bg-gray-100 rounded">
+                    pinterest.com/&lt;user&gt;/&lt;board&gt;/
+                  </code>
+                </>
+              }
+            />
           )}
 
           {showEmpty && (
-            <div className="max-w-xl mx-auto mt-16 text-center text-gray-500 text-sm">
-              No results for {targetLabel}.
-            </div>
+            <EmptyState
+              icon={BookIcon}
+              title="No results"
+              description={`Nothing matched ${targetLabel}. Try a different keyword or URL.`}
+            />
           )}
 
           {results.length > 0 && (
