@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FolderWithStats } from 'shared';
 import { CopyText } from './CopyText';
 import { ScreenShell, StatHeader, EmptyState, PrimaryButton } from './screen';
@@ -57,6 +57,20 @@ export function FolderScanner() {
   const [removingFolder, setRemovingFolder] = useState<string | null>(null);
   const [resettingDb, setResettingDb] = useState(false);
 
+  const loadFolders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await window.sortieAPI.getFoldersWithStats();
+      setFolders(data);
+      void refreshFolderStore();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshFolderStore]);
+
   useEffect(() => {
     void loadFolders();
     const unsubscribe = window.sortieAPI.onFolderAvailability((change) => {
@@ -69,21 +83,7 @@ export function FolderScanner() {
       );
     });
     return unsubscribe;
-  }, []);
-
-  const loadFolders = async () => {
-    setLoading(true);
-    try {
-      const data = await window.sortieAPI.getFoldersWithStats();
-      setFolders(data);
-      void refreshFolderStore();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [loadFolders]);
 
   const handleAddFolder = async () => {
     try {

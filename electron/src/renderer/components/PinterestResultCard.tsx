@@ -2,7 +2,8 @@ import { useState, memo } from 'react';
 import type { PinterestResult } from 'shared';
 import { usePinterestStore } from '../stores/pinterestStore';
 import type { Position } from './masonry-layout';
-import { isGifUrl, GifBadge } from './gif';
+import { isGifUrl } from './gif-utils';
+import { GifBadge } from './gif';
 
 interface PinterestResultCardProps {
   pin: PinterestResult;

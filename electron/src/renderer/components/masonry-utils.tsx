@@ -1,7 +1,8 @@
 import { useState, memo } from 'react';
 import { Image } from 'shared';
 import { type Position } from './masonry-layout';
-import { isGif, GifBadge } from './gif';
+import { isGif } from './gif-utils';
+import { GifBadge } from './gif';
 
 export const MasonryImage = memo(function MasonryImage({
   image,

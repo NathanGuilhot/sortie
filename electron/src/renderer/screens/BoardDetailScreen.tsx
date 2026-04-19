@@ -9,7 +9,8 @@ import { type Position } from '../components/masonry-layout';
 import { useMasonryLayout } from '../components/useMasonryLayout';
 import { MetadataModal } from '../components/MetadataModal';
 import { BoardSuggestionsRow } from '../components/BoardSuggestionsRow';
-import { isGif, GifBadge } from '../components/gif';
+import { isGif } from '../components/gif-utils';
+import { GifBadge } from '../components/gif';
 
 const DND_TYPE = 'board-image';
 

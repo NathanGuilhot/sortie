@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Image } from 'shared';
 import { useImageStore } from '../stores/imageStore';
-import { isGif, GifBadge } from './gif';
+import { isGif } from './gif-utils';
+import { GifBadge } from './gif';
 
 const THUMB_SIZE = 96;
 const THUMB_FETCH_WIDTH = 200;
