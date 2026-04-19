@@ -204,71 +204,68 @@ export function ImportScreen() {
           </div>
         )}
 
-        {loading && results.length === 0 && (
-          <div
-            className="grid gap-2"
-            style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-          >
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-lg bg-gray-200 animate-pulse"
-                style={{ height: [220, 300, 260, 200, 320, 240, 280, 210, 290, 250, 230, 270][i] }}
-              />
-            ))}
-          </div>
-        )}
-
-        {showWelcome && (
-          <div className="max-w-xl mx-auto mt-16 text-center text-gray-500">
-            <div className="text-5xl mb-4">🌐</div>
-            <h2 className="text-lg font-medium text-gray-700 mb-2">Add more from the web</h2>
-            <p className="text-sm">
-              Search Pinterest by keyword, or paste a board URL like
-              <br />
-              <code className="text-xs px-1.5 py-0.5 bg-gray-100 rounded mt-2 inline-block">
-                https://www.pinterest.com/&lt;user&gt;/&lt;board&gt;/
-              </code>
-            </p>
-          </div>
-        )}
-
-        {showEmpty && (
-          <div className="max-w-xl mx-auto mt-16 text-center text-gray-500 text-sm">
-            No results for {targetLabel}.
-          </div>
-        )}
-
-        {results.length > 0 && (
-          <>
-            {targetLabel && (
-              <div className="max-w-2xl mx-auto mb-3 text-xs text-gray-400 text-center">
-                {results.length} result{results.length !== 1 ? 's' : ''} for {targetLabel}
-              </div>
-            )}
+        {/* Stable width-tracker: gridRef stays on this element for the whole
+            screen lifetime so the ResizeObserver isn't torn off when results
+            arrive. */}
+        <div ref={gridRef} className="w-full">
+          {loading && results.length === 0 && (
             <div
-              ref={gridRef}
-              className="relative"
-              style={{ height: layout.totalHeight }}
+              className="grid gap-2"
+              style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
             >
-              {results.map((pin, i) => {
-                const position = layout.positions[i];
-                if (!position) return null;
-                return <PinterestResultCard key={pin.pinId} pin={pin} position={position} />;
-              })}
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-lg bg-gray-200 animate-pulse"
+                  style={{ height: [220, 300, 260, 200, 320, 240, 280, 210, 290, 250, 230, 270][i] }}
+                />
+              ))}
             </div>
-            {loadingMore && (
-              <div className="mt-4 text-center text-xs text-gray-400">Loading more…</div>
-            )}
-            {isEnd && results.length > 0 && (
-              <div className="mt-4 text-center text-xs text-gray-300">— end of results —</div>
-            )}
-          </>
-        )}
-        {/* Hidden width-tracker so we know column count even before the first
-            results land. Without this, the very first layout pass would use
-            a stale grid width. */}
-        {results.length === 0 && <div ref={gridRef} className="w-full h-0" />}
+          )}
+
+          {showWelcome && (
+            <div className="max-w-xl mx-auto mt-16 text-center text-gray-500">
+              <div className="text-5xl mb-4">🌐</div>
+              <h2 className="text-lg font-medium text-gray-700 mb-2">Add more from the web</h2>
+              <p className="text-sm">
+                Search Pinterest by keyword, or paste a board URL like
+                <br />
+                <code className="text-xs px-1.5 py-0.5 bg-gray-100 rounded mt-2 inline-block">
+                  https://www.pinterest.com/&lt;user&gt;/&lt;board&gt;/
+                </code>
+              </p>
+            </div>
+          )}
+
+          {showEmpty && (
+            <div className="max-w-xl mx-auto mt-16 text-center text-gray-500 text-sm">
+              No results for {targetLabel}.
+            </div>
+          )}
+
+          {results.length > 0 && (
+            <>
+              {targetLabel && (
+                <div className="max-w-2xl mx-auto mb-3 text-xs text-gray-400 text-center">
+                  {results.length} result{results.length !== 1 ? 's' : ''} for {targetLabel}
+                </div>
+              )}
+              <div className="relative" style={{ height: layout.totalHeight }}>
+                {results.map((pin, i) => {
+                  const position = layout.positions[i];
+                  if (!position) return null;
+                  return <PinterestResultCard key={pin.pinId} pin={pin} position={position} />;
+                })}
+              </div>
+              {loadingMore && (
+                <div className="mt-4 text-center text-xs text-gray-400">Loading more…</div>
+              )}
+              {isEnd && results.length > 0 && (
+                <div className="mt-4 text-center text-xs text-gray-300">— end of results —</div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </main>
   );

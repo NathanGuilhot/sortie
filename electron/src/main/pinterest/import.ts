@@ -143,13 +143,7 @@ export async function importPin(
   } = {};
   if (description) metadata.description = description;
   if (pin.sourceUrl) metadata.website_link = pin.sourceUrl;
-
-  console.log(
-    `[pinterest] imported id=${imageId} pin=${pin.pinId} ` +
-      `sourceUrl=${pin.sourceUrl ?? '<none>'} ` +
-      `description=${description ? `"${description.slice(0, 60)}…"` : '<none>'} ` +
-      `→ patching keys=[${Object.keys(metadata).join(',') || '<none>'}]`,
-  );
+  
 
   if (Object.keys(metadata).length > 0) {
     // Don't swallow failures here — if the patch silently no-ops the user gets
