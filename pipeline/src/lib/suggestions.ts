@@ -30,6 +30,10 @@ export class SuggestionEngine {
     return this.db.getAllEmbeddings();
   }
 
+  async getVisibleEmbeddings(): Promise<EmbeddingRow[]> {
+    return this.db.getVisibleEmbeddings();
+  }
+
   async getEmbedding(imageId: number): Promise<number[]> {
     const cached = this.embeddingCache.get(imageId);
     if (cached) return cached;
@@ -210,7 +214,7 @@ export class SuggestionEngine {
     const targetEmbedding = await this.getEmbedding(imageId);
     if (targetEmbedding.length === 0) return [];
 
-    const allRows = await this.getAllEmbeddings();
+    const allRows = await this.getVisibleEmbeddings();
     const otherRows = allRows.filter((row) => row.rowid !== imageId);
     if (otherRows.length === 0) return [];
 
@@ -282,7 +286,7 @@ export class SuggestionEngine {
       this.db.getDismissedSuggestionsByTag(tagId).map((r) => r.image_id),
     );
 
-    const allRows = await this.getAllEmbeddings();
+    const allRows = await this.getVisibleEmbeddings();
     const scored: ImageSuggestion[] = [];
     for (const row of allRows) {
       if (boardSet.has(row.rowid) || dismissedSet.has(row.rowid)) continue;

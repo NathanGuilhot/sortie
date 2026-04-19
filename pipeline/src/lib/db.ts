@@ -495,9 +495,27 @@ export class DatabaseManager {
   }
 
   getAllEmbeddings(): Array<{ rowid: number; embedding: number[] }> {
-    const rows = this.db
-      .prepare('SELECT rowid, embedding FROM vec_images')
-      .all() as EmbeddingDbRow[];
+    return this.decodeEmbeddingRows(
+      this.db.prepare('SELECT rowid, embedding FROM vec_images').all() as EmbeddingDbRow[],
+    );
+  }
+
+  getVisibleEmbeddings(): Array<{ rowid: number; embedding: number[] }> {
+    return this.decodeEmbeddingRows(
+      this.db
+        .prepare(
+          `SELECT v.rowid AS rowid, v.embedding AS embedding
+           FROM vec_images v
+           JOIN images img ON img.id = v.rowid
+           WHERE img.hidden = 0 AND img.missing = 0`,
+        )
+        .all() as EmbeddingDbRow[],
+    );
+  }
+
+  private decodeEmbeddingRows(
+    rows: EmbeddingDbRow[],
+  ): Array<{ rowid: number; embedding: number[] }> {
     return rows.map((row) => {
       let embedding: number[];
       if (Buffer.isBuffer(row.embedding)) {
