@@ -90,8 +90,8 @@ export class ClipEmbedder {
   }
 
   /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
-  private async preprocessImage(imagePath: string): Promise<unknown> {
-    const image = await sharp(imagePath)
+  private async preprocessImage(input: string | Buffer): Promise<unknown> {
+    const image = await sharp(input)
       .resize(CLIP_INPUT_SIZE, CLIP_INPUT_SIZE, { fit: 'cover' })
       .toFormat('png')
       .toBuffer();
@@ -99,18 +99,19 @@ export class ClipEmbedder {
     return await RawImage.fromBlob(new Blob([Uint8Array.from(image)], { type: 'image/png' }));
   }
 
-  async embedImage(imagePath: string): Promise<number[]> {
+  async embedImage(input: string | Buffer): Promise<number[]> {
     await this.initialize();
     try {
-      const image = await this.preprocessImage(imagePath);
+      const image = await this.preprocessImage(input);
       const imageInputs = await this.processor(image);
       const { image_embeds } = await this.visionModel(imageInputs);
       const embedding = Array.from(image_embeds.data as Float32Array);
       return normalizeVector(embedding);
     } catch (error) {
-      console.error(`Failed to embed image ${imagePath}:`, error);
+      const label = typeof input === 'string' ? input : `<${input.byteLength} bytes>`;
+      console.error(`Failed to embed image ${label}:`, error);
       throw new Error(
-        `Image embedding failed for ${imagePath}: ${error instanceof Error ? error.message : String(error)}`,
+        `Image embedding failed for ${label}: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error },
       );
     }

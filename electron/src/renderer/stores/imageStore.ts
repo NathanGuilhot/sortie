@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { Image, SearchResult } from 'shared';
 
+interface ActiveImageQuery {
+  previewUrl: string;
+}
+
 interface ImageStore {
   images: Image[];
   searchResults: SearchResult[];
@@ -8,6 +12,7 @@ interface ImageStore {
   error: string | null;
   hasMore: boolean;
   activeSearchQuery: string | null;
+  activeImageQuery: ActiveImageQuery | null;
   selectedImage: Image | null;
   setImages: (images: Image[]) => void;
   setSearchResults: (results: SearchResult[]) => void;
@@ -16,6 +21,8 @@ interface ImageStore {
   setSelectedImage: (image: Image | null) => void;
   fetchImages: (limit?: number, offset?: number, append?: boolean) => Promise<void>;
   searchImages: (query: string, limit?: number) => Promise<void>;
+  searchImagesByBytes: (bytes: Uint8Array, previewUrl: string, limit?: number) => Promise<void>;
+  clearImageQuery: () => void;
   searchMore: (limit?: number) => Promise<void>;
   updateImageTags: (imageId: number, tags: string[]) => Promise<void>;
   addToBoard: (imageId: number, tagId: number) => Promise<void>;
@@ -41,6 +48,13 @@ interface ImageStore {
   ) => Promise<void>;
 }
 
+// Revoke the prior image-query preview URL whenever we transition away from
+// image-query mode. Every action that sets `activeImageQuery: null` funnels
+// through this so we never leak object URLs.
+function releasePreviewUrl(current: ActiveImageQuery | null) {
+  if (current) URL.revokeObjectURL(current.previewUrl);
+}
+
 export const useImageStore = create<ImageStore>((set, get) => ({
   images: [],
   searchResults: [],
@@ -48,6 +62,7 @@ export const useImageStore = create<ImageStore>((set, get) => ({
   error: null,
   hasMore: true,
   activeSearchQuery: null,
+  activeImageQuery: null,
   selectedImage: null,
   setImages: (images) => set({ images }),
   setSearchResults: (results) => set({ searchResults: results }),
@@ -66,7 +81,14 @@ export const useImageStore = create<ImageStore>((set, get) => ({
           return { images: [...state.images, ...deduped], loading: false, hasMore };
         });
       } else {
-        set({ images: fetched, loading: false, hasMore, activeSearchQuery: null });
+        releasePreviewUrl(get().activeImageQuery);
+        set({
+          images: fetched,
+          loading: false,
+          hasMore,
+          activeSearchQuery: null,
+          activeImageQuery: null,
+        });
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -77,11 +99,13 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const results = await window.sortieAPI.searchImages(query, limit, 0);
+      releasePreviewUrl(get().activeImageQuery);
       set({
         searchResults: results,
         images: results,
         hasMore: results.length >= limit,
         activeSearchQuery: query,
+        activeImageQuery: null,
         loading: false,
       });
     } catch (error: unknown) {
@@ -89,8 +113,35 @@ export const useImageStore = create<ImageStore>((set, get) => ({
       set({ error: message, loading: false });
     }
   },
+  searchImagesByBytes: async (bytes: Uint8Array, previewUrl: string, limit = 100) => {
+    set({ loading: true, error: null });
+    try {
+      const results = await window.sortieAPI.searchImagesByBytes(bytes, limit, 0);
+      // Only revoke the prior preview after the IPC succeeds — if it throws,
+      // the user's chip should stay on screen with the old preview.
+      releasePreviewUrl(get().activeImageQuery);
+      set({
+        searchResults: results,
+        images: results,
+        hasMore: false, // v1: no pagination for image queries
+        activeSearchQuery: null,
+        activeImageQuery: { previewUrl },
+        loading: false,
+      });
+    } catch (error: unknown) {
+      URL.revokeObjectURL(previewUrl);
+      const message = error instanceof Error ? error.message : String(error);
+      set({ error: message, loading: false });
+    }
+  },
+  clearImageQuery: () => {
+    releasePreviewUrl(get().activeImageQuery);
+    set({ activeImageQuery: null });
+  },
   searchMore: async (limit = 50) => {
-    const { activeSearchQuery, images, loading } = get();
+    const { activeSearchQuery, activeImageQuery, images, loading } = get();
+    // Image queries are single-shot in v1 — don't attempt to paginate.
+    if (activeImageQuery) return;
     if (!activeSearchQuery || loading) return;
     set({ loading: true, error: null });
     try {
@@ -118,11 +169,13 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const images = await window.sortieAPI.filterImages(tags, limit, offset);
+      releasePreviewUrl(get().activeImageQuery);
       set({
         images,
         loading: false,
         hasMore: images.length >= limit,
         activeSearchQuery: null,
+        activeImageQuery: null,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -178,11 +231,13 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const images = await window.sortieAPI.boards.getImages(tagId, limit, offset);
+      releasePreviewUrl(get().activeImageQuery);
       set({
         images,
         loading: false,
         hasMore: images.length >= limit,
         activeSearchQuery: null,
+        activeImageQuery: null,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -207,11 +262,13 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const fetched = await window.sortieAPI.getFavoriteImages(limit, offset);
+      releasePreviewUrl(get().activeImageQuery);
       set({
         images: fetched,
         loading: false,
         hasMore: fetched.length >= limit,
         activeSearchQuery: null,
+        activeImageQuery: null,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -222,11 +279,13 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const images = await window.sortieAPI.filterImagesByPerson(personId, limit, offset);
+      releasePreviewUrl(get().activeImageQuery);
       set({
         images,
         loading: false,
         hasMore: images.length >= limit,
         activeSearchQuery: null,
+        activeImageQuery: null,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -237,11 +296,13 @@ export const useImageStore = create<ImageStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const images = await window.sortieAPI.filterImagesByFolder(folderId, limit, offset);
+      releasePreviewUrl(get().activeImageQuery);
       set({
         images,
         loading: false,
         hasMore: images.length >= limit,
         activeSearchQuery: null,
+        activeImageQuery: null,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

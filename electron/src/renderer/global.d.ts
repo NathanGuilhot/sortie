@@ -46,6 +46,11 @@ declare global {
       getImage: (id: number) => Promise<Image | null>;
       reshuffleImages: () => Promise<{ success: boolean }>;
       searchImages: (query: string, limit?: number, offset?: number) => Promise<SearchResult[]>;
+      searchImagesByBytes: (
+        bytes: Uint8Array,
+        limit?: number,
+        offset?: number,
+      ) => Promise<SearchResult[]>;
       getEmbedderStatus: () => Promise<EmbedderStatus>;
       onEmbedderStatus: (callback: (status: EmbedderStatus) => void) => () => void;
       findSimilarImages: (imageId: number, limit?: number) => Promise<SearchResult[]>;

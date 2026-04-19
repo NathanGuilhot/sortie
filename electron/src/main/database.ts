@@ -263,9 +263,30 @@ export class DatabaseService {
   ): Promise<SearchResult[]> {
     if (!this.db) throw new Error('Database not initialized');
     if (!this.embedder) throw new Error('Embedder not initialized');
-    const db = this.db;
 
     const embedding = await this.embedder.embedText(query);
+    return this.runEmbeddingSearch(embedding, limit, offset);
+  }
+
+  async searchImagesByBytes(
+    bytes: Buffer,
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<SearchResult[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    if (!this.embedder) throw new Error('Embedder not initialized');
+
+    const embedding = await this.embedder.embedImage(bytes);
+    return this.runEmbeddingSearch(embedding, limit, offset);
+  }
+
+  private runEmbeddingSearch(
+    embedding: number[],
+    limit: number,
+    offset: number,
+  ): SearchResult[] {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db;
 
     // Embeddings are L2-normalized, so distance ∈ [0, 2]. Below ~1.3 corresponds
     // to cosine similarity > ~0.15, which empirically separates real matches

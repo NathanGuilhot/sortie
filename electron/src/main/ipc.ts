@@ -55,6 +55,20 @@ export function setupIpcHandlers(
     },
   );
 
+  ipcMain.handle(
+    'search-images-by-bytes',
+    async (
+      _event,
+      { bytes, limit, offset }: { bytes: Uint8Array; limit?: number; offset?: number },
+    ) => {
+      const MAX_QUERY_BYTES = 25 * 1024 * 1024;
+      if (bytes.byteLength > MAX_QUERY_BYTES) {
+        throw new Error(`Image too large (${bytes.byteLength} bytes, max ${MAX_QUERY_BYTES})`);
+      }
+      return await dbService.searchImagesByBytes(Buffer.from(bytes), limit, offset);
+    },
+  );
+
   ipcMain.handle('get-embedder-status', () => dbService.getEmbedderStatus());
 
   ipcMain.handle(

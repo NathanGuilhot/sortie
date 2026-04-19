@@ -94,6 +94,8 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   } = useUIStore();
   const {
     searchImages,
+    searchImagesByBytes,
+    clearImageQuery,
     fetchImages,
     filterByTags,
     filterByPerson,
@@ -101,6 +103,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     fetchFavorites,
     loading,
   } = useImageStore();
+  const activeImageQuery = useImageStore((s) => s.activeImageQuery);
   const embedderStatus = useEmbedderStore((s) => s.status);
 
   const [persons, setPersons] = useState<Person[]>([]);
@@ -109,9 +112,11 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   const [localQuery, setLocalQuery] = useState(searchQuery);
   const [isFocused, setIsFocused] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const dragCounterRef = useRef(0);
 
   // Load persons list for the filter dropdown
   useEffect(() => {
@@ -236,6 +241,96 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     inputRef?.current?.focus();
   }, [clearFilters, fetchImages, inputRef, scrollContainerRef]);
 
+  const runImageSearch = useCallback(
+    async (file: File) => {
+      if (embedderStatus.state !== 'ready') {
+        toast.error(
+          embedderStatus.state === 'warming'
+            ? 'Search model is still warming up — try again in a moment.'
+            : 'Search unavailable.',
+        );
+        return;
+      }
+      const MAX = 25 * 1024 * 1024;
+      if (file.size > MAX) {
+        toast.error(`Image too large (${Math.round(file.size / 1024 / 1024)}MB, max 25MB)`);
+        return;
+      }
+      let previewUrl: string | null = null;
+      try {
+        const buffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        previewUrl = URL.createObjectURL(file);
+        // Clear the text query so text-mode UI (suggestions, AddFromWebPill
+        // deep-link) doesn't linger behind the image chip.
+        setLocalQuery('');
+        setSearchQuery('');
+        scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        await searchImagesByBytes(bytes, previewUrl);
+        // On success, the store owns the URL and will revoke it on clear.
+      } catch (error) {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`Reverse image search failed: ${message}`);
+      }
+    },
+    [embedderStatus, scrollContainerRef, searchImagesByBytes, setSearchQuery],
+  );
+
+  const handleClearImageQuery = useCallback(() => {
+    clearImageQuery();
+    void fetchImages();
+    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    inputRef?.current?.focus();
+  }, [clearImageQuery, fetchImages, inputRef, scrollContainerRef]);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    setIsDragActive(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) setIsDragActive(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    dragCounterRef.current = 0;
+    setIsDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    // Only preventDefault once we've decided to handle it — non-image drops
+    // fall through so we don't break any other drop targets that may appear.
+    e.preventDefault();
+    void runImageSearch(file);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          void runImageSearch(file);
+          return;
+        }
+      }
+    }
+    // No image in clipboard — let the normal text paste happen.
+  };
+
   const handleFocus = () => {
     clearTimeout(blurTimeoutRef.current);
     setIsFocused(true);
@@ -278,46 +373,85 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     <div
       ref={containerRef}
       className="fixed top-4 left-1/2 -translate-x-1/2 ml-8 z-20 w-full max-w-xl px-4"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       {/* Input bar */}
       <div
         className={`
           flex items-center h-11 px-4 rounded-2xl border transition-all duration-200
           ${
-            isFocused
-              ? 'bg-white shadow-xl border-gray-300'
-              : 'bg-white/80 backdrop-blur-lg shadow-lg shadow-black/5 border-gray-200/60'
+            isDragActive
+              ? 'bg-white shadow-xl border-dashed border-ink ring-2 ring-ink/10'
+              : isFocused
+                ? 'bg-white shadow-xl border-gray-300'
+                : 'bg-white/80 backdrop-blur-lg shadow-lg shadow-black/5 border-gray-200/60'
           }
         `}
       >
-        <svg
-          className="w-4 h-4 text-gray-400 shrink-0"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+        {activeImageQuery ? (
+          <img
+            src={activeImageQuery.previewUrl}
+            alt="Query image"
+            className="w-6 h-6 rounded object-cover shrink-0"
           />
-        </svg>
+        ) : (
+          <svg
+            className="w-4 h-4 text-gray-400 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+        )}
 
         <input
           ref={inputRef as React.RefObject<HTMLInputElement>}
           type="text"
           className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 placeholder-gray-400 ml-3"
-          placeholder="Search photos..."
+          placeholder={
+            isDragActive
+              ? 'Drop image to search similar…'
+              : activeImageQuery
+                ? 'Similar to image'
+                : 'Search photos...'
+          }
           value={localQuery}
           onChange={(e) => setLocalQuery(e.target.value)}
           onFocus={handleFocus}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          disabled={!!activeImageQuery}
         />
 
         {loading && (
           <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-gray-600 shrink-0" />
+        )}
+
+        {activeImageQuery && (
+          <button
+            onClick={handleClearImageQuery}
+            title="Clear image search"
+            className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0 ml-1"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
         )}
 
         {localQuery && (

@@ -1,10 +1,15 @@
 import { useNavigate } from 'react-router-dom';
 import { useUIStore } from '../stores/uiStore';
+import { useImageStore } from '../stores/imageStore';
 
 export function AddFromWebPill() {
   const navigate = useNavigate();
   const searchQuery = useUIStore((s) => s.searchQuery);
+  const activeImageQuery = useImageStore((s) => s.activeImageQuery);
 
+  // Hide during reverse-image search: there's no text query to forward to
+  // Pinterest, so the pill would deep-link to an empty search.
+  if (activeImageQuery) return null;
   if (!searchQuery.trim()) return null;
 
   const handleClick = () => {

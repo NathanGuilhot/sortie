@@ -35,6 +35,9 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   searchImages: (query: string, limit?: number, offset?: number) =>
     ipcRenderer.invoke('search-images', { query, limit, offset }),
 
+  searchImagesByBytes: (bytes: Uint8Array, limit?: number, offset?: number) =>
+    ipcRenderer.invoke('search-images-by-bytes', { bytes, limit, offset }),
+
   getEmbedderStatus: (): Promise<EmbedderStatus> => ipcRenderer.invoke('get-embedder-status'),
 
   onEmbedderStatus: (callback: (status: EmbedderStatus) => void) => {
