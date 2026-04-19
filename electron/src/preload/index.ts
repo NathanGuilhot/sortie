@@ -5,6 +5,8 @@ import type {
   PinterestResult,
   PinterestSearchPage,
   PinterestImportResult,
+  PinterestBulkImportProgress,
+  PinterestBulkImportSummary,
 } from 'shared';
 
 type PinterestTarget =
@@ -21,6 +23,14 @@ type PinterestLoadMoreResponse =
 
 type PinterestImportResponse =
   | { ok: true; result: PinterestImportResult }
+  | { ok: false; message: string };
+
+type PinterestBulkImportStartResponse =
+  | { ok: true; jobId: string }
+  | { ok: false; message: string };
+
+type PinterestBulkImportCancelResponse =
+  | { ok: true }
   | { ok: false; message: string };
 
 contextBridge.exposeInMainWorld('sortieAPI', {
@@ -253,6 +263,28 @@ contextBridge.exposeInMainWorld('sortieAPI', {
       ipcRenderer.invoke('pinterest:load-more', { target, bookmarks, desired }),
     importPin: (pin: PinterestResult): Promise<PinterestImportResponse> =>
       ipcRenderer.invoke('pinterest:import-pin', { pin }),
+    startBulkImport: (args: {
+      username: string;
+      slug: string;
+      hideAiGenerated: boolean;
+    }): Promise<PinterestBulkImportStartResponse> =>
+      ipcRenderer.invoke('pinterest:bulk-import-board', args),
+    cancelBulkImport: (jobId: string): Promise<PinterestBulkImportCancelResponse> =>
+      ipcRenderer.invoke('pinterest:bulk-import-cancel', { jobId }),
+    onBulkImportProgress: (cb: (progress: PinterestBulkImportProgress) => void) => {
+      const handler = (_event: unknown, progress: PinterestBulkImportProgress) => cb(progress);
+      ipcRenderer.on('pinterest:bulk-import-progress', handler);
+      return () => {
+        ipcRenderer.removeListener('pinterest:bulk-import-progress', handler);
+      };
+    },
+    onBulkImportComplete: (cb: (summary: PinterestBulkImportSummary) => void) => {
+      const handler = (_event: unknown, summary: PinterestBulkImportSummary) => cb(summary);
+      ipcRenderer.on('pinterest:bulk-import-complete', handler);
+      return () => {
+        ipcRenderer.removeListener('pinterest:bulk-import-complete', handler);
+      };
+    },
     revealImportFolder: () => ipcRenderer.invoke('pinterest:reveal-import-folder'),
     getImportFolder: (): Promise<string> => ipcRenderer.invoke('pinterest:get-import-folder'),
   },

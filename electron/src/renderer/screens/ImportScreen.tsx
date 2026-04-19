@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { usePinterestStore } from '../stores/pinterestStore';
 import { useUIStore } from '../stores/uiStore';
 import { PinterestResultCard } from '../components/PinterestResultCard';
+import { BulkImportButton } from '../components/BulkImportButton';
 import { computeMasonryLayout, type LayoutResult } from '../components/masonry-layout';
 import { EmptyState } from '../components/screen';
 
@@ -29,6 +30,7 @@ export function ImportScreen() {
   const {
     query: storedQuery,
     target,
+    boardPinCount,
     results,
     loading,
     loadingMore,
@@ -410,7 +412,26 @@ export function ImportScreen() {
 
           {results.length > 0 && !showAllHidden && (
             <>
-              {targetLabel && (
+              {target?.kind === 'board' ? (
+                <div className="max-w-3xl mx-auto mb-4 px-4 py-3 rounded-2xl bg-white border border-gray-200/70 shadow-sm flex items-center gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-ink truncate">
+                      {target.username}
+                      <span className="text-gray-300"> / </span>
+                      <span className="text-gray-700">{target.slug}</span>
+                    </div>
+                    <div className="text-[11px] text-gray-500 tabular-nums">
+                      {boardPinCount != null
+                        ? `${boardPinCount} pin${boardPinCount !== 1 ? 's' : ''}`
+                        : `${visibleResults.length} loaded`}
+                      {hiddenAiCount > 0 && (
+                        <span className="text-gray-400"> · {hiddenAiCount} AI-generated hidden</span>
+                      )}
+                    </div>
+                  </div>
+                  <BulkImportButton />
+                </div>
+              ) : targetLabel ? (
                 <div className="max-w-2xl mx-auto mb-3 text-xs text-gray-400 text-center">
                   {visibleResults.length} result{visibleResults.length !== 1 ? 's' : ''} for{' '}
                   {targetLabel}
@@ -418,7 +439,7 @@ export function ImportScreen() {
                     <span className="text-gray-300"> · {hiddenAiCount} AI-generated hidden</span>
                   )}
                 </div>
-              )}
+              ) : null}
               <div className="relative" style={{ height: layout.totalHeight }}>
                 {visibleResults.map((pin, i) => {
                   const position = layout.positions[i];

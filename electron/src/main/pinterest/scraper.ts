@@ -101,7 +101,12 @@ async function scrapeBoard(
     bookmarks = nextBookmarks;
     batches++;
     if (isEndBookmark(bookmarks) || pins.length === 0) {
-      return { results: results.slice(0, goal), bookmarks, isEnd: true };
+      return {
+        results: results.slice(0, goal),
+        bookmarks,
+        isEnd: true,
+        boardPinCount: info.pinCount,
+      };
     }
     if (results.length < goal) await sleep(BATCH_DELAY_MS);
   }
@@ -110,6 +115,7 @@ async function scrapeBoard(
     results: results.slice(0, goal),
     bookmarks,
     isEnd: isEndBookmark(bookmarks),
+    boardPinCount: info.pinCount,
   };
 }
 

@@ -59,14 +59,20 @@ function extFromUrl(url: string): string | null {
 
 async function downloadImageBytes(
   url: string,
+  externalSignal?: AbortSignal,
 ): Promise<{ bytes: Uint8Array; contentType: string | null }> {
+  // Combine the per-request timeout with any caller-supplied cancel signal
+  // (bulk-import jobs pass one so the in-flight download aborts on cancel).
+  const signals: AbortSignal[] = [AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS)];
+  if (externalSignal) signals.push(externalSignal);
+  const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
   const res = await fetch(url, {
     headers: {
       'user-agent': USER_AGENT,
       accept: 'image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8',
     },
     redirect: 'follow',
-    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    signal,
   });
   if (!res.ok) throw new Error(`Image download failed: HTTP ${res.status}`);
   const contentType = res.headers.get('content-type');
@@ -80,6 +86,7 @@ async function downloadImageBytes(
 
 export interface ImportPinDeps {
   dbService: DatabaseService;
+  signal?: AbortSignal;
 }
 
 export async function importPin(
@@ -107,7 +114,7 @@ export async function importPin(
     // File exists on disk but DB row is missing — fall through and re-add.
   }
 
-  const { bytes, contentType } = await downloadImageBytes(pin.imageUrl);
+  const { bytes, contentType } = await downloadImageBytes(pin.imageUrl, deps.signal);
 
   // If content-type disagrees with URL extension, prefer content-type.
   const ctExt = extFromContentType(contentType);

@@ -12,6 +12,8 @@ import {
   scrapeFirstPage,
 } from './pinterest/scraper';
 import { getImportFolder, importPin } from './pinterest/import';
+import { bulkImportBoard } from './pinterest/bulkImport';
+import { randomUUID } from 'crypto';
 import type { PinterestResult } from 'shared';
 
 export function setupIpcHandlers(
@@ -561,6 +563,69 @@ export function setupIpcHandlers(
       }
     },
   );
+
+  // Tracks in-flight bulk-import jobs so the renderer can cancel them.
+  // Cleared on completion. Jobs don't survive app restart.
+  const bulkImportJobs = new Map<string, AbortController>();
+
+  ipcMain.handle(
+    'pinterest:bulk-import-board',
+    async (
+      event,
+      {
+        username,
+        slug,
+        hideAiGenerated,
+      }: { username: string; slug: string; hideAiGenerated: boolean },
+    ) => {
+      const jobId = randomUUID();
+      const controller = new AbortController();
+      bulkImportJobs.set(jobId, controller);
+
+      const sender = event.sender;
+      const send = (channel: string, payload: unknown) => {
+        // Sender may be destroyed if the window closed mid-job; skip silently.
+        if (!sender.isDestroyed()) sender.send(channel, payload);
+      };
+
+      // Fire and forget — renderer listens on progress/complete channels.
+      void (async () => {
+        try {
+          const summary = await bulkImportBoard(
+            { jobId, username, slug, hideAiGenerated },
+            {
+              dbService,
+              signal: controller.signal,
+              onProgress: (p) => send('pinterest:bulk-import-progress', p),
+            },
+          );
+          send('pinterest:bulk-import-complete', summary);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          send('pinterest:bulk-import-complete', {
+            jobId,
+            status: 'error' as const,
+            total: 0,
+            imported: 0,
+            skipped: 0,
+            failed: 0,
+            error: message,
+          });
+        } finally {
+          bulkImportJobs.delete(jobId);
+        }
+      })();
+
+      return { ok: true as const, jobId };
+    },
+  );
+
+  ipcMain.handle('pinterest:bulk-import-cancel', async (_event, { jobId }: { jobId: string }) => {
+    const controller = bulkImportJobs.get(jobId);
+    if (!controller) return { ok: false as const, message: 'Job not found' };
+    controller.abort();
+    return { ok: true as const };
+  });
 
   ipcMain.handle('pinterest:reveal-import-folder', async () => {
     const dir = getImportFolder();

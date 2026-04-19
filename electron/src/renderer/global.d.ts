@@ -18,6 +18,8 @@ import {
   PinterestResult,
   PinterestSearchPage,
   PinterestImportResult,
+  PinterestBulkImportProgress,
+  PinterestBulkImportSummary,
 } from 'shared';
 
 type PinterestTarget =
@@ -34,6 +36,14 @@ type PinterestLoadMoreResponse =
 
 type PinterestImportResponse =
   | { ok: true; result: PinterestImportResult }
+  | { ok: false; message: string };
+
+type PinterestBulkImportStartResponse =
+  | { ok: true; jobId: string }
+  | { ok: false; message: string };
+
+type PinterestBulkImportCancelResponse =
+  | { ok: true }
   | { ok: false; message: string };
 
 export {};
@@ -186,6 +196,18 @@ declare global {
           desired?: number,
         ) => Promise<PinterestLoadMoreResponse>;
         importPin: (pin: PinterestResult) => Promise<PinterestImportResponse>;
+        startBulkImport: (args: {
+          username: string;
+          slug: string;
+          hideAiGenerated: boolean;
+        }) => Promise<PinterestBulkImportStartResponse>;
+        cancelBulkImport: (jobId: string) => Promise<PinterestBulkImportCancelResponse>;
+        onBulkImportProgress: (
+          cb: (progress: PinterestBulkImportProgress) => void,
+        ) => () => void;
+        onBulkImportComplete: (
+          cb: (summary: PinterestBulkImportSummary) => void,
+        ) => () => void;
         revealImportFolder: () => Promise<{ success: boolean }>;
         getImportFolder: () => Promise<string>;
       };
