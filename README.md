@@ -29,7 +29,7 @@ How about family pictures? Sortie runs on-device face detection to allow you to 
 
 You can also edit and view your image metadatas, adding descriptions, links, favorite them... and jump between related images to surf your gallery!
 
-Not enough pictures? Well, you can also use Pinterest search and boards directly in the UI, without an account, and import images directly from there.
+Not enough pictures? Well, you can also use Pinterest search and boards directly in the UI, without an account, and import images directly from there -- and even filter out AI generated images!
 
 On top of this, the gallery is optimized to handle thousands and gigabits of images without breaking a sweat! 
 

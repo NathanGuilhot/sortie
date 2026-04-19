@@ -122,13 +122,16 @@ export function AppLayout() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        void navigate('/gallery');
+        // Stay on /import if already there; otherwise route to the gallery's search.
+        if (location.pathname !== '/import') {
+          void navigate('/gallery');
+        }
         requestFocusSearch();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigate, requestFocusSearch]);
+  }, [navigate, requestFocusSearch, location.pathname]);
 
   return (
     <div className="h-screen bg-cream flex overflow-hidden">

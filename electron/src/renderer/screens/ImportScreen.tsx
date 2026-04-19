@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { usePinterestStore } from '../stores/pinterestStore';
+import { useUIStore } from '../stores/uiStore';
 import { PinterestResultCard } from '../components/PinterestResultCard';
 import { computeMasonryLayout, type LayoutResult } from '../components/masonry-layout';
 import { EmptyState } from '../components/screen';
@@ -47,11 +48,19 @@ export function ImportScreen() {
   const hiddenAiCount = results.length - visibleResults.length;
 
   const [input, setInput] = useState(initialQuery || storedQuery);
+  const [showFilters, setShowFilters] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const lastDeeplinkedQuery = useRef<string | null>(null);
   const [gridWidth, setGridWidth] = useState(0);
+
+  // Dot on the funnel surfaces "a filter is currently narrowing your results,
+  // click here to turn it off" — so it shows while the AI filter is on.
+  const hasActiveFilters = hideAiGenerated;
 
   // Track grid width via ResizeObserver so column count reflows on window resize.
   useEffect(() => {
@@ -111,6 +120,25 @@ export function ImportScreen() {
     inputRef.current?.focus();
   }, []);
 
+  // Re-focus the input whenever Cmd/Ctrl+K is pressed, matching the gallery.
+  const focusSearchRequestedAt = useUIStore((s) => s.focusSearchRequestedAt);
+  useEffect(() => {
+    if (focusSearchRequestedAt > 0) inputRef.current?.focus();
+  }, [focusSearchRequestedAt]);
+
+  // Click-outside dismissal for the filters panel — matches the gallery's
+  // dropdown behaviour.
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsFocused(false);
+        setShowFilters(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Infinite scroll near the bottom.
   useEffect(() => {
     const el = scrollRef.current;
@@ -159,6 +187,25 @@ export function ImportScreen() {
     inputRef.current?.focus();
   };
 
+  const handleFocus = () => {
+    clearTimeout(blurTimeoutRef.current);
+    setIsFocused(true);
+  };
+
+  const handleBlur = () => {
+    blurTimeoutRef.current = setTimeout(() => setIsFocused(false), 150);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setIsFocused(false);
+      setShowFilters(false);
+      inputRef.current?.blur();
+    }
+  };
+
+  const showDropdown = showFilters;
+
   const showEmpty = !loading && !error && results.length === 0 && storedQuery !== '';
   const showWelcome = !loading && !error && results.length === 0 && storedQuery === '';
   // All fetched pins are AI-labelled and the user is hiding them — show a
@@ -181,86 +228,123 @@ export function ImportScreen() {
         : '';
 
   return (
-    <main className="flex-1 overflow-hidden flex flex-col">
-      {/* Search bar — same visual language as the gallery's */}
-      <div className="px-6 pt-6 pb-4">
-        <div className="max-w-2xl mx-auto">
-          <form onSubmit={handleSubmit} className="flex items-center gap-2">
-            <div className="flex-1 flex items-center h-11 px-4 rounded-2xl border bg-white shadow-lg shadow-black/5 border-gray-200/60">
-              <svg
-                className="w-4 h-4 text-gray-400 shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+    <main className="flex-1 overflow-hidden">
+      {/* Search bar — mirrors the gallery's fixed floating bar so navigating
+          between screens keeps the same affordance in the same spot. */}
+      <div
+        ref={containerRef}
+        className="fixed top-4 left-1/2 -translate-x-1/2 ml-8 z-20 w-full max-w-xl px-4"
+      >
+        <form
+          onSubmit={handleSubmit}
+          className={`flex items-center h-11 px-4 rounded-2xl border transition-all duration-200 ${
+            isFocused
+              ? 'bg-white shadow-xl border-gray-300'
+              : 'bg-white/80 backdrop-blur-lg shadow-lg shadow-black/5 border-gray-200/60'
+          }`}
+        >
+          <svg
+            className="w-4 h-4 text-gray-400 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+            />
+          </svg>
+
+          <input
+            ref={inputRef}
+            type="text"
+            className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 placeholder-gray-400 ml-3"
+            placeholder="Search Pinterest or paste a board URL..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+          />
+
+          {loading && (
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-gray-600 shrink-0" />
+          )}
+
+          {input && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0 ml-1"
+              title="Clear"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                  d="M6 18L18 6M6 6l12 12"
                 />
               </svg>
-              <input
-                ref={inputRef}
-                type="text"
-                className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 placeholder-gray-400 ml-3"
-                placeholder="Search Pinterest or paste a board URL..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-              />
-              {input && (
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0 ml-1"
-                  title="Clear"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              )}
-            </div>
+            </button>
+          )}
+
+          {(isFocused || hasActiveFilters) && (
             <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="h-11 px-5 text-sm font-medium rounded-2xl bg-ink text-white hover:bg-ink/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setShowFilters((v) => !v)}
+              className={`p-1 rounded-full transition-colors shrink-0 ml-1 relative ${
+                showFilters
+                  ? 'bg-gray-100 text-gray-700'
+                  : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'
+              }`}
+              title="Filters"
+              aria-expanded={showFilters}
             >
-              {loading ? (
-                <span className="inline-flex items-center gap-2">
-                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Searching
-                </span>
-              ) : (
-                'Search'
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                />
+              </svg>
+              {hasActiveFilters && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-coral rounded-full" />
               )}
             </button>
-          </form>
-          <div className="mt-2 flex items-center justify-center gap-3 text-xs text-gray-400">
-            <span>
-              Click any image to add it to your library — the rest stay just for this session.
-            </span>
+          )}
+
+          {!isFocused && !input && (
+            <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] text-gray-400 bg-gray-100 rounded border border-gray-200 ml-2 shrink-0">
+              <span className="text-[10px]">&#8984;K</span>
+            </kbd>
+          )}
+        </form>
+
+        {showDropdown && (
+          <div className="mt-2 bg-white rounded-2xl border border-gray-200/60 shadow-xl shadow-black/5 overflow-hidden animate-dropdown-in">
+            <div className="px-4 py-3 space-y-3">
+              <div className="flex gap-4">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 text-ink rounded border-gray-300"
+                    checked={hideAiGenerated}
+                    onChange={(e) => setHideAiGenerated(e.target.checked)}
+                  />
+                  <span className="text-xs text-gray-600">Hide AI-generated</span>
+                </label>
+              </div>
+            </div>
           </div>
-          <div className="mt-2 flex items-center justify-center">
-            <label className="inline-flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5 rounded border-gray-300 text-ink focus:ring-ink/40 cursor-pointer"
-                checked={hideAiGenerated}
-                onChange={(e) => setHideAiGenerated(e.target.checked)}
-              />
-              <span>Hide AI-generated</span>
-            </label>
-          </div>
-        </div>
+        )}
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 pb-20">
+      <div ref={scrollRef} className="h-full overflow-y-auto pt-16 pb-10 px-6">
         {error && (
           <div className="max-w-2xl mx-auto mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
             {error}
