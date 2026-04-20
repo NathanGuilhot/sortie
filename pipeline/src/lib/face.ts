@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import { dynamicImport } from './dynamic-import';
 
 export interface DetectedFace {
   bbox: { x: number; y: number; width: number; height: number };
@@ -17,13 +18,10 @@ export class FaceDetector {
   private canvas: any = null;
   private tf: any = null;
   private isInitialized = false;
-  private modelsPath: string;
-  private cacheDir?: string;
-
-  constructor(modelsPath: string, cacheDir?: string) {
-    this.modelsPath = modelsPath;
-    this.cacheDir = cacheDir;
-  }
+  constructor(
+    private readonly modelsPath: string,
+    private readonly cacheDir?: string,
+  ) {}
 
   private getCachePath(imagePath: string): string | null {
     if (!this.cacheDir) return null;
@@ -44,39 +42,28 @@ export class FaceDetector {
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval
-      const dynamicImport = new Function('specifier', 'return import(specifier)') as <T = unknown>(
-        specifier: string,
-      ) => Promise<T>;
+    const wasmBackend = await dynamicImport<any>('@tensorflow/tfjs-backend-wasm');
+    const wasmDir = path.dirname(
+      require.resolve('@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm.wasm'),
+    );
+    wasmBackend.setWasmPaths(wasmDir + '/');
 
-      // Configure WASM backend paths before importing TF.js
-      const wasmBackend = await dynamicImport<any>('@tensorflow/tfjs-backend-wasm');
-      const wasmDir = path.dirname(
-        require.resolve('@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm.wasm'),
-      );
-      wasmBackend.setWasmPaths(wasmDir + '/');
+    this.tf = await dynamicImport<any>('@tensorflow/tfjs');
+    await this.tf.setBackend('wasm');
+    await this.tf.ready();
 
-      this.tf = await dynamicImport<any>('@tensorflow/tfjs');
-      await this.tf.setBackend('wasm');
-      await this.tf.ready();
+    this.faceapi = await dynamicImport('@vladmandic/face-api/dist/face-api.node-wasm.js');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    this.canvas = require('canvas');
 
-      this.faceapi = await dynamicImport('@vladmandic/face-api/dist/face-api.node-wasm.js');
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      this.canvas = require('canvas');
+    const { Canvas, Image, ImageData } = this.canvas;
+    this.faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 
-      const { Canvas, Image, ImageData } = this.canvas;
-      this.faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
+    await this.faceapi.nets.ssdMobilenetv1.loadFromDisk(this.modelsPath);
+    await this.faceapi.nets.faceLandmark68Net.loadFromDisk(this.modelsPath);
+    await this.faceapi.nets.faceRecognitionNet.loadFromDisk(this.modelsPath);
 
-      await this.faceapi.nets.ssdMobilenetv1.loadFromDisk(this.modelsPath);
-      await this.faceapi.nets.faceLandmark68Net.loadFromDisk(this.modelsPath);
-      await this.faceapi.nets.faceRecognitionNet.loadFromDisk(this.modelsPath);
-
-      this.isInitialized = true;
-    } catch (error) {
-      console.error('Failed to initialize FaceDetector:', error);
-      throw error;
-    }
+    this.isInitialized = true;
   }
 
   async detectFaces(

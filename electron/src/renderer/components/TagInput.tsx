@@ -14,7 +14,6 @@ interface TagInputProps {
   selectedTags: string[];
   onChange: (tags: string[]) => void;
   placeholder?: string;
-  allowNew?: boolean;
   tagCategories?: Map<string, string>;
   // Restrict autocomplete suggestions to tags in these categories. Tags with
   // null categories are always excluded when this prop is provided.
@@ -39,7 +38,6 @@ export function TagInput({
   selectedTags,
   onChange,
   placeholder = 'Add tags...',
-  allowNew: _allowNew = true,
   tagCategories,
   suggestionCategories,
 }: TagInputProps) {

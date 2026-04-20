@@ -21,29 +21,6 @@ interface DismissedDbRow {
   dismissed_at: string;
 }
 
-interface FaceDbRow {
-  id: number;
-  image_id: number;
-  person_id: number | null;
-  bbox_x: number;
-  bbox_y: number;
-  bbox_w: number;
-  bbox_h: number;
-  confidence: number;
-  created_at: string;
-  person_name?: string | null;
-  image_path?: string;
-}
-
-interface PersonDbRow {
-  id: number;
-  name: string | null;
-  thumbnail_face_id: number | null;
-  face_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
 interface VecMatchRow {
   rowid: number;
   distance: number;
@@ -188,18 +165,6 @@ export class DatabaseManager {
         PRIMARY KEY (image_id, tag_id),
         FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
         FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-      )
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS metadata_changes (
-        id INTEGER PRIMARY KEY,
-        image_id INTEGER NOT NULL,
-        field TEXT NOT NULL,
-        old_value TEXT,
-        new_value TEXT,
-        changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
       )
     `);
 
@@ -485,16 +450,17 @@ export class DatabaseManager {
       // wipe existing palette data — `getImagesMissingPalette` will surface
       // these for recomputation.
       if (this.vecLoaded) {
-        try {
-          this.db.exec('DELETE FROM vec_palette');
-        } catch {
-          // table may not exist yet in older installs
-        }
+        this.db.exec('DELETE FROM vec_palette');
       }
       this.db.exec('DELETE FROM palette_colors');
       this.db.exec('UPDATE images SET palette_json = NULL');
 
       this.db.pragma('user_version = 12');
+    }
+
+    if (version < 13) {
+      this.db.exec('DROP TABLE IF EXISTS metadata_changes');
+      this.db.pragma('user_version = 13');
     }
   }
 
@@ -834,12 +800,8 @@ export class DatabaseManager {
   }
 
   insertPersonEmbedding(personRowid: number, embedding: number[]): void {
-    // vec0 virtual tables don't support REPLACE — delete first, then insert
-    try {
-      this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?').run(BigInt(personRowid));
-    } catch {
-      // row may not exist yet
-    }
+    // vec0 virtual tables don't support REPLACE — delete first, then insert.
+    this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?').run(BigInt(personRowid));
     this.db
       .prepare('INSERT INTO vec_persons (rowid, embedding) VALUES (?, ?)')
       .run(BigInt(personRowid), new Float32Array(normalizeVector(embedding)));
@@ -857,14 +819,13 @@ export class DatabaseManager {
   getAllPersons(): Person[] {
     return this.db
       .prepare('SELECT * FROM persons WHERE face_count > 0 ORDER BY face_count DESC')
-      .all() as PersonDbRow[] as Person[];
+      .all() as Person[];
   }
 
   getPersonById(personId: number): Person | null {
     return (
-      (this.db.prepare('SELECT * FROM persons WHERE id = ?').get(personId) as
-        | PersonDbRow
-        | undefined as Person | undefined) ?? null
+      (this.db.prepare('SELECT * FROM persons WHERE id = ?').get(personId) as Person | undefined) ??
+      null
     );
   }
 
@@ -877,7 +838,7 @@ export class DatabaseManager {
          LEFT JOIN images i ON f.image_id = i.id
          WHERE f.image_id = ?`,
       )
-      .all(imageId) as FaceDbRow[] as Face[];
+      .all(imageId) as Face[];
   }
 
   getPersonFaces(personId: number): Face[] {
@@ -889,7 +850,7 @@ export class DatabaseManager {
          LEFT JOIN images i ON f.image_id = i.id
          WHERE f.person_id = ?`,
       )
-      .all(personId) as FaceDbRow[] as Face[];
+      .all(personId) as Face[];
   }
 
   updateFacePerson(faceId: number, personId: number | null): void {
@@ -923,10 +884,8 @@ export class DatabaseManager {
 
   deletePerson(personId: number): void {
     this.db.prepare('UPDATE faces SET person_id = NULL WHERE person_id = ?').run(personId);
-    try {
+    if (this.vecLoaded) {
       this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?').run(BigInt(personId));
-    } catch {
-      // vec_persons row may not exist
     }
     this.db.prepare('DELETE FROM persons WHERE id = ?').run(personId);
   }
@@ -959,13 +918,13 @@ export class DatabaseManager {
          WHERE id NOT IN (SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL)`,
       )
       .all() as Array<{ id: number }>;
+    const delVec = this.vecLoaded
+      ? this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?')
+      : null;
+    const delPerson = this.db.prepare('DELETE FROM persons WHERE id = ?');
     for (const { id } of orphans) {
-      try {
-        this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?').run(BigInt(id));
-      } catch {
-        // may not exist
-      }
-      this.db.prepare('DELETE FROM persons WHERE id = ?').run(id);
+      delVec?.run(BigInt(id));
+      delPerson.run(id);
     }
   }
 }

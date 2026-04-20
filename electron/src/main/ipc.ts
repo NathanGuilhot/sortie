@@ -23,7 +23,7 @@ export function setupIpcHandlers(
   dbPath: string,
 ) {
   ipcMain.handle('pick-folder', async (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+    const window = BrowserWindow.fromWebContents(event.sender);
     const result = window
       ? await dialog.showOpenDialog(window, { properties: ['openDirectory'] })
       : await dialog.showOpenDialog({ properties: ['openDirectory'] });
@@ -474,29 +474,32 @@ export function setupIpcHandlers(
 
   // --- Pinterest import ---
 
-  function asPinterestError(err: unknown): Error {
-    if (err instanceof PinterestAPIError) return err;
-    if (err instanceof Error) return err;
-    return new Error(String(err));
+  async function pinterestResult<T extends object>(
+    fn: () => Promise<T>,
+  ): Promise<({ ok: true } & T) | { ok: false; message: string }> {
+    try {
+      const value = await fn();
+      return { ok: true, ...value };
+    } catch (err) {
+      const message =
+        err instanceof PinterestAPIError || err instanceof Error ? err.message : String(err);
+      return { ok: false, message };
+    }
   }
 
   ipcMain.handle(
     'pinterest:scrape',
-    async (_event, { input, target }: { input: string; target?: number }) => {
-      try {
+    (_event, { input, target }: { input: string; target?: number }) =>
+      pinterestResult(async () => {
         const parsed = parsePinterestInput(input);
         const page = await scrapeFirstPage(parsed, target ?? 50);
-        return { ok: true as const, target: parsed, page };
-      } catch (err) {
-        const error = asPinterestError(err);
-        return { ok: false as const, message: error.message };
-      }
-    },
+        return { target: parsed, page };
+      }),
   );
 
   ipcMain.handle(
     'pinterest:load-more',
-    async (
+    (
       _event,
       {
         target,
@@ -509,26 +512,15 @@ export function setupIpcHandlers(
         bookmarks: string[];
         desired?: number;
       },
-    ) => {
-      try {
-        const page = await pinterestLoadMore(target, bookmarks, desired ?? 50);
-        return { ok: true as const, page };
-      } catch (err) {
-        const error = asPinterestError(err);
-        return { ok: false as const, message: error.message };
-      }
-    },
+    ) =>
+      pinterestResult(async () => ({
+        page: await pinterestLoadMore(target, bookmarks, desired ?? 50),
+      })),
   );
 
-  ipcMain.handle('pinterest:import-pin', async (_event, { pin }: { pin: PinterestResult }) => {
-    try {
-      const result = await importPin(pin, { dbService });
-      return { ok: true as const, result };
-    } catch (err) {
-      const error = asPinterestError(err);
-      return { ok: false as const, message: error.message };
-    }
-  });
+  ipcMain.handle('pinterest:import-pin', (_event, { pin }: { pin: PinterestResult }) =>
+    pinterestResult(async () => ({ result: await importPin(pin, { dbService }) })),
+  );
 
   // Tracks in-flight bulk-import jobs so the renderer can cancel them.
   // Cleared on completion. Jobs don't survive app restart.
@@ -550,7 +542,6 @@ export function setupIpcHandlers(
 
       const sender = event.sender;
       const send = (channel: string, payload: unknown) => {
-        // Sender may be destroyed if the window closed mid-job; skip silently.
         if (!sender.isDestroyed()) sender.send(channel, payload);
       };
 
@@ -595,11 +586,7 @@ export function setupIpcHandlers(
 
   ipcMain.handle('pinterest:reveal-import-folder', async () => {
     const dir = getImportFolder();
-    try {
-      fs.mkdirSync(dir, { recursive: true });
-    } catch {
-      /* ignore */
-    }
+    fs.mkdirSync(dir, { recursive: true });
     await shell.openPath(dir);
     return { success: true };
   });

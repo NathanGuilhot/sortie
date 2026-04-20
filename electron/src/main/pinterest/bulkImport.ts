@@ -13,7 +13,7 @@ const BATCH_DELAY_MS = 200;
 const IMPORT_CONCURRENCY = 4;
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if (signal?.aborted) return resolve();
     const t = setTimeout(resolve, ms);
     signal?.addEventListener(
@@ -24,7 +24,6 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       },
       { once: true },
     );
-    void reject;
   });
 }
 

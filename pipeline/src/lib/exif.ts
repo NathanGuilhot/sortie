@@ -15,6 +15,35 @@ export interface ExifData {
   focalLength: number | null;
 }
 
+function emptyExif(width: number | null = null, height: number | null = null): ExifData {
+  return {
+    capturedAt: null,
+    latitude: null,
+    longitude: null,
+    width,
+    height,
+    cameraMake: null,
+    cameraModel: null,
+    aperture: null,
+    exposureTime: null,
+    iso: null,
+    focalLength: null,
+  };
+}
+
+async function readDisplayDimensions(
+  imagePath: string,
+): Promise<{ width: number | null; height: number | null }> {
+  const metadata = await sharp(imagePath).metadata();
+  // EXIF orientations 5-8 rotate 90°/270°, swapping width/height. Browsers
+  // auto-rotate on display; store dimensions matching what the user sees.
+  const needsSwap = metadata.orientation && metadata.orientation >= 5;
+  return {
+    width: needsSwap ? metadata.height || null : metadata.width || null,
+    height: needsSwap ? metadata.width || null : metadata.height || null,
+  };
+}
+
 export async function extractExif(imagePath: string): Promise<ExifData> {
   try {
     /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
@@ -26,14 +55,7 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
       translateValues: true,
     });
 
-    const metadata = await sharp(imagePath).metadata();
-
-    // EXIF orientations 5-8 involve a 90°/270° rotation, swapping width/height.
-    // sharp returns raw pixel dimensions, but browsers auto-rotate based on EXIF,
-    // so we store the display dimensions to match what the browser will render.
-    const needsSwap = metadata.orientation && metadata.orientation >= 5;
-    const width = needsSwap ? metadata.height || null : metadata.width || null;
-    const height = needsSwap ? metadata.width || null : metadata.height || null;
+    const { width, height } = await readDisplayDimensions(imagePath);
 
     let latitude: number | null = null;
     let longitude: number | null = null;
@@ -54,20 +76,16 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
       capturedAt = new Date(exif.ModifyDate);
     }
 
-    const cameraMake: string | null = exif?.Make || exif?.make || null;
-    const cameraModel: string | null = exif?.Model || exif?.model || null;
-
-    const aperture: number | null = exif?.FNumber || exif?.ApertureValue || exif?.fNumber || null;
+    const cameraMake: string | null = exif?.Make || null;
+    const cameraModel: string | null = exif?.Model || null;
+    const aperture: number | null = exif?.FNumber || exif?.ApertureValue || null;
     const iso: number | null = exif?.ISO || exif?.ISOSpeedRatings || null;
 
     let exposureTime: string | null = null;
     if (exif?.ExposureTime) {
       if (typeof exif.ExposureTime === 'number') {
-        if (exif.ExposureTime < 1) {
-          exposureTime = `1/${Math.round(1 / exif.ExposureTime)}`;
-        } else {
-          exposureTime = `${exif.ExposureTime}`;
-        }
+        exposureTime =
+          exif.ExposureTime < 1 ? `1/${Math.round(1 / exif.ExposureTime)}` : `${exif.ExposureTime}`;
       } else {
         exposureTime = String(exif.ExposureTime);
       }
@@ -95,7 +113,7 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
       height,
       cameraMake,
       cameraModel,
-      aperture: aperture ? parseFloat(String(aperture)) : null,
+      aperture,
       exposureTime,
       iso,
       focalLength,
@@ -104,36 +122,11 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
   } catch (error) {
     console.warn(`Failed to extract EXIF from ${imagePath}:`, error);
     try {
-      const metadata = await sharp(imagePath).metadata();
-      const needsSwap = metadata.orientation && metadata.orientation >= 5;
-      return {
-        capturedAt: null,
-        latitude: null,
-        longitude: null,
-        width: needsSwap ? metadata.height || null : metadata.width || null,
-        height: needsSwap ? metadata.width || null : metadata.height || null,
-        cameraMake: null,
-        cameraModel: null,
-        aperture: null,
-        exposureTime: null,
-        iso: null,
-        focalLength: null,
-      };
+      const { width, height } = await readDisplayDimensions(imagePath);
+      return emptyExif(width, height);
     } catch (sharpError) {
       console.error(`Failed to read image ${imagePath}:`, sharpError);
-      return {
-        capturedAt: null,
-        latitude: null,
-        longitude: null,
-        width: null,
-        height: null,
-        cameraMake: null,
-        cameraModel: null,
-        aperture: null,
-        exposureTime: null,
-        iso: null,
-        focalLength: null,
-      };
+      return emptyExif();
     }
   }
 }

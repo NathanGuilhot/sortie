@@ -154,8 +154,6 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   }, [localQuery, setSearchQuery, searchQuery]);
 
   // AND-compose every active filter into one Query.
-  const paletteKey = paletteFilters.join('|');
-  const tagKey = tagFilters.join('|');
   const dateStart = dateRange.start ? dateRange.start.toISOString() : null;
   const dateEnd = dateRange.end ? dateRange.end.toISOString() : null;
   const imageBytes = activeImageQuery?.bytes ?? null;
@@ -173,14 +171,13 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     if (showHidden) q.includeHidden = true;
     if (dateStart || dateEnd) q.dateRange = { start: dateStart, end: dateEnd };
     return q;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     searchQuery,
     imageBytes,
     personFilter,
     folderFilter,
-    tagKey,
-    paletteKey,
+    tagFilters,
+    paletteFilters,
     showFavoritesOnly,
     showHidden,
     dateStart,

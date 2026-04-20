@@ -182,7 +182,7 @@ void app.whenReady().then(async () => {
         const cacheStat = fs.statSync(cachePath);
         useCached = cacheStat.mtimeMs >= srcStat.mtimeMs;
       } catch {
-        // cache miss, will regenerate
+        // cache miss — regenerate below
       }
 
       if (!useCached) {

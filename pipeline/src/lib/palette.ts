@@ -42,7 +42,7 @@ function linearToSrgb(c: number): number {
   return Math.max(0, Math.min(255, Math.round(v * 255)));
 }
 
-export function oklabToRgb(L: number, a: number, b: number): [number, number, number] {
+function oklabToRgb(L: number, a: number, b: number): [number, number, number] {
   const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
   const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
   const s_ = L - 0.0894841775 * a - 1.291485548 * b;
@@ -76,17 +76,7 @@ export function hexToOklab(hex: string): [number, number, number] | null {
   return rgbToOklab(rgb[0], rgb[1], rgb[2]);
 }
 
-/**
- * Extract a perceptual color palette from an image.
- *
- * The image is downsampled to ~100px on the short edge, fully-transparent
- * pixels are dropped, remaining pixels are converted to OKLab, and k-means
- * clusters the pixels into PALETTE_SIZE groups. Clusters are returned sorted
- * by weight (largest first). The hex/rgb fields are reconstructed from the
- * cluster centroid — so they represent the *average* color of the cluster,
- * not a pixel that necessarily appears in the image. The `lab` field holds
- * OKLab coordinates (the name is kept for schema continuity).
- */
+// `lab` in PaletteColor holds OKLab coordinates — the name is kept for schema continuity.
 export async function extractPalette(input: string | Buffer): Promise<PaletteColor[]> {
   const { data, info } = await sharp(input)
     .resize(SAMPLE_EDGE, SAMPLE_EDGE, { fit: 'inside', withoutEnlargement: false })

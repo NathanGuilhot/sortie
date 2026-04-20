@@ -1,6 +1,5 @@
-import { FACE_MATCH_THRESHOLD, FACE_EMBEDDING_DIM } from 'shared';
+import { FACE_MATCH_THRESHOLD, FACE_EMBEDDING_DIM, normalizeVector } from 'shared';
 import { DatabaseManager } from './db';
-import { normalizeVector } from 'shared';
 
 export interface MatchResult {
   personId: number;
@@ -16,7 +15,7 @@ export class FaceMatcher {
   }
 
   matchFace(descriptor: number[]): MatchResult {
-    return this.matchFaceExcluding(normalizeVector(descriptor), new Set());
+    return this.matchFaceExcluding(descriptor, new Set());
   }
 
   matchFaceExcluding(descriptor: number[], excluded: Set<number>): MatchResult {

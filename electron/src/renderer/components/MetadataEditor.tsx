@@ -16,6 +16,21 @@ interface TagSuggestion {
   source: 'cluster' | 'similarity';
 }
 
+function saveButtonLabel({
+  isSaving,
+  saveSuccess,
+  isDirty,
+}: {
+  isSaving: boolean;
+  saveSuccess: boolean;
+  isDirty: boolean;
+}): string {
+  if (isSaving) return 'Saving...';
+  if (saveSuccess) return 'Saved';
+  if (isDirty) return 'Save changes';
+  return 'No changes';
+}
+
 interface MetadataEditorProps {
   image: Image | null;
   onClose?: () => void;
@@ -104,8 +119,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
   const [isFavorite, setIsFavorite] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [confirmingFileDelete, setConfirmingFileDelete] = useState(false);
+  const [deleteMode, setDeleteMode] = useState<'image' | 'file' | null>(null);
   const [embeddingStatus, setEmbeddingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>(
     'idle',
   );
@@ -213,26 +227,24 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
 
   const handleDelete = async () => {
     if (!image) return;
-    if (!confirmingDelete) {
-      setConfirmingFileDelete(false);
-      setConfirmingDelete(true);
+    if (deleteMode !== 'image') {
+      setDeleteMode('image');
       return;
     }
     await hideImage(image.id);
     setSelectedImage(null);
-    setConfirmingDelete(false);
+    setDeleteMode(null);
   };
 
   const handleFileDelete = async () => {
     if (!image) return;
-    if (!confirmingFileDelete) {
-      setConfirmingDelete(false);
-      setConfirmingFileDelete(true);
+    if (deleteMode !== 'file') {
+      setDeleteMode('file');
       return;
     }
     await deleteImage(image.id);
     setSelectedImage(null);
-    setConfirmingFileDelete(false);
+    setDeleteMode(null);
   };
 
   const handleRecomputeEmbedding = async () => {
@@ -626,13 +638,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             {isSaving && (
               <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             )}
-            {isSaving
-              ? 'Saving...'
-              : saveSuccess
-                ? 'Saved'
-                : isDirty
-                  ? 'Save changes'
-                  : 'No changes'}
+            {saveButtonLabel({ isSaving, saveSuccess, isDirty })}
             {saveSuccess && (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -724,7 +730,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
 
       {/* [G] Danger zone */}
       <div className="pt-4 border-t border-gray-100 space-y-2">
-        {confirmingDelete ? (
+        {deleteMode === 'image' ? (
           <div className="flex items-center gap-2">
             <button
               onClick={() => void handleDelete()}
@@ -733,23 +739,21 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
               Confirm remove
             </button>
             <button
-              onClick={() => setConfirmingDelete(false)}
+              onClick={() => setDeleteMode(null)}
               className="flex-1 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
           </div>
-        ) : (
-          !confirmingFileDelete && (
-            <button
-              onClick={() => void handleDelete()}
-              className="w-full px-3 py-2 text-xs text-gray-400 hover:text-red-500 transition-colors text-center"
-            >
-              Remove from library
-            </button>
-          )
-        )}
-        {confirmingFileDelete ? (
+        ) : deleteMode === null ? (
+          <button
+            onClick={() => void handleDelete()}
+            className="w-full px-3 py-2 text-xs text-gray-400 hover:text-red-500 transition-colors text-center"
+          >
+            Remove from library
+          </button>
+        ) : null}
+        {deleteMode === 'file' ? (
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <button
@@ -759,7 +763,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
                 Delete file
               </button>
               <button
-                onClick={() => setConfirmingFileDelete(false)}
+                onClick={() => setDeleteMode(null)}
                 className="flex-1 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Cancel
@@ -769,9 +773,8 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
               File will be permanently deleted
             </p>
           </div>
-        ) : (
-          !confirmingDelete &&
-          (canDeleteFile ? (
+        ) : deleteMode === null ? (
+          canDeleteFile ? (
             <button
               onClick={() => void handleFileDelete()}
               className="w-full px-3 py-2 text-xs font-medium text-red-500 hover:text-red-600 transition-colors text-center"
@@ -786,8 +789,8 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             >
               Read-only — cannot delete file
             </button>
-          ))
-        )}
+          )
+        ) : null}
       </div>
     </div>
   );

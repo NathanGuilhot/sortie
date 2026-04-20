@@ -1,5 +1,6 @@
 import { CLIP_INPUT_SIZE, normalizeVector } from 'shared';
 import sharp from 'sharp';
+import { dynamicImport } from './dynamic-import';
 
 const MODEL_ID = 'Xenova/clip-vit-base-patch32';
 const FETCH_TIMEOUT_MS = 60_000;
@@ -46,10 +47,6 @@ export class ClipEmbedder {
   }
 
   private async doInitialize(): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval
-    const dynamicImport = new Function('specifier', 'return import(specifier)') as <T = unknown>(
-      specifier: string,
-    ) => Promise<T>;
     const transformers =
       await dynamicImport<typeof import('@xenova/transformers')>('@xenova/transformers');
     this.transformersModule = transformers;
@@ -109,7 +106,6 @@ export class ClipEmbedder {
       return normalizeVector(embedding);
     } catch (error) {
       const label = typeof input === 'string' ? input : `<${input.byteLength} bytes>`;
-      console.error(`Failed to embed image ${label}:`, error);
       throw new Error(
         `Image embedding failed for ${label}: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error },
@@ -126,22 +122,11 @@ export class ClipEmbedder {
       const embedding = Array.from(text_embeds.data as Float32Array);
       return normalizeVector(embedding);
     } catch (error) {
-      console.error(`Failed to embed text "${text}":`, error);
       throw new Error(
-        `Text embedding failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Text embedding failed for "${text}": ${error instanceof Error ? error.message : String(error)}`,
         { cause: error },
       );
     }
   }
   /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
-
-  async embedImagesBatch(imagePaths: string[]): Promise<number[][]> {
-    await this.initialize();
-    const embeddings: number[][] = [];
-    for (const path of imagePaths) {
-      const embedding = await this.embedImage(path);
-      embeddings.push(embedding);
-    }
-    return embeddings;
-  }
 }

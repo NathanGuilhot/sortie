@@ -33,14 +33,6 @@ function dedupeByPinId(
   return merged;
 }
 
-export async function scrapeTarget(
-  input: string,
-  target: number = DEFAULT_TARGET_RESULTS,
-): Promise<PinterestSearchPage> {
-  const parsed = parsePinterestInput(input);
-  return scrapeFirstPage(parsed, target);
-}
-
 export async function scrapeFirstPage(
   target: ParsedTarget,
   desired: number = DEFAULT_TARGET_RESULTS,

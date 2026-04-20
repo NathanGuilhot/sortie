@@ -9,20 +9,6 @@ export interface Collection {
   created_at: string;
 }
 
-export interface CollectionImage {
-  collection_id: number;
-  image_id: number;
-  added_at: string;
-}
-
-interface CollectionDbRow {
-  id: number;
-  name: string;
-  description: string | null;
-  cluster_id: number | null;
-  created_at: string;
-}
-
 export class Organizer {
   private db: DatabaseManager;
   private suggestions: SuggestionEngine;
@@ -32,10 +18,6 @@ export class Organizer {
     this.suggestions = new SuggestionEngine(dbPath);
   }
 
-  /**
-   * Create collections based on clustering of image embeddings.
-   * @param collectionNamePrefix prefix for auto-generated collection names (default "Cluster")
-   */
   async createCollectionsFromClusters(collectionNamePrefix = 'Cluster'): Promise<number[]> {
     const embeddingsRows = await this.suggestions.getAllEmbeddings();
     if (embeddingsRows.length === 0) {
@@ -75,24 +57,9 @@ export class Organizer {
     return createdIds;
   }
 
-  getImageCollections(imageId: number): Collection[] {
-    const db = this.db.getDatabase();
-    return db
-      .prepare(
-        `
-      SELECT c.* FROM collections c
-      JOIN collection_images ci ON c.id = ci.collection_id
-      WHERE ci.image_id = ?
-    `,
-      )
-      .all(imageId) as CollectionDbRow[];
-  }
-
   getAllCollections(): Collection[] {
     const db = this.db.getDatabase();
-    return db
-      .prepare('SELECT * FROM collections ORDER BY created_at DESC')
-      .all() as CollectionDbRow[];
+    return db.prepare('SELECT * FROM collections ORDER BY created_at DESC').all() as Collection[];
   }
 
   createCollection(name: string, description?: string): number {
@@ -102,41 +69,5 @@ export class Organizer {
     );
     const result = stmt.run(name, description || null);
     return result.lastInsertRowid as number;
-  }
-
-  getCollectionImages(collectionId: number): number[] {
-    const db = this.db.getDatabase();
-    const rows = db
-      .prepare(
-        `
-      SELECT image_id FROM collection_images WHERE collection_id = ?
-    `,
-      )
-      .all(collectionId) as Array<{ image_id: number }>;
-    return rows.map((row) => row.image_id);
-  }
-
-  deleteCollection(collectionId: number): void {
-    const db = this.db.getDatabase();
-    db.prepare('DELETE FROM collections WHERE id = ?').run(collectionId);
-  }
-
-  addImageToCollection(collectionId: number, imageId: number): void {
-    const db = this.db.getDatabase();
-    db.prepare(
-      `
-      INSERT OR IGNORE INTO collection_images (collection_id, image_id)
-      VALUES (?, ?)
-    `,
-    ).run(collectionId, imageId);
-  }
-
-  removeImageFromCollection(collectionId: number, imageId: number): void {
-    const db = this.db.getDatabase();
-    db.prepare(
-      `
-      DELETE FROM collection_images WHERE collection_id = ? AND image_id = ?
-    `,
-    ).run(collectionId, imageId);
   }
 }
