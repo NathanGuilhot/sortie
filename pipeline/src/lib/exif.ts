@@ -1,5 +1,6 @@
 import exifr from 'exifr';
 import sharp from 'sharp';
+import { resolveImageInput } from './raw';
 
 export interface ExifData {
   capturedAt: Date | null;
@@ -32,9 +33,10 @@ function emptyExif(width: number | null = null, height: number | null = null): E
 }
 
 async function readDisplayDimensions(
-  imagePath: string,
+  input: string | Buffer,
 ): Promise<{ width: number | null; height: number | null }> {
-  const metadata = await sharp(imagePath).metadata();
+  const resolved = await resolveImageInput(input);
+  const metadata = await sharp(resolved).metadata();
   // EXIF orientations 5-8 rotate 90°/270°, swapping width/height. Browsers
   // auto-rotate on display; store dimensions matching what the user sees.
   const needsSwap = metadata.orientation && metadata.orientation >= 5;
@@ -44,7 +46,14 @@ async function readDisplayDimensions(
   };
 }
 
-export async function extractExif(imagePath: string): Promise<ExifData> {
+// `input`, if supplied, is a preloaded RAW preview buffer reused by the caller
+// for the sharp-side dimension read — exifr still needs the original path to
+// read camera metadata from the RAW container itself.
+export async function extractExif(
+  imagePath: string,
+  input?: string | Buffer,
+): Promise<ExifData> {
+  const dimSource: string | Buffer = input ?? imagePath;
   try {
     /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
     const exif = await exifr.parse(imagePath, {
@@ -55,7 +64,7 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
       translateValues: true,
     });
 
-    const { width, height } = await readDisplayDimensions(imagePath);
+    const { width, height } = await readDisplayDimensions(dimSource);
 
     let latitude: number | null = null;
     let longitude: number | null = null;
@@ -122,7 +131,7 @@ export async function extractExif(imagePath: string): Promise<ExifData> {
   } catch (error) {
     console.warn(`Failed to extract EXIF from ${imagePath}:`, error);
     try {
-      const { width, height } = await readDisplayDimensions(imagePath);
+      const { width, height } = await readDisplayDimensions(dimSource);
       return emptyExif(width, height);
     } catch (sharpError) {
       console.error(`Failed to read image ${imagePath}:`, sharpError);

@@ -1,6 +1,7 @@
 import { CLIP_INPUT_SIZE, normalizeVector } from 'shared';
 import sharp from 'sharp';
 import { dynamicImport } from './dynamic-import';
+import { resolveImageInput } from './raw';
 
 const MODEL_ID = 'Xenova/clip-vit-base-patch32';
 const FETCH_TIMEOUT_MS = 60_000;
@@ -88,7 +89,7 @@ export class ClipEmbedder {
 
   /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
   private async preprocessImage(input: string | Buffer): Promise<unknown> {
-    const image = await sharp(input)
+    const image = await sharp(await resolveImageInput(input))
       .resize(CLIP_INPUT_SIZE, CLIP_INPUT_SIZE, { fit: 'cover' })
       .toFormat('png')
       .toBuffer();

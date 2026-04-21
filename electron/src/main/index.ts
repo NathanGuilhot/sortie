@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import sharp from 'sharp';
+import { isRawPath, loadImageInput, shutdownRawLoader } from 'pipeline';
 import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
 import { FolderAvailabilityMonitor } from './folderAvailability';
@@ -146,8 +147,72 @@ void app.whenReady().then(async () => {
   const thumbDir = path.join(app.getPath('userData'), 'thumbs');
   fs.mkdirSync(thumbDir, { recursive: true });
 
-  protocol.handle('sortie-file', (request) => {
+  const rawPreviewDir = path.join(app.getPath('userData'), 'raw-previews');
+  fs.mkdirSync(rawPreviewDir, { recursive: true });
+
+  // 2 GB soft cap. Embedded previews run 5–30 MB each, so a modest library
+  // can easily blow past naïve unbounded caching. Eviction only kicks in
+  // when we're about to write a new file and would exceed the cap.
+  const RAW_PREVIEW_CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+
+  function evictRawPreviewCacheIfFull(incomingBytes: number): void {
+    try {
+      const entries = fs.readdirSync(rawPreviewDir).map((name) => {
+        const p = path.join(rawPreviewDir, name);
+        const st = fs.statSync(p);
+        return { path: p, size: st.size, mtimeMs: st.mtimeMs };
+      });
+      let total = entries.reduce((n, e) => n + e.size, 0);
+      if (total + incomingBytes <= RAW_PREVIEW_CACHE_MAX_BYTES) return;
+      entries.sort((a, b) => a.mtimeMs - b.mtimeMs);
+      for (const e of entries) {
+        if (total + incomingBytes <= RAW_PREVIEW_CACHE_MAX_BYTES) break;
+        try {
+          fs.unlinkSync(e.path);
+          total -= e.size;
+        } catch {
+          // best-effort
+        }
+      }
+    } catch (err) {
+      console.warn('[raw-preview] eviction sweep failed:', err);
+    }
+  }
+
+  // mtime-keyed: re-exporting the RAW (new preview embedded) bumps mtime and
+  // invalidates us. Content hashing would be safer but costs an extra read of
+  // every RAW we touch.
+  async function getCachedRawPreview(filePath: string): Promise<string> {
+    const hash = crypto.createHash('sha256').update(filePath).digest('hex').slice(0, 16);
+    const cachePath = path.join(rawPreviewDir, `${hash}.jpg`);
+    const srcStat = fs.statSync(filePath);
+    try {
+      const cacheStat = fs.statSync(cachePath);
+      if (cacheStat.mtimeMs >= srcStat.mtimeMs) return cachePath;
+    } catch {
+      // cache miss
+    }
+    const loaded = await loadImageInput(filePath);
+    if (typeof loaded === 'string') {
+      // Non-RAW slipped through — caller should gate on isRawPath, but be safe.
+      return loaded;
+    }
+    evictRawPreviewCacheIfFull(loaded.byteLength);
+    fs.writeFileSync(cachePath, loaded);
+    return cachePath;
+  }
+
+  protocol.handle('sortie-file', async (request) => {
     const filePath = decodeURIComponent(new URL(request.url).pathname);
+    if (isRawPath(filePath)) {
+      try {
+        const cachePath = await getCachedRawPreview(filePath);
+        return net.fetch(`file://${cachePath}`);
+      } catch (err) {
+        console.error('[sortie-file] RAW preview extraction failed:', err);
+        return new Response(null, { status: 415 });
+      }
+    }
     return net.fetch(`file://${filePath}`);
   });
 
@@ -187,7 +252,8 @@ void app.whenReady().then(async () => {
 
       if (!useCached) {
         console.log(`[thumb] generating ${width}px thumbnail for ${path.basename(filePath)}`);
-        await sharp(filePath)
+        const input = isRawPath(filePath) ? await getCachedRawPreview(filePath) : filePath;
+        await sharp(input)
           .rotate()
           .resize(width, null, { withoutEnlargement: true })
           .webp({ quality: 85 })
@@ -244,7 +310,8 @@ void app.whenReady().then(async () => {
 
       // metadata() returns raw stored dimensions; EXIF orientations 5-8
       // involve 90/270° rotation that swaps width and height.
-      const meta = await sharp(filePath).metadata();
+      const faceInput = isRawPath(filePath) ? await getCachedRawPreview(filePath) : filePath;
+      const meta = await sharp(faceInput).metadata();
       const orientation = meta.orientation ?? 1;
       const swapDims = orientation >= 5 && orientation <= 8;
       const imgW = swapDims ? (meta.height ?? 1) : (meta.width ?? 1);
@@ -259,7 +326,7 @@ void app.whenReady().then(async () => {
       const extractW = Math.max(1, right - left);
       const extractH = Math.max(1, bottom - top);
 
-      await sharp(filePath)
+      await sharp(faceInput)
         .rotate()
         .extract({ left, top, width: extractW, height: extractH })
         .resize(size, size, { fit: 'cover' })
@@ -323,4 +390,5 @@ app.on('before-quit', () => {
   availabilityMonitor?.stop();
   watcherService?.stopAll();
   dbService?.close();
+  void shutdownRawLoader();
 });

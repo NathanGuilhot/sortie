@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { dynamicImport } from './dynamic-import';
+import { loadImageInput } from './raw';
 
 export interface DetectedFace {
   bbox: { x: number; y: number; width: number; height: number };
@@ -69,6 +70,7 @@ export class FaceDetector {
   async detectFaces(
     imagePath: string,
     minConfidence: number = FACE_MIN_CONFIDENCE,
+    input?: string | Buffer,
   ): Promise<DetectedFace[]> {
     await this.initialize();
 
@@ -89,8 +91,10 @@ export class FaceDetector {
       canvasWidth = result.info.width;
       canvasHeight = result.info.height;
     } else {
-      // Build sharp pipeline: rotate + downscale large images
-      let pipeline = sharp(imagePath).rotate();
+      // Only touch loadImageInput on cache miss — a cache hit must never
+      // trigger embedded-JPEG extraction for the same file.
+      const resolved = input ?? (await loadImageInput(imagePath));
+      let pipeline = sharp(resolved).rotate();
       const rotatedMeta = await pipeline.clone().metadata();
       const origW = rotatedMeta.width ?? 0;
       const origH = rotatedMeta.height ?? 0;

@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { resolveImageInput } from './raw';
 import kmeans from 'kmeans-ts';
 import { PaletteColor } from 'shared';
 
@@ -78,7 +79,7 @@ export function hexToOklab(hex: string): [number, number, number] | null {
 
 // `lab` in PaletteColor holds OKLab coordinates — the name is kept for schema continuity.
 export async function extractPalette(input: string | Buffer): Promise<PaletteColor[]> {
-  const { data, info } = await sharp(input)
+  const { data, info } = await sharp(await resolveImageInput(input))
     .resize(SAMPLE_EDGE, SAMPLE_EDGE, { fit: 'inside', withoutEnlargement: false })
     .ensureAlpha()
     .raw()

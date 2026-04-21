@@ -84,7 +84,9 @@
     "**/*.dll",
     "node_modules/canvas/build/Release/**",
     "node_modules/better-sqlite3/build/Release/**",
-    "node_modules/onnxruntime-node/bin/**"
+    "node_modules/onnxruntime-node/bin/**",
+    "**/node_modules/exiftool-vendored.pl/**",
+    "**/node_modules/exiftool-vendored.exe/**"
   ],
   "extraResources": [
     { "from": "resources/icons/icon.png", "to": "icons/icon.png" }

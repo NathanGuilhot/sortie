@@ -11,6 +11,7 @@ import {
   hexToOklab,
   FaceDetector,
   FaceMatcher,
+  loadImageInput,
 } from 'pipeline';
 import {
   Image,
@@ -1233,12 +1234,13 @@ export class DatabaseService {
   private async detectFacesForImage(
     imageId: number,
     filePath: string,
+    input?: string | Buffer,
   ): Promise<{ count: number; personIds: number[] }> {
     if (!this.db || !this.faceDetector || !this.faceMatcher) {
       throw new Error('Face detection is not available');
     }
 
-    const faces = await this.faceDetector.detectFaces(filePath);
+    const faces = await this.faceDetector.detectFaces(filePath, undefined, input);
     if (faces.length === 0) {
       this.db.markImageFacesScanned(imageId);
       return { count: 0, personIds: [] };
@@ -1411,8 +1413,13 @@ export class DatabaseService {
     const ext = path.extname(filePath).toLowerCase();
     const mimeType = MIME_TYPES[ext] || null;
 
+    // Extract the embedded JPEG once (RAW only — no-op for regular files)
+    // and thread it through every downstream pipeline. Before this, each of
+    // exif/clip/palette/face re-ran exiftool independently on RAW indexing.
+    const loaded = await loadImageInput(filePath);
+
     const [exifData, fileHash] = await Promise.all([
-      extractExif(filePath),
+      extractExif(filePath, loaded),
       computeFileHash(filePath),
     ]);
 
@@ -1445,8 +1452,8 @@ export class DatabaseService {
     const imageId = this.db.insertImage(imageData);
 
     const [embeddingResult, paletteResult] = await Promise.allSettled([
-      this.embedder.embedImage(filePath),
-      extractPalette(filePath),
+      this.embedder.embedImage(loaded),
+      extractPalette(loaded),
     ]);
 
     if (embeddingResult.status === 'fulfilled') {
@@ -1472,7 +1479,7 @@ export class DatabaseService {
     const folder = this.getFolderForPath(filePath);
     if (!folder?.exclude_from_face_scan) {
       try {
-        await this.detectFacesForImage(imageId, filePath);
+        await this.detectFacesForImage(imageId, filePath, loaded);
       } catch (error) {
         console.error(`Failed face detection for ${filePath}:`, error);
       }
