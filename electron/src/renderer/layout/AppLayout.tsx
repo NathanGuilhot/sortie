@@ -185,7 +185,7 @@ export function AppLayout() {
       <div className="flex-1 flex flex-col ml-16 min-w-0">
         <Outlet />
 
-        <footer className="fixed bottom-0 left-16 right-0 z-20 bg-white/80 backdrop-blur-lg border-t border-gray-200/60 px-4 py-2 text-sm text-gray-500">
+        <footer className="fixed bottom-0 left-16 right-0 z-20 bg-white/95 border-t border-gray-200/60 px-4 py-2 text-sm text-gray-500">
           <div className="flex justify-between items-center">
             <div>
               {location.pathname === '/gallery' ? (

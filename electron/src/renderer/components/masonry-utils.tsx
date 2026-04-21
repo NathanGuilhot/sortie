@@ -8,12 +8,12 @@ export const MasonryImage = memo(function MasonryImage({
   image,
   position,
   columnWidth,
-  onClick,
+  onSelect,
 }: {
   image: Image;
   position: Position;
   columnWidth: number;
-  onClick: () => void;
+  onSelect: (image: Image) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
 
@@ -30,15 +30,19 @@ export const MasonryImage = memo(function MasonryImage({
     <div
       style={{
         position: 'absolute',
-        top: position.y,
-        left: position.x,
+        top: 0,
+        left: 0,
+        transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
         width: position.width,
         height: position.height,
         cursor: 'pointer',
         backgroundColor: loaded ? 'transparent' : '#f3f4f6',
         borderRadius: 4,
+        willChange: 'transform',
+        contentVisibility: 'auto',
+        containIntrinsicSize: `${position.height}px ${position.width}px`,
       }}
-      onClick={onClick}
+      onClick={() => onSelect(image)}
     >
       <img
         src={src}

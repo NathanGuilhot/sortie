@@ -44,7 +44,7 @@ export function SimilarityGrid({ images, onImageClick, columns = 2 }: Similarity
           image={images[i]}
           position={pos}
           columnWidth={columnWidth}
-          onClick={() => onImageClick(images[i])}
+          onSelect={onImageClick}
         />
       ))}
     </div>

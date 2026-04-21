@@ -381,9 +381,9 @@ void app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  // if (process.platform !== 'darwin') { //We don't want the app to hang in the dock on mac, doesn't make sense
+  app.quit();
+  // }
 });
 
 app.on('before-quit', () => {

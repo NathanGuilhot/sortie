@@ -1,4 +1,5 @@
-import { useEffect, useRef, RefObject } from 'react';
+import { useCallback, useEffect, useRef, RefObject } from 'react';
+import { Image } from 'shared';
 import { useImageStore } from '../stores/imageStore';
 import { MasonryImage } from './masonry-utils';
 import { useMasonryLayout, DEFAULT_OVERSCAN } from './useMasonryLayout';
@@ -17,6 +18,8 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
       scrollContainerRef,
       resumeOnAppend: true,
     });
+
+  const handleSelect = useCallback((image: Image) => setSelectedImage(image), [setSelectedImage]);
 
   useEffect(() => {
     if (!hasMore || loadingMore.current) return;
@@ -72,7 +75,7 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
             image={images[i]}
             position={layout.positions[i]}
             columnWidth={columnWidth}
-            onClick={() => setSelectedImage(images[i])}
+            onSelect={handleSelect}
           />
         ))}
     </div>

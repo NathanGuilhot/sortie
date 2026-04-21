@@ -355,7 +355,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
               ? 'bg-white shadow-xl border-dashed border-ink ring-2 ring-ink/10'
               : isFocused
                 ? 'bg-white shadow-xl border-gray-300'
-                : 'bg-white/80 backdrop-blur-lg shadow-lg shadow-black/5 border-gray-200/60'
+                : 'bg-white/95 shadow-lg shadow-black/5 border-gray-200/60'
           }
         `}
       >
@@ -472,7 +472,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
 
       {/* Embedder status strip */}
       {embedderStatus.state === 'warming' && (
-        <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 backdrop-blur-lg border border-gray-200/60 shadow text-xs text-gray-500 w-fit mx-auto">
+        <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/95 border border-gray-200/60 shadow text-xs text-gray-500 w-fit mx-auto">
           <div className="animate-spin rounded-full h-3 w-3 border-2 border-gray-300 border-t-gray-500" />
           <span>Loading search model…</span>
         </div>
