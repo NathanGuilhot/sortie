@@ -10,3 +10,10 @@ export { FaceDetector, DetectedFace } from './lib/face';
 export { FaceMatcher, MatchResult } from './lib/face-matcher';
 export { extractPalette, hexToOklab, hexToRgb, rgbToHex, PALETTE_SIZE } from './lib/palette';
 export { isRawPath, loadImageInput, resolveImageInput, shutdownRawLoader } from './lib/raw';
+export {
+  createOcrEngine,
+  PaddleOcrEngine,
+  type OcrEngine,
+  type OcrEngineOptions,
+  type OcrBlock,
+} from './lib/ocr';

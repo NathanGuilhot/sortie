@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import type { Image } from 'shared';
 import { usePinterestStore } from '../stores/pinterestStore';
 import { useUIStore } from '../stores/uiStore';
 import { PinterestResultCard } from '../components/PinterestResultCard';
 import { BulkImportButton } from '../components/BulkImportButton';
+import { MetadataModal } from '../components/MetadataModal';
 import { computeMasonryLayout, type LayoutResult } from '../components/masonry-layout';
 import { EmptyState } from '../components/screen';
+import { toast } from '../stores/toastStore';
 
 const GAP = 8;
 const MIN_COL_WIDTH = 200;
@@ -52,6 +55,7 @@ export function ImportScreen() {
   const [input, setInput] = useState(initialQuery || storedQuery);
   const [showFilters, setShowFilters] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [previewImage, setPreviewImage] = useState<Image | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -197,6 +201,18 @@ export function ImportScreen() {
   const handleBlur = () => {
     blurTimeoutRef.current = setTimeout(() => setIsFocused(false), 150);
   };
+
+  const handlePreview = useCallback((imageId: number) => {
+    window.sortieAPI
+      .getImage(imageId)
+      .then((img) => {
+        if (img) setPreviewImage(img);
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`Failed to open preview: ${message}`);
+      });
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -447,7 +463,14 @@ export function ImportScreen() {
                 {visibleResults.map((pin, i) => {
                   const position = layout.positions[i];
                   if (!position) return null;
-                  return <PinterestResultCard key={pin.pinId} pin={pin} position={position} />;
+                  return (
+                    <PinterestResultCard
+                      key={pin.pinId}
+                      pin={pin}
+                      position={position}
+                      onPreview={handlePreview}
+                    />
+                  );
                 })}
               </div>
               {loadingMore && (
@@ -460,6 +483,15 @@ export function ImportScreen() {
           )}
         </div>
       </div>
+
+      {previewImage && (
+        <MetadataModal
+          image={previewImage}
+          images={[previewImage]}
+          onClose={() => setPreviewImage(null)}
+          onNavigate={setPreviewImage}
+        />
+      )}
     </main>
   );
 }

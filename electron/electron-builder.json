@@ -89,7 +89,8 @@
     "**/node_modules/exiftool-vendored.exe/**"
   ],
   "extraResources": [
-    { "from": "resources/icons/icon.png", "to": "icons/icon.png" }
+    { "from": "resources/icons/icon.png", "to": "icons/icon.png" },
+    { "from": "resources/models/ocr", "to": "models/ocr" }
   ],
   "mac": {
     "category": "public.app-category.photography",

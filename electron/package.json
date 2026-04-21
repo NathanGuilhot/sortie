@@ -10,8 +10,9 @@
   "main": "./dist/main/index.js",
   "scripts": {
     "build:icons": "node scripts/generate-icons.mjs",
+    "fetch:ocr-models": "node scripts/fetch-ocr-models.mjs",
     "build:code": "tsc && electron-vite build",
-    "build": "yarn build:icons && yarn build:code",
+    "build": "yarn build:icons && yarn fetch:ocr-models && yarn build:code",
     "clean": "rm -rf dist out",
     "type-check": "tsc --noEmit",
     "start": "electron-vite preview",

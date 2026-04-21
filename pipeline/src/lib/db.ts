@@ -462,6 +462,42 @@ export class DatabaseManager {
       this.db.exec('DROP TABLE IF EXISTS metadata_changes');
       this.db.pragma('user_version = 13');
     }
+
+    if (version < 14) {
+      const imageCols = this.db.prepare('PRAGMA table_info(images)').all() as Array<{
+        name: string;
+      }>;
+      const imageColNames = new Set(imageCols.map((c) => c.name));
+      if (!imageColNames.has('ocr_status')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN ocr_status TEXT');
+      }
+      if (!imageColNames.has('ocr_at')) {
+        this.db.exec('ALTER TABLE images ADD COLUMN ocr_at INTEGER');
+      }
+
+      // block_index: ordering within an image (top-to-bottom, left-to-right).
+      // polygon_json: four corner points for rotated text. Plain bbox is the
+      //   axis-aligned enclosing rectangle for quick overlay/hit-testing.
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS image_ocr (
+          image_id INTEGER NOT NULL,
+          block_index INTEGER NOT NULL,
+          text TEXT NOT NULL,
+          bbox_x REAL NOT NULL,
+          bbox_y REAL NOT NULL,
+          bbox_w REAL NOT NULL,
+          bbox_h REAL NOT NULL,
+          polygon_json TEXT,
+          confidence REAL NOT NULL,
+          PRIMARY KEY (image_id, block_index),
+          FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
+        )
+      `);
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_image_ocr_image ON image_ocr(image_id)');
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_ocr_status ON images(ocr_status)');
+
+      this.db.pragma('user_version = 14');
+    }
   }
 
   insertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): number {
@@ -909,6 +945,97 @@ export class DatabaseManager {
        WHERE faces_scanned = 0 AND hidden = 0 AND ${likeClauses}`,
     );
     return stmt.all(...excluded.map((e) => e.path)) as Array<{ id: number; file_path: string }>;
+  }
+
+  // --- OCR methods ---
+
+  getImagePath(imageId: number): string | null {
+    const row = this.db
+      .prepare('SELECT file_path FROM images WHERE id = ?')
+      .get(imageId) as { file_path: string } | undefined;
+    return row?.file_path ?? null;
+  }
+
+  getOcrStatus(imageId: number): { status: string | null; at: number | null } {
+    const row = this.db
+      .prepare('SELECT ocr_status AS status, ocr_at AS at FROM images WHERE id = ?')
+      .get(imageId) as { status: string | null; at: number | null } | undefined;
+    return row ?? { status: null, at: null };
+  }
+
+  getImageOcr(imageId: number): Array<{
+    block_index: number;
+    text: string;
+    bbox_x: number;
+    bbox_y: number;
+    bbox_w: number;
+    bbox_h: number;
+    polygon_json: string | null;
+    confidence: number;
+  }> {
+    return this.db
+      .prepare(
+        `SELECT block_index, text, bbox_x, bbox_y, bbox_w, bbox_h, polygon_json, confidence
+         FROM image_ocr
+         WHERE image_id = ?
+         ORDER BY block_index`,
+      )
+      .all(imageId) as Array<{
+      block_index: number;
+      text: string;
+      bbox_x: number;
+      bbox_y: number;
+      bbox_w: number;
+      bbox_h: number;
+      polygon_json: string | null;
+      confidence: number;
+    }>;
+  }
+
+  saveImageOcr(
+    imageId: number,
+    blocks: Array<{
+      text: string;
+      bbox: { x: number; y: number; width: number; height: number };
+      polygon?: [[number, number], [number, number], [number, number], [number, number]];
+      confidence: number;
+    }>,
+  ): void {
+    const now = Date.now();
+    const txn = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM image_ocr WHERE image_id = ?').run(imageId);
+      const insert = this.db.prepare(
+        `INSERT INTO image_ocr
+           (image_id, block_index, text, bbox_x, bbox_y, bbox_w, bbox_h, polygon_json, confidence)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      for (let i = 0; i < blocks.length; i++) {
+        const b = blocks[i];
+        insert.run(
+          imageId,
+          i,
+          b.text,
+          b.bbox.x,
+          b.bbox.y,
+          b.bbox.width,
+          b.bbox.height,
+          b.polygon ? JSON.stringify(b.polygon) : null,
+          b.confidence,
+        );
+      }
+      this.db
+        .prepare('UPDATE images SET ocr_status = ?, ocr_at = ? WHERE id = ?')
+        .run(blocks.length === 0 ? 'empty' : 'done', now, imageId);
+    });
+    txn();
+  }
+
+  markOcrError(imageId: number, message: string): void {
+    // Truncate to avoid storing multi-kilobyte stack traces as status rows.
+    const short = message.length > 200 ? message.slice(0, 200) : message;
+    this.db
+      .prepare('UPDATE images SET ocr_status = ?, ocr_at = ? WHERE id = ?')
+      .run(`error:${short}`, Date.now(), imageId);
   }
 
   cleanupOrphanedPersons(): void {

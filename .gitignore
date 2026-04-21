@@ -63,6 +63,9 @@ thumbnails/
 # CLIP model cache
 .models/
 
+# OCR model weights (fetched by scripts/fetch-ocr-models.mjs)
+electron/resources/models/ocr/
+
 # OS generated files
 .DS_Store
 .DS_Store?

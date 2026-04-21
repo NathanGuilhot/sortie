@@ -8,6 +8,8 @@ import type {
   PinterestBulkImportProgress,
   PinterestBulkImportSummary,
   Query,
+  OcrResult,
+  OcrUpdatePayload,
 } from 'shared';
 
 type PinterestTarget =
@@ -205,6 +207,17 @@ contextBridge.exposeInMainWorld('sortieAPI', {
     openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', { url }),
     showAboutPanel: () => ipcRenderer.invoke('app:showAboutPanel'),
     onShowAbout: (callback: () => void) => subscribe<void>('show-about', () => callback()),
+  },
+
+  ocr: {
+    get: (imageId: number): Promise<OcrResult> => ipcRenderer.invoke('ocr:get', { imageId }),
+    ensure: (
+      imageId: number,
+    ): Promise<
+      { available: false } | { available: true; state: OcrResult }
+    > => ipcRenderer.invoke('ocr:ensure', { imageId }),
+    onUpdated: (cb: (payload: OcrUpdatePayload) => void) =>
+      subscribe<OcrUpdatePayload>('ocr-updated', cb),
   },
 
   pinterest: {

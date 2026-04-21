@@ -85,8 +85,22 @@ async function initializeServices() {
   fs.mkdirSync(clipCacheDir, { recursive: true });
   migrateLegacyClipCache(clipCacheDir);
 
+  const ocrModelsPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'models', 'ocr')
+    : path.join(__dirname, '../../resources/models/ocr');
+  const ocrAvailable = fs.existsSync(path.join(ocrModelsPath, 'recognition.onnx'));
+  if (!ocrAvailable) {
+    console.warn('[ocr] models not found at', ocrModelsPath, '- run yarn fetch:ocr-models');
+  }
+
   dbService = new DatabaseService();
-  dbService.initialize(dbPath, faceModelsPath, thumbDir, clipCacheDir);
+  dbService.initialize(
+    dbPath,
+    faceModelsPath,
+    thumbDir,
+    clipCacheDir,
+    ocrAvailable ? ocrModelsPath : undefined,
+  );
 
   watcherService = new WatcherService();
   watcherService.setDatabaseService(dbService);
@@ -101,6 +115,10 @@ async function initializeServices() {
     mainWindow?.webContents.send('embedder-status', status);
   });
   void dbService.warmupEmbedder();
+
+  dbService.onOcrUpdate((payload) => {
+    mainWindow?.webContents.send('ocr-updated', payload);
+  });
 
   // Pre-create the Pinterest import folder so it's listed in /folders even
   // before the user imports anything. NEVER add it to the watcher — the

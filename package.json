@@ -3,11 +3,15 @@
   "version": "0.2.5",
   "description": "Picture Tagger & Embedding Electron App",
   "private": true,
-  "workspaces": [
-    "shared",
-    "pipeline",
-    "electron"
-  ],
+  "workspaces": {
+    "packages": ["shared", "pipeline", "electron"],
+    "nohoist": [
+      "pipeline/@gutenye/**",
+      "pipeline/@gutenye/**/**",
+      "pipeline/onnxruntime-node",
+      "pipeline/onnxruntime-common"
+    ]
+  },
   "scripts": {
     "type-check": "yarn workspace shared run build && yarn workspace pipeline run build && yarn workspace sortie-desktop run type-check",
     "postinstall": "cd electron && electron-builder install-app-deps",

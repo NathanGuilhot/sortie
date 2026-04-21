@@ -851,6 +851,30 @@
   resolved "https://registry.yarnpkg.com/@gar/promisify/-/promisify-1.1.3.tgz#555193ab2e3bb3b6adc3d551c9c030d9e860daf6"
   integrity sha512-k2Ty1JcVojjJFwrg/ThKi2ujJ7XNLYaFGNB/bWT9wGR+oSMJHMa5w+CUq6p/pVrKeNNgA7pCqEcjSnHVoqJQFw==
 
+"@gutenye/ocr-common@^1.2.0":
+  version "1.4.8"
+  resolved "https://registry.yarnpkg.com/@gutenye/ocr-common/-/ocr-common-1.4.8.tgz#81ff93715896ebe45ab4c84a620d74ce58fa19e0"
+  integrity sha512-J1Xc9xld9UWCTsj8m/FZiQK+fdvtC0K18RYFuYpdc76qw5eOCvZ2mcetAl9EgWDAmObE2NixLnoqCoa2fP8MFA==
+  dependencies:
+    "@techstark/opencv-js" "^4.9.0-release.3"
+    js-clipper "^1.0.1"
+    tiny-invariant "^1.3.3"
+
+"@gutenye/ocr-models@^1.2.2":
+  version "1.4.2"
+  resolved "https://registry.yarnpkg.com/@gutenye/ocr-models/-/ocr-models-1.4.2.tgz#06c61c34dcda863a0babe9b033721613b87457c8"
+  integrity sha512-y7cLEpGFOeroavopfCd/ejyZB/UeF6xdn0mBFqVHNOI5wQTv2My+/nKxvxKTtG4DVMBzt9TpOfaX7aZGbuciUw==
+
+"@gutenye/ocr-node@^1.4.8":
+  version "1.4.8"
+  resolved "https://registry.yarnpkg.com/@gutenye/ocr-node/-/ocr-node-1.4.8.tgz#46f3b67a66d1c23409e37bab5c0db3cda3dea76c"
+  integrity sha512-Ej6hHQSrBLCY74Qb2rRYZ0v97kp3h1Q8obLdQDM208ft9BOyqj+aUN2yTYQ/1c/BO695OWDgufRSiWiLB92KLw==
+  dependencies:
+    "@gutenye/ocr-common" "^1.2.0"
+    "@gutenye/ocr-models" "^1.2.2"
+    onnxruntime-node "^1.17.3-rev.1"
+    sharp "^0.33.3"
+
 "@huggingface/jinja@^0.2.2":
   version "0.2.2"
   resolved "https://registry.yarnpkg.com/@huggingface/jinja/-/jinja-0.2.2.tgz#faeb205a9d6995089bef52655ddd8245d3190627"
@@ -1479,6 +1503,11 @@
   dependencies:
     defer-to-connect "^2.0.0"
 
+"@techstark/opencv-js@^4.9.0-release.3":
+  version "4.9.0-release.3"
+  resolved "https://registry.yarnpkg.com/@techstark/opencv-js/-/opencv-js-4.9.0-release.3.tgz#efcf5b33611a05f3f3eb5b180e6582a064f4b5d1"
+  integrity sha512-y+KoLLlkXVUHWozYlN1vmMD9TQMPJObqml5nPA5vPWgHtOgm8q5O74UtzM23eayidvmeFX6tF5e2gDdyxcpy3Q==
+
 "@tensorflow/tfjs-backend-cpu@4.22.0":
   version "4.22.0"
   resolved "https://registry.yarnpkg.com/@tensorflow/tfjs-backend-cpu/-/tfjs-backend-cpu-4.22.0.tgz#72aeaab14f6f16bbd995c9e6751a8d094d5639a9"
@@ -2093,6 +2122,11 @@ acorn@^8.15.0, acorn@^8.16.0:
   version "8.16.0"
   resolved "https://registry.yarnpkg.com/acorn/-/acorn-8.16.0.tgz#4ce79c89be40afe7afe8f3adb902a1f1ce9ac08a"
   integrity sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==
+
+adm-zip@^0.5.16:
+  version "0.5.17"
+  resolved "https://registry.yarnpkg.com/adm-zip/-/adm-zip-0.5.17.tgz#5c0b65f37aeec5c2a94995c024f931f62e4bbc5a"
+  integrity sha512-+Ut8d9LLqwEvHHJl1+PIHqoyDxFgVN847JTVM3Izi3xHDWPE4UtzzXysMZQs64DMcrJfBeS/uoEP4AD3HQHnQQ==
 
 agent-base@6, agent-base@^6.0.2:
   version "6.0.2"
@@ -4295,6 +4329,11 @@ jiti@^2.4.2:
   resolved "https://registry.yarnpkg.com/jiti/-/jiti-2.6.1.tgz#178ef2fc9a1a594248c20627cd820187a4d78d92"
   integrity sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==
 
+js-clipper@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/js-clipper/-/js-clipper-1.0.1.tgz#4d6b07434a4408e7c129e32201ce66d21474ed21"
+  integrity sha512-0XYAS0ZoCki5K0fWwj8j8ug4mgxHXReW3ayPbVqr4zXPJuIs2pyvemL1sALadsEiAywZwW5Ify1XfU4bNJvokg==
+
 "js-tokens@^3.0.0 || ^4.0.0", js-tokens@^4.0.0:
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/js-tokens/-/js-tokens-4.0.0.tgz#19203fb59991df98e3a287050d4647cdeaf32499"
@@ -4944,6 +4983,11 @@ onnx-proto@^4.0.4:
   dependencies:
     protobufjs "^6.8.8"
 
+onnxruntime-common@1.24.3:
+  version "1.24.3"
+  resolved "https://registry.yarnpkg.com/onnxruntime-common/-/onnxruntime-common-1.24.3.tgz#fb93319a2d041fc9fe2a209167ba6ef2f1a47fee"
+  integrity sha512-GeuPZO6U/LBJXvwdaqHbuUmoXiEdeCjWi/EG7Y1HNnDwJYuk6WUbNXpF6luSUY8yASul3cmUlLGrCCL1ZgVXqA==
+
 onnxruntime-common@~1.14.0:
   version "1.14.0"
   resolved "https://registry.yarnpkg.com/onnxruntime-common/-/onnxruntime-common-1.14.0.tgz#2bb5dac5261269779aa5fb6536ca379657de8bf6"
@@ -4955,6 +4999,15 @@ onnxruntime-node@1.14.0:
   integrity sha512-5ba7TWomIV/9b6NH/1x/8QEeowsb+jBEvFzU6z0T4mNsFwdPqXeFUM7uxC6QeSRkEbWu3qEB0VMjrvzN/0S9+w==
   dependencies:
     onnxruntime-common "~1.14.0"
+
+onnxruntime-node@^1.17.3-rev.1:
+  version "1.24.3"
+  resolved "https://registry.yarnpkg.com/onnxruntime-node/-/onnxruntime-node-1.24.3.tgz#ec8da99c335aa5ea95559a3ac1ae915a89541d5e"
+  integrity sha512-JH7+czbc8ALA819vlTgcV+Q214/+VjGeBHDjX81+ZCD0PCVCIFGFNtT0V4sXG/1JXypKPgScQcB3ij/hk3YnTg==
+  dependencies:
+    adm-zip "^0.5.16"
+    global-agent "^3.0.0"
+    onnxruntime-common "1.24.3"
 
 onnxruntime-web@1.14.0:
   version "1.14.0"
@@ -5777,7 +5830,7 @@ sharp@^0.32.0:
     tar-fs "^3.0.4"
     tunnel-agent "^0.6.0"
 
-sharp@^0.33.0, sharp@^0.33.5:
+sharp@^0.33.0, sharp@^0.33.3, sharp@^0.33.5:
   version "0.33.5"
   resolved "https://registry.yarnpkg.com/sharp/-/sharp-0.33.5.tgz#13e0e4130cc309d6a9497596715240b2ec0c594e"
   integrity sha512-haPVm1EkS9pgvHrQ/F3Xy+hgcuMV0Wm9vfIBSiwZ05k+xgb0PkBQpGsAA/oWdDobNaZTH5ppvHtzCFbnSEwHVw==
@@ -6276,6 +6329,11 @@ thenify-all@^1.0.0:
   integrity sha512-RVZSIV5IG10Hk3enotrhvz0T9em6cyHBLkH/YAZuKqd8hRkKhSfCGIcP2KUY0EPxndzANBmNllzWPwak+bheSw==
   dependencies:
     any-promise "^1.0.0"
+
+tiny-invariant@^1.3.3:
+  version "1.3.3"
+  resolved "https://registry.yarnpkg.com/tiny-invariant/-/tiny-invariant-1.3.3.tgz#46680b7a873a0d5d10005995eb90a70d74d60127"
+  integrity sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==
 
 tiny-typed-emitter@^2.1.0:
   version "2.1.0"

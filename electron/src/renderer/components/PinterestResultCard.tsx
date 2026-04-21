@@ -8,11 +8,13 @@ import { GifBadge } from './gif';
 interface PinterestResultCardProps {
   pin: PinterestResult;
   position: Position;
+  onPreview: (imageId: number) => void;
 }
 
 export const PinterestResultCard = memo(function PinterestResultCard({
   pin,
   position,
+  onPreview,
 }: PinterestResultCardProps) {
   const importState = usePinterestStore((s) => s.imports[pin.pinId]);
   const importPin = usePinterestStore((s) => s.importPin);
@@ -26,7 +28,11 @@ export const PinterestResultCard = memo(function PinterestResultCard({
   const gif = isGifUrl(pin.imageUrl);
 
   const handleClick = () => {
-    if (isPending || isImported) return;
+    if (isPending) return;
+    if (isImported) {
+      if (importState?.imageId != null) onPreview(importState.imageId);
+      return;
+    }
     void importPin(pin);
   };
 
@@ -55,7 +61,7 @@ export const PinterestResultCard = memo(function PinterestResultCard({
       }}
       title={
         isImported
-          ? 'Imported to your library'
+          ? 'Click to preview'
           : isPending
             ? 'Importing…'
             : 'Click to add to library'

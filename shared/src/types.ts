@@ -31,6 +31,25 @@ export interface Image {
   palette?: PaletteColor[] | null;
 }
 
+export interface OcrBlock {
+  text: string;
+  bbox: { x: number; y: number; width: number; height: number };
+  polygon?: [[number, number], [number, number], [number, number], [number, number]];
+  confidence: number;
+}
+
+export interface OcrResult {
+  status: string | null;
+  at: number | null;
+  blocks: OcrBlock[];
+}
+
+export interface OcrUpdatePayload {
+  imageId: number;
+  status: string;
+  blocks: OcrBlock[];
+}
+
 export interface PaletteColor {
   hex: string;
   rgb: [number, number, number];

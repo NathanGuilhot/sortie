@@ -21,6 +21,8 @@ import {
   PinterestImportResult,
   PinterestBulkImportProgress,
   PinterestBulkImportSummary,
+  OcrResult,
+  OcrUpdatePayload,
 } from 'shared';
 
 type PinterestTarget =
@@ -178,6 +180,14 @@ declare global {
         openExternal: (url: string) => Promise<{ success: boolean }>;
         showAboutPanel: () => Promise<void>;
         onShowAbout: (callback: () => void) => () => void;
+      };
+      // OCR
+      ocr: {
+        get: (imageId: number) => Promise<OcrResult>;
+        ensure: (
+          imageId: number,
+        ) => Promise<{ available: false } | { available: true; state: OcrResult }>;
+        onUpdated: (cb: (payload: OcrUpdatePayload) => void) => () => void;
       };
       // Pinterest import
       pinterest: {

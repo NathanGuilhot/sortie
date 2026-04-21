@@ -3,6 +3,7 @@ import { Image, SearchResult } from 'shared';
 import { MetadataEditor } from './MetadataEditor';
 import { CopyText } from './CopyText';
 import { SimilarityGrid } from './SimilarityGrid';
+import { OcrOverlay } from './OcrOverlay';
 import { useImageStore } from '../stores/imageStore';
 import { toast } from '../stores/toastStore';
 
@@ -185,6 +186,7 @@ export function MetadataModal({
               onLoad={() => setImageLoaded(true)}
               draggable={false}
             />
+            <OcrOverlay imageId={image.id} imgRef={imgRef} imageLoaded={imageLoaded} />
           </div>
         </div>
 
