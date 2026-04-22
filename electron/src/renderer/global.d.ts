@@ -167,6 +167,17 @@ declare global {
       resetDatabase: () => Promise<{ success: boolean }>;
       getDatabasePath: () => Promise<string>;
       pickFolder: () => Promise<string | null>;
+      // App settings (key-value, persisted in sortie.db)
+      settings: {
+        get: (key: string) => Promise<string | null>;
+        set: (key: string, value: string) => Promise<{ success: boolean }>;
+      };
+      suggestDefaultPhotoFolder: () => Promise<{
+        path: string;
+        exists: boolean;
+        approxImageCount: number | null;
+        capped: boolean;
+      }>;
       // Folder availability (external drives)
       recheckFolderAvailability: (folderPath?: string) => Promise<{
         changes: Array<{ path: string; available: boolean; writable: boolean }>;

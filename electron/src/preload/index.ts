@@ -193,6 +193,20 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
 
+  // App settings (key-value, persisted in sortie.db)
+  settings: {
+    get: (key: string): Promise<string | null> => ipcRenderer.invoke('settings:get', { key }),
+    set: (key: string, value: string): Promise<{ success: boolean }> =>
+      ipcRenderer.invoke('settings:set', { key, value }),
+  },
+
+  suggestDefaultPhotoFolder: (): Promise<{
+    path: string;
+    exists: boolean;
+    approxImageCount: number | null;
+    capped: boolean;
+  }> => ipcRenderer.invoke('suggest-default-photo-folder'),
+
   // Folder availability (external drives)
   recheckFolderAvailability: (folderPath?: string) =>
     ipcRenderer.invoke('recheck-folder-availability', { path: folderPath }),

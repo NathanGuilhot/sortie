@@ -14,7 +14,37 @@ import {
 import { getImportFolder, importPin } from './pinterest/import';
 import { bulkImportBoard } from './pinterest/bulkImport';
 import { randomUUID } from 'crypto';
-import type { PinterestResult, Query } from 'shared';
+import { SUPPORTED_IMAGE_EXTENSIONS, type PinterestResult, type Query } from 'shared';
+
+const IMAGE_EXTENSIONS = new Set<string>(SUPPORTED_IMAGE_EXTENSIONS);
+
+async function countImagesRecursive(root: string, cap: number): Promise<number> {
+  let count = 0;
+  const stack: string[] = [root];
+  while (stack.length > 0) {
+    const dir = stack.pop()!;
+    let entries: import('fs').Dirent[];
+    try {
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(full);
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (IMAGE_EXTENSIONS.has(ext)) {
+          count++;
+          if (count >= cap) return count;
+        }
+      }
+    }
+  }
+  return count;
+}
 
 export function setupIpcHandlers(
   dbService: DatabaseService,
@@ -29,6 +59,38 @@ export function setupIpcHandlers(
       : await dialog.showOpenDialog({ properties: ['openDirectory'] });
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
+  });
+
+  ipcMain.handle('settings:get', (_event, { key }: { key: string }) => {
+    return dbService.getSetting(key);
+  });
+
+  ipcMain.handle('settings:set', (_event, { key, value }: { key: string; value: string }) => {
+    dbService.setSetting(key, value);
+    return { success: true };
+  });
+
+  ipcMain.handle('suggest-default-photo-folder', async () => {
+    const picturesPath = app.getPath('pictures');
+    let exists = false;
+    let approxImageCount: number | null = null;
+    let capped = false;
+    try {
+      const stat = await fs.promises.stat(picturesPath);
+      if (stat.isDirectory()) {
+        exists = true;
+        const CAP = 100_000;
+        try {
+          approxImageCount = await countImagesRecursive(picturesPath, CAP);
+          capped = approxImageCount >= CAP;
+        } catch {
+          /* */
+        }
+      }
+    } catch {
+      /* */
+    }
+    return { path: picturesPath, exists, approxImageCount, capped };
   });
 
   ipcMain.handle(

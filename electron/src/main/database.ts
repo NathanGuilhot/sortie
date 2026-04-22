@@ -1526,6 +1526,16 @@ export class DatabaseService {
     return this.db;
   }
 
+  getSetting(key: string): string | null {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.db.getSetting(key);
+  }
+
+  setSetting(key: string, value: string): void {
+    if (!this.db) throw new Error('Database not initialized');
+    this.db.setSetting(key, value);
+  }
+
   async addImage(filePath: string): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
     if (!this.embedder) throw new Error('Embedder not initialized');
