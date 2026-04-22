@@ -174,23 +174,36 @@ export function setupIpcHandlers(
     return { success: true };
   });
 
+  // SQLite reuses row ids after DELETE — wipe id-keyed caches.
+  const wipeCacheDir = async (dirName: string) => {
+    const dir = path.join(app.getPath('userData'), dirName);
+    try {
+      const files = await fs.promises.readdir(dir);
+      await Promise.all(
+        files.map((file) =>
+          fs.promises.rm(path.join(dir, file), { recursive: true, force: true }).catch(() => {}),
+        ),
+      );
+    } catch {
+      /* */
+    }
+  };
+
   ipcMain.handle('reset-face-data', async () => {
     await dbService.resetFaceData();
-    // Wipe cached face thumbnails — SQLite reuses row IDs after DELETE so
-    // stale crops would be served for the new face rows.
-    const faceThumbDir = path.join(app.getPath('userData'), 'face-thumbs');
-    try {
-      const files = fs.readdirSync(faceThumbDir);
-      for (const file of files) fs.unlinkSync(path.join(faceThumbDir, file));
-    } catch {
-      /* dir may not exist */
-    }
+    await wipeCacheDir('face-thumbs');
     return { success: true };
   });
 
   ipcMain.handle('reset-database', async () => {
     watcherService.stopAll();
     await dbService.resetDatabase();
+    await Promise.all([
+      wipeCacheDir('thumbs'),
+      wipeCacheDir('face-thumbs'),
+      wipeCacheDir('raw-previews'),
+      wipeCacheDir('link-previews'),
+    ]);
     return { success: true };
   });
 

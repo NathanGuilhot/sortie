@@ -818,20 +818,25 @@ export class DatabaseService {
     if (!this.db) throw new Error('Database not initialized');
     const db = this.db.getDatabase();
 
-    const txn = db.transaction(() => {
-      db.prepare('DELETE FROM vec_faces').run();
-      db.prepare('DELETE FROM vec_persons').run();
-      db.prepare('DELETE FROM faces').run();
-      db.prepare('DELETE FROM persons').run();
-      db.prepare('DELETE FROM vec_images').run();
-      db.prepare('DELETE FROM vec_palette').run();
-      db.prepare('DELETE FROM palette_colors').run();
-      db.prepare('DELETE FROM images').run();
-      db.prepare('DELETE FROM collections').run();
-      db.prepare('DELETE FROM tags').run();
-      db.prepare('DELETE FROM folders').run();
-    });
-    txn();
+    const rows = db
+      .prepare(
+        `SELECT name FROM sqlite_master
+         WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`,
+      )
+      .all() as Array<{ name: string }>;
+
+    // FKs off so we don't depend on delete order.
+    db.pragma('foreign_keys = OFF');
+    try {
+      const txn = db.transaction(() => {
+        for (const { name } of rows) {
+          db.prepare(`DELETE FROM "${name}"`).run();
+        }
+      });
+      txn();
+    } finally {
+      db.pragma('foreign_keys = ON');
+    }
 
     this.invalidateImageCache();
   }
