@@ -30,7 +30,11 @@
     "lint": "eslint shared/src pipeline/src electron/src",
     "lint:fix": "eslint --fix shared/src pipeline/src electron/src",
     "format": "prettier --write \"shared/src/**/*.ts\" \"pipeline/src/**/*.ts\" \"electron/src/**/*.{ts,tsx}\"",
-    "format:check": "prettier --check \"shared/src/**/*.ts\" \"pipeline/src/**/*.ts\" \"electron/src/**/*.{ts,tsx}\""
+    "format:check": "prettier --check \"shared/src/**/*.ts\" \"pipeline/src/**/*.ts\" \"electron/src/**/*.{ts,tsx}\"",
+    "test": "yarn test:rebuild-node && (vitest run; code=$?; yarn test:rebuild-electron; exit $code)",
+    "test:watch": "yarn test:rebuild-node && vitest",
+    "test:rebuild-node": "npm rebuild better-sqlite3",
+    "test:rebuild-electron": "yarn --cwd electron exec electron-builder install-app-deps"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -40,7 +44,8 @@
     "globals": "^17.5.0",
     "prettier": "^3.8.3",
     "typescript": "^5.0.0",
-    "typescript-eslint": "^8.58.2"
+    "typescript-eslint": "^8.58.2",
+    "vitest": "^2.1.9"
   },
   "engines": {
     "node": ">=18"
