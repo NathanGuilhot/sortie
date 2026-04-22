@@ -3,6 +3,7 @@ import { Board, Tag } from 'shared';
 import { BoardPickerModal } from './BoardPickerModal';
 import { useImageStore } from '../stores/imageStore';
 import { useBoardStore } from '../stores/boardStore';
+import { XIcon, PlusIcon } from './icons';
 
 interface AddToBoardButtonProps {
   imageId: number;
@@ -50,14 +51,7 @@ export function AddToBoardButton({ imageId, imageTags }: AddToBoardButtonProps) 
               className="w-4 h-4 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-200"
               aria-label={`Remove from ${board.name}`}
             >
-              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={3}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <XIcon className="w-2.5 h-2.5" strokeWidth={3} />
             </button>
           </span>
         ))}
@@ -65,14 +59,7 @@ export function AddToBoardButton({ imageId, imageTags }: AddToBoardButtonProps) 
           onClick={() => setOpen(true)}
           className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
         >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2.5}
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
+          <PlusIcon className="w-3 h-3" strokeWidth={2.5} />
           Add to board
         </button>
       </div>

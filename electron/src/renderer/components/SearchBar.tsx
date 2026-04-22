@@ -7,6 +7,7 @@ import { toast } from '../stores/toastStore';
 import { TagInput } from './TagInput';
 import { PaletteSearchPicker } from './PaletteSearchPicker';
 import { buildFaceThumbUrl } from './faceThumb';
+import { SearchIcon, PersonIcon, XIcon, FilterIcon, HeartIcon } from './icons';
 
 interface SearchBarProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
@@ -61,14 +62,7 @@ function PersonFilterChip({
         <img src={thumbUrl} alt={label} className="w-full h-full object-cover" />
       ) : (
         <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-            />
-          </svg>
+          <PersonIcon className="w-5 h-5" />
         </div>
       )}
     </button>
@@ -366,19 +360,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
             className="w-6 h-6 rounded object-cover shrink-0"
           />
         ) : (
-          <svg
-            className="w-4 h-4 text-gray-400 shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
+          <SearchIcon className="w-4 h-4 text-gray-400 shrink-0" />
         )}
 
         <input
@@ -411,14 +393,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
             title="Clear image search"
             className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0 ml-1"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <XIcon />
           </button>
         )}
 
@@ -427,14 +402,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
             onClick={handleClear}
             className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0 ml-1"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <XIcon />
           </button>
         )}
 
@@ -448,14 +416,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
                 : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'
             }`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-              />
-            </svg>
+            <FilterIcon />
             {hasActiveFilters && (
               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-coral rounded-full" />
             )}
@@ -603,17 +564,11 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
                       showFavoritesOnly ? 'bg-coral' : 'bg-gray-200 hover:bg-gray-300'
                     }`}
                   >
-                    <svg
-                      width="11"
-                      height="11"
-                      viewBox="0 0 24 24"
-                      fill={showFavoritesOnly ? 'white' : 'none'}
-                      stroke={showFavoritesOnly ? 'none' : 'currentColor'}
+                    <HeartIcon
+                      className={`w-[11px] h-[11px] ${showFavoritesOnly ? 'text-white' : 'text-gray-500'}`}
+                      filled={showFavoritesOnly}
                       strokeWidth={showFavoritesOnly ? 0 : 2}
-                      className={showFavoritesOnly ? '' : 'text-gray-500'}
-                    >
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                    </svg>
+                    />
                   </div>
                   <span className="text-xs text-gray-600">Favorites</span>
                 </button>

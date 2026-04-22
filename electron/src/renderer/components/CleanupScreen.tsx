@@ -11,45 +11,10 @@ import {
   PrimaryButton,
   CancelButton,
 } from './screen';
+import { SearchIcon, LockIcon, ClipboardIcon, CheckIcon } from './icons';
 
-const LockIcon = (
-  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 11c0-1.1.9-2 2-2s2 .9 2 2v4H8v-4c0-1.1.9-2 2-2zm-5 4h10a1 1 0 011 1v5a1 1 0 01-1 1H7a1 1 0 01-1-1v-5a1 1 0 011-1z"
-    />
-  </svg>
-);
-
-const SearchIcon = (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-    />
-  </svg>
-);
-
-const DuplicateIcon = (
-  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1.5}
-      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-    />
-  </svg>
-);
-
-const CheckIcon = (
-  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-  </svg>
-);
+const duplicateIconNode = <ClipboardIcon className="w-8 h-8" strokeWidth={1.5} />;
+const checkIconNode = <CheckIcon className="w-8 h-8" />;
 
 function formatSize(bytes: number): string {
   if (!bytes) return '0 B';
@@ -181,7 +146,7 @@ function ImageCard({
             className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-medium"
             title="This file lives on a read-only volume and cannot be deleted from Sortie."
           >
-            {LockIcon}
+            <LockIcon className="w-3 h-3" />
             Read-only
           </div>
         )}
@@ -331,7 +296,7 @@ export function CleanupScreen() {
           scanning ? (
             <CancelButton onClick={() => void cancelScan()}>Cancel</CancelButton>
           ) : (
-            <PrimaryButton icon={SearchIcon} onClick={() => void handleScan()}>
+            <PrimaryButton icon={<SearchIcon />} onClick={() => void handleScan()}>
               Scan for Duplicates
             </PrimaryButton>
           )
@@ -351,11 +316,11 @@ export function CleanupScreen() {
 
       {!hasScanned && !scanning && duplicateGroups.length === 0 && (
         <EmptyState
-          icon={DuplicateIcon}
+          icon={duplicateIconNode}
           title="Find duplicate images"
           description="Find exact and visual duplicates."
           action={
-            <PrimaryButton icon={SearchIcon} size="lg" onClick={() => void handleScan()}>
+            <PrimaryButton icon={<SearchIcon />} size="lg" onClick={() => void handleScan()}>
               Scan for Duplicates
             </PrimaryButton>
           }
@@ -364,7 +329,7 @@ export function CleanupScreen() {
 
       {hasScanned && !scanning && duplicateGroups.length === 0 && (
         <EmptyState
-          icon={CheckIcon}
+          icon={checkIconNode}
           iconTone="success"
           title="No duplicates found"
           description="Your library is clean!"

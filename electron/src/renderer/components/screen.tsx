@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { XIcon, SpinnerIcon } from './icons';
 
 export function ScreenShell({ children }: { children: ReactNode }) {
   return (
@@ -41,14 +42,7 @@ export function ErrorBanner({ message, onDismiss }: { message: string; onDismiss
           onClick={onDismiss}
           className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 text-red-400 hover:text-red-600 cursor-pointer"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+          <XIcon />
         </button>
       )}
     </div>
@@ -87,21 +81,7 @@ export function ProgressPanel({
         </>
       ) : (
         <div className="flex items-center gap-2 text-sm text-ink">
-          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            />
-          </svg>
+          <SpinnerIcon className="w-4 h-4 animate-spin" />
           {label}
         </div>
       )}

@@ -3,6 +3,14 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { version } from '../../../../package.json';
 import { AboutModal } from '../components/AboutModal';
 import { Logo } from '../components/Logo';
+import {
+  PhotoIcon,
+  BoardsIcon,
+  FolderIcon,
+  BookIcon,
+  ClipboardIcon,
+  PeopleIcon,
+} from '../components/icons';
 import { useImageStore } from '../stores/imageStore';
 import { useUIStore } from '../stores/uiStore';
 import { useEmbedderStore } from '../stores/embedderStore';
@@ -10,82 +18,16 @@ import { useEmbedderStore } from '../stores/embedderStore';
 type NavItem = {
   to: string;
   label: string;
-  icon: JSX.Element;
+  Icon: React.ComponentType<{ className?: string }>;
 };
 
 const NAV_ITEMS: NavItem[] = [
-  {
-    to: '/gallery',
-    label: 'Gallery',
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-      />
-    ),
-  },
-  {
-    to: '/boards',
-    label: 'Boards',
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M4 5a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm9 0a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1h-5a1 1 0 01-1-1V5zM4 14a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1v-5zm9 0a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1h-5a1 1 0 01-1-1v-5z"
-      />
-    ),
-  },
-  {
-    to: '/folders',
-    label: 'Folders',
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-      />
-    ),
-  },
-  {
-    to: '/import',
-    label: 'Add from web',
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-      />
-    ),
-  },
-  {
-    to: '/cleanup',
-    label: 'Cleanup',
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-      />
-    ),
-  },
-  {
-    to: '/people',
-    label: 'People',
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-      />
-    ),
-  },
+  { to: '/gallery', label: 'Gallery', Icon: PhotoIcon },
+  { to: '/boards', label: 'Boards', Icon: BoardsIcon },
+  { to: '/folders', label: 'Folders', Icon: FolderIcon },
+  { to: '/import', label: 'Add from web', Icon: BookIcon },
+  { to: '/cleanup', label: 'Cleanup', Icon: ClipboardIcon },
+  { to: '/people', label: 'People', Icon: PeopleIcon },
 ];
 
 const STATUS_COPY: Record<string, string> = {
@@ -165,9 +107,7 @@ export function AppLayout() {
                     }`
                   }
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    {item.icon}
-                  </svg>
+                  <item.Icon className="w-5 h-5" />
                   <span className="absolute left-full ml-2 px-2 py-1 bg-ink text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                     {item.label}
                   </span>

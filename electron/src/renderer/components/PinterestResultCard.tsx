@@ -4,6 +4,7 @@ import { usePinterestStore } from '../stores/pinterestStore';
 import type { Position } from './masonry-layout';
 import { isGifUrl } from './gif-utils';
 import { GifBadge } from './gif';
+import { CheckIcon } from './icons';
 
 interface PinterestResultCardProps {
   pin: PinterestResult;
@@ -123,15 +124,7 @@ export const PinterestResultCard = memo(function PinterestResultCard({
           >
             {isImported ? (
               <span className="flex items-center gap-1">
-                <svg
-                  className="w-3 h-3"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={3}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
+                <CheckIcon className="w-3 h-3" strokeWidth={3} />
                 Imported
               </span>
             ) : isPending ? (

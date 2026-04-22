@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Board } from 'shared';
 import { useBoardStore } from '../stores/boardStore';
 import { BoardCover } from '../components/BoardCover';
+import { PlusIcon, FolderOpenIcon, DotsIcon } from '../components/icons';
 
 export function BoardsIndexScreen() {
   const navigate = useNavigate();
@@ -62,14 +63,7 @@ export function BoardsIndexScreen() {
             onClick={() => setCreating(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-ink text-white hover:bg-ink/90"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
+            <PlusIcon className="w-3.5 h-3.5" strokeWidth={2.5} />
             New board
           </button>
         </div>
@@ -112,19 +106,7 @@ export function BoardsIndexScreen() {
         {!loading && boards.length === 0 && !creating && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
-              <svg
-                className="w-6 h-6 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M4 6a2 2 0 012-2h3l2 2h7a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"
-                />
-              </svg>
+              <FolderOpenIcon className="w-6 h-6 text-gray-400" />
             </div>
             <p className="text-sm text-gray-600 mb-1">No boards yet</p>
             <p className="text-xs text-gray-400">
@@ -232,11 +214,7 @@ function BoardTile({
             className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
             aria-label="Board menu"
           >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <circle cx="5" cy="12" r="1.5" />
-              <circle cx="12" cy="12" r="1.5" />
-              <circle cx="19" cy="12" r="1.5" />
-            </svg>
+            <DotsIcon className="w-4 h-4" />
           </button>
           {menuOpen && (
             <div

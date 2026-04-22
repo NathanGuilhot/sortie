@@ -4,23 +4,17 @@ import { CopyText } from './CopyText';
 import { ScreenShell, StatHeader, EmptyState, PrimaryButton } from './screen';
 import { toast } from '../stores/toastStore';
 import { useFolderStore } from '../stores/folderStore';
+import { useOnboardingStore } from '../stores/onboardingStore';
+import {
+  PlusIcon as PlusIconSvg,
+  FolderPlusIcon as FolderPlusIconSvg,
+  TrashIcon,
+  PhotoIcon,
+  RefreshIcon,
+} from './icons';
 
-const PlusIcon = (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-  </svg>
-);
-
-const FolderPlusIcon = (
-  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1.5}
-      d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
-    />
-  </svg>
-);
+const PlusIcon = <PlusIconSvg />;
+const FolderPlusIcon = <FolderPlusIconSvg />;
 
 function formatRelativeTime(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -204,6 +198,8 @@ export function FolderScanner() {
       await window.sortieAPI.resetDatabase();
       setResettingDb(false);
       await loadFolders();
+      // Reset wipes app_settings too — rehydrate so the takeover reappears.
+      await useOnboardingStore.getState().load();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(message);
@@ -315,14 +311,7 @@ export function FolderScanner() {
                     onClick={() => void handleRemoveFolder(folder.path)}
                     className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors ml-2 shrink-0 cursor-pointer"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
+                    <TrashIcon />
                   </button>
                 )}
               </div>
@@ -330,19 +319,7 @@ export function FolderScanner() {
               {/* Stats row */}
               <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
                 <span className="flex items-center gap-1">
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
+                  <PhotoIcon className="w-3.5 h-3.5" strokeWidth={2} />
                   {folder.image_count.toLocaleString()} images
                 </span>
                 <span>{formatSize(folder.total_size)}</span>
@@ -410,19 +387,7 @@ export function FolderScanner() {
                     title={!folder.available ? 'Drive offline' : undefined}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-ink hover:bg-lavender/30 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
-                    <svg
-                      className="w-3.5 h-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
+                    <RefreshIcon className="w-3.5 h-3.5" />
                     Scan Now
                   </button>
                 )}

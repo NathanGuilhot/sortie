@@ -6,6 +6,7 @@ import { SimilarityGrid } from './SimilarityGrid';
 import { OcrOverlay } from './OcrOverlay';
 import { useImageStore } from '../stores/imageStore';
 import { toast } from '../stores/toastStore';
+import { InfoIcon, XIcon } from './icons';
 
 interface MetadataModalProps {
   image: Image;
@@ -127,28 +128,14 @@ export function MetadataModal({
             }`}
             title="Toggle details (i)"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            <InfoIcon />
           </button>
           <button
             onClick={onClose}
             className="w-9 h-9 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"
             title="Close (Esc)"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <XIcon className="w-5 h-5" />
           </button>
         </div>
       </div>

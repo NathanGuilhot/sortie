@@ -4,6 +4,7 @@ import Fuse from 'fuse.js';
 import { Board } from 'shared';
 import { useBoardStore } from '../stores/boardStore';
 import { BoardCover } from './BoardCover';
+import { XIcon, PlusIcon, CheckIcon } from './icons';
 
 interface BoardPickerModalProps {
   currentBoardIds: Set<number>;
@@ -101,14 +102,7 @@ export function BoardPickerModal({
             className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100"
             aria-label="Close"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <XIcon strokeWidth={2.5} />
           </button>
         </div>
 
@@ -153,14 +147,7 @@ export function BoardPickerModal({
               disabled={creating}
               className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg bg-ink text-white hover:bg-ink/90 disabled:opacity-60"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2.5}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
+              <PlusIcon className="w-3.5 h-3.5" strokeWidth={2.5} />
               Create board "{trimmed}"
             </button>
           </div>
@@ -205,9 +192,7 @@ function BoardPickerCard({ board, selected, onClick }: BoardPickerCardProps) {
 
       {selected && (
         <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-ink text-white flex items-center justify-center shadow-lg">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-          </svg>
+          <CheckIcon className="w-3.5 h-3.5" strokeWidth={3} />
         </div>
       )}
     </button>

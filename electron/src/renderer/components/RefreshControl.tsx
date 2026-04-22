@@ -1,6 +1,7 @@
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { useImageStore } from '../stores/imageStore';
 import { toast } from '../stores/toastStore';
+import { ArrowDownIcon, RefreshIcon } from './icons';
 
 interface RefreshControlProps {
   scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -166,20 +167,12 @@ export function RefreshControl({ scrollContainerRef }: RefreshControlProps) {
               </>
             ) : (
               <>
-                <svg
+                <div
                   className="w-3.5 h-3.5 transition-transform"
                   style={{ transform: `rotate(${armed ? 180 : pullDistance * 2}deg)` }}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                  />
-                </svg>
+                  <ArrowDownIcon className="w-3.5 h-3.5" />
+                </div>
                 <span>{armed ? 'Release to reshuffle' : 'Pull to reshuffle'}</span>
               </>
             )}
@@ -198,19 +191,7 @@ export function RefreshControl({ scrollContainerRef }: RefreshControlProps) {
             : 'bg-white/80 backdrop-blur-lg shadow-lg shadow-black/5 border-gray-200/60 hover:bg-white hover:shadow-xl'
         } disabled:cursor-not-allowed cursor-pointer`}
       >
-        <svg
-          className={`w-4 h-4 text-gray-600 ${refreshing ? 'animate-spin' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
-        </svg>
+        <RefreshIcon className={`w-4 h-4 text-gray-600 ${refreshing ? 'animate-spin' : ''}`} />
       </button>
     </>
   );

@@ -11,6 +11,7 @@ import { MetadataModal } from '../components/MetadataModal';
 import { BoardSuggestionsRow } from '../components/BoardSuggestionsRow';
 import { isGif } from '../components/gif-utils';
 import { GifBadge } from '../components/gif';
+import { ChevronLeftIcon, XIcon } from '../components/icons';
 
 const DND_TYPE = 'board-image';
 
@@ -87,14 +88,7 @@ export function BoardDetailScreen() {
               className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-ink hover:bg-gray-100"
               aria-label="Back to boards"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
+              <ChevronLeftIcon />
             </button>
             <div className="flex-1 min-w-0">
               {renaming ? (
@@ -301,14 +295,7 @@ function DraggableTile({
         title="Remove from board"
         aria-label="Remove from board"
       >
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2.5}
-            d="M6 18L18 6M6 6l12 12"
-          />
-        </svg>
+        <XIcon className="w-3 h-3" strokeWidth={2.5} />
       </button>
     </div>
   );

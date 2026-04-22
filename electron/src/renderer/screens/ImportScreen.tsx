@@ -8,6 +8,7 @@ import { BulkImportButton } from '../components/BulkImportButton';
 import { MetadataModal } from '../components/MetadataModal';
 import { computeMasonryLayout, type LayoutResult } from '../components/masonry-layout';
 import { EmptyState } from '../components/screen';
+import { BookIcon, XIcon, FilterIcon } from '../components/icons';
 import { toast } from '../stores/toastStore';
 
 const GAP = 8;
@@ -15,16 +16,7 @@ const MIN_COL_WIDTH = 200;
 const MIN_COLUMNS = 2;
 const MAX_COLUMNS = 6;
 
-const BookIcon = (
-  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1.5}
-      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-    />
-  </svg>
-);
+const bookIconNode = <BookIcon />;
 
 export function ImportScreen() {
   const [params, setParams] = useSearchParams();
@@ -261,19 +253,7 @@ export function ImportScreen() {
               : 'bg-white/80 backdrop-blur-lg shadow-lg shadow-black/5 border-gray-200/60'
           }`}
         >
-          <svg
-            className="w-4 h-4 text-gray-400 shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-            />
-          </svg>
+          <BookIcon className="w-4 h-4 text-gray-400 shrink-0" strokeWidth={2} />
 
           <input
             ref={inputRef}
@@ -298,14 +278,7 @@ export function ImportScreen() {
               className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0 ml-1"
               title="Clear"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <XIcon />
             </button>
           )}
 
@@ -322,14 +295,7 @@ export function ImportScreen() {
               title="Filters"
               aria-expanded={showFilters}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                />
-              </svg>
+              <FilterIcon />
               {hasActiveFilters && (
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-coral rounded-full" />
               )}
@@ -392,7 +358,7 @@ export function ImportScreen() {
 
           {showWelcome && (
             <EmptyState
-              icon={BookIcon}
+              icon={bookIconNode}
               title="Add more from the web"
               description={
                 <>
@@ -407,7 +373,7 @@ export function ImportScreen() {
 
           {showEmpty && (
             <EmptyState
-              icon={BookIcon}
+              icon={bookIconNode}
               title="No results"
               description={`Nothing matched ${targetLabel}. Try a different keyword or URL.`}
             />
@@ -415,7 +381,7 @@ export function ImportScreen() {
 
           {showAllHidden && (
             <EmptyState
-              icon={BookIcon}
+              icon={bookIconNode}
               title="All results hidden"
               description={
                 <>

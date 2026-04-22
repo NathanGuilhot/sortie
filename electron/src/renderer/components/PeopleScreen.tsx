@@ -12,28 +12,9 @@ import {
   CancelButton,
 } from './screen';
 import { toast } from '../stores/toastStore';
+import { SearchIcon, PeopleIcon as PeopleIconSvg, PersonIcon, ChevronLeftIcon, XIcon } from './icons';
 
-const SearchIcon = (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-    />
-  </svg>
-);
-
-const PeopleIcon = (
-  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1.5}
-      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-    />
-  </svg>
-);
+const peopleIconNode = <PeopleIconSvg className="w-8 h-8" strokeWidth={1.5} />;
 
 function PersonCard({
   person,
@@ -91,14 +72,7 @@ function PersonCard({
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-              />
-            </svg>
+            <PersonIcon className="w-10 h-10" />
           </div>
         )}
       </div>
@@ -167,14 +141,7 @@ function PersonDetail({
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
+            <ChevronLeftIcon className="w-5 h-5" />
           </button>
           {editing ? (
             <form
@@ -296,14 +263,7 @@ function FaceThumbnail({ face }: { face: Face }) {
           className="absolute -top-1.5 -right-1.5 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
           title="Split from this person"
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2.5}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+          <XIcon className="w-3.5 h-3.5" strokeWidth={2.5} />
         </button>
       )}
     </div>
@@ -363,7 +323,7 @@ export function PeopleScreen() {
           scanning ? (
             <CancelButton onClick={() => void cancelScan()}>Cancel Scan</CancelButton>
           ) : (
-            <PrimaryButton icon={SearchIcon} onClick={() => void scanFaces()}>
+            <PrimaryButton icon={<SearchIcon />} onClick={() => void scanFaces()}>
               Scan Faces
             </PrimaryButton>
           )
@@ -402,14 +362,7 @@ export function PeopleScreen() {
             onClick={clearScanResult}
             className="w-6 h-6 flex items-center justify-center rounded hover:bg-mint/30 text-ink/60 hover:text-ink cursor-pointer"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <XIcon />
           </button>
         </div>
       )}
@@ -438,12 +391,12 @@ export function PeopleScreen() {
             </div>
           ) : persons.length === 0 ? (
             <EmptyState
-              icon={PeopleIcon}
+              icon={peopleIconNode}
               title="No people yet"
               description="Scan your library to detect faces."
               action={
                 <PrimaryButton
-                  icon={SearchIcon}
+                  icon={<SearchIcon />}
                   size="lg"
                   onClick={() => void scanFaces()}
                   disabled={scanning}

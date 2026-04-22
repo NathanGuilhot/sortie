@@ -1,4 +1,5 @@
 import { useToastStore, ToastKind } from '../stores/toastStore';
+import { XIcon } from './icons';
 
 const KIND_STYLES: Record<ToastKind, string> = {
   error: 'bg-red-50 border-red-200 text-red-700',
@@ -32,14 +33,7 @@ export function Toaster() {
             className={`w-6 h-6 flex items-center justify-center rounded shrink-0 cursor-pointer ${DISMISS_HOVER[t.kind]}`}
             aria-label="Dismiss"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <XIcon />
           </button>
         </div>
       ))}
