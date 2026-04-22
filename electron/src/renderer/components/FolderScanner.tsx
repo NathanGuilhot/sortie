@@ -83,7 +83,12 @@ export function FolderScanner() {
     try {
       const selected = await window.sortieAPI.pickFolder();
       if (!selected) return;
-      await window.sortieAPI.addFolder(selected);
+      const { overlap } = await window.sortieAPI.addFolder(selected);
+      if (overlap.parents.length > 0 || overlap.children.length > 0) {
+        toast.info(
+          'This folder overlaps with another watched folder — Sortie deduplicates events and preserves metadata.',
+        );
+      }
       await loadFolders();
 
       const opId = crypto.randomUUID();

@@ -40,6 +40,10 @@ import {
   SUPPORTED_IMAGE_EXTENSIONS,
 } from 'shared';
 import { fetchLinkPreview, hashUrl } from './linkPreview';
+import {
+  OVERLAP_EXCLUDE_CLAUSE,
+  OVERLAP_EXCLUDE_AVAILABLE_CLAUSE,
+} from './folder-overlap-sql';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -662,10 +666,40 @@ export class DatabaseService {
       | undefined;
     if (!row) throw new Error('Folder insert failed');
     if (!available) {
-      db.prepare('UPDATE images SET missing = 1 WHERE file_path LIKE ?').run(normalized + '/%');
+      db.prepare(
+        `UPDATE images SET missing = 1
+         WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_AVAILABLE_CLAUSE}`,
+      ).run(normalized + '/%', normalized);
     }
     this.invalidateImageCache();
     return row.id;
+  }
+
+  async findOverlappingFolders(
+    folderPath: string,
+  ): Promise<{ parents: string[]; children: string[] }> {
+    if (!this.db) throw new Error('Database not initialized');
+    const db = this.db.getDatabase();
+    const normalized = path.resolve(folderPath);
+    const rows = db
+      .prepare(
+        `SELECT path FROM folders
+         WHERE path <> ?
+           AND (? LIKE path || '/%' OR path LIKE ? || '/%')`,
+      )
+      .all(normalized, normalized, normalized) as { path: string }[];
+
+    const parents: string[] = [];
+    const children: string[] = [];
+    const childPrefix = normalized + '/';
+    for (const { path: p } of rows) {
+      if (p.startsWith(childPrefix)) {
+        children.push(p);
+      } else {
+        parents.push(p);
+      }
+    }
+    return { parents, children };
   }
 
   async scanFolder(
@@ -775,22 +809,29 @@ export class DatabaseService {
     const pattern = normalized + '/%';
 
     const txn = db.transaction(() => {
-      const imageIds = db.prepare('SELECT id FROM images WHERE file_path LIKE ?').all(pattern) as {
-        id: number;
-      }[];
+      // Only delete images that are NOT still covered by another registered
+      // folder — if /foo and /foo/bar both exist, removing /foo keeps the
+      // files under /foo/bar intact.
+      const imageIds = db
+        .prepare(
+          `SELECT id FROM images
+           WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`,
+        )
+        .all(pattern, normalized) as { id: number }[];
 
       if (imageIds.length > 0) {
         const deleteVec = db.prepare('DELETE FROM vec_images WHERE rowid = ?');
         const deletePaletteVec = db.prepare('DELETE FROM vec_palette WHERE rowid = ?');
         const selectPaletteIds = db.prepare('SELECT id FROM palette_colors WHERE image_id = ?');
+        const deleteImage = db.prepare('DELETE FROM images WHERE id = ?');
         for (const { id } of imageIds) {
           deleteVec.run(id);
           const colorIds = selectPaletteIds.all(id) as Array<{ id: number }>;
           for (const { id: colorId } of colorIds) {
             deletePaletteVec.run(BigInt(colorId));
           }
+          deleteImage.run(id);
         }
-        db.prepare('DELETE FROM images WHERE file_path LIKE ?').run(pattern);
       }
 
       db.prepare('DELETE FROM folders WHERE path = ?').run(normalized);
@@ -1096,10 +1137,19 @@ export class DatabaseService {
       );
       if (availableChanged) {
         const pattern = normalized + '/%';
-        db.prepare('UPDATE images SET missing = ? WHERE file_path LIKE ?').run(
-          available ? 0 : 1,
-          pattern,
-        );
+        if (available) {
+          // Coming back online — clear missing for everything this folder covers.
+          // Safe to use plain LIKE: a sibling folder overlap can only leave us
+          // clearing missing on files that are indeed present.
+          db.prepare('UPDATE images SET missing = 0 WHERE file_path LIKE ?').run(pattern);
+        } else {
+          // Going offline — only flip to missing if no other available folder
+          // still covers the path.
+          db.prepare(
+            `UPDATE images SET missing = 1
+             WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_AVAILABLE_CLAUSE}`,
+          ).run(pattern, normalized);
+        }
       }
     });
     txn();

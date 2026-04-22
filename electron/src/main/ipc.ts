@@ -131,10 +131,11 @@ export function setupIpcHandlers(
   );
 
   ipcMain.handle('add-folder', async (_event, { path }: { path: string }) => {
+    const overlap = await dbService.findOverlappingFolders(path);
     const folderId = await dbService.addFolder(path);
     await watcherService.watchFolder(path);
     void availabilityMonitor.checkNow(path);
-    return folderId;
+    return { folderId, overlap };
   });
 
   ipcMain.handle('recheck-folder-availability', async (_event, args?: { path?: string }) => {

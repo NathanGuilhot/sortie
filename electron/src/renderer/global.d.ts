@@ -60,7 +60,12 @@ declare global {
       getEmbedderStatus: () => Promise<EmbedderStatus>;
       onEmbedderStatus: (callback: (status: EmbedderStatus) => void) => () => void;
       findSimilarImages: (imageId: number, limit?: number) => Promise<SearchResult[]>;
-      addFolder: (path: string) => Promise<number>;
+      addFolder: (
+        path: string,
+      ) => Promise<{
+        folderId: number;
+        overlap: { parents: string[]; children: string[] };
+      }>;
       scanFolder: (path: string, opId: string) => Promise<ScanFolderResult>;
       cancelOperation: (opId: string) => Promise<{ cancelled: boolean }>;
       getFolders: () => Promise<Folder[]>;
