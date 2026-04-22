@@ -508,40 +508,100 @@ export class DatabaseManager {
     }
   }
 
-  insertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): number {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO images (
-        file_path, file_name, file_size, mime_type, width, height,
-        captured_at, latitude, longitude, city, country, description,
-        favorite, hidden, file_hash, dhash,
-        camera_make, camera_model, aperture, iso, exposure_time, focal_length
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(
-      image.file_path,
-      image.file_name,
-      image.file_size,
-      image.mime_type,
-      image.width,
-      image.height,
-      image.captured_at,
-      image.latitude,
-      image.longitude,
-      image.city,
-      image.country,
-      image.description,
-      image.favorite ? 1 : 0,
-      image.hidden ? 1 : 0,
-      image.file_hash ?? null,
-      image.dhash ?? null,
-      image.camera_make ?? null,
-      image.camera_model ?? null,
-      image.aperture ?? null,
-      image.iso ?? null,
-      image.exposure_time ?? null,
-      image.focal_length ?? null,
-    );
-    return result.lastInsertRowid as number;
+  upsertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): {
+    id: number;
+    created: boolean;
+    fileHashMatched: boolean;
+  } {
+    const existing = this.db
+      .prepare('SELECT id, file_hash, file_size FROM images WHERE file_path = ?')
+      .get(image.file_path) as { id: number; file_hash: string | null; file_size: number | null } | undefined;
+
+    if (existing) {
+      const fileHashMatched =
+        image.file_hash != null &&
+        existing.file_hash === image.file_hash &&
+        existing.file_size === image.file_size;
+
+      this.db
+        .prepare(
+          `UPDATE images SET
+             file_name = ?,
+             file_size = ?,
+             mime_type = ?,
+             width = ?,
+             height = ?,
+             captured_at = ?,
+             latitude = ?,
+             longitude = ?,
+             file_hash = ?,
+             dhash = COALESCE(?, dhash),
+             camera_make = ?,
+             camera_model = ?,
+             aperture = ?,
+             iso = ?,
+             exposure_time = ?,
+             focal_length = ?,
+             missing = 0,
+             modified_at = datetime('now')
+           WHERE id = ?`,
+        )
+        .run(
+          image.file_name,
+          image.file_size,
+          image.mime_type,
+          image.width,
+          image.height,
+          image.captured_at,
+          image.latitude,
+          image.longitude,
+          image.file_hash ?? null,
+          image.dhash ?? null,
+          image.camera_make ?? null,
+          image.camera_model ?? null,
+          image.aperture ?? null,
+          image.iso ?? null,
+          image.exposure_time ?? null,
+          image.focal_length ?? null,
+          existing.id,
+        );
+      return { id: existing.id, created: false, fileHashMatched };
+    }
+
+    const result = this.db
+      .prepare(
+        `INSERT INTO images (
+           file_path, file_name, file_size, mime_type, width, height,
+           captured_at, latitude, longitude, city, country, description,
+           favorite, hidden, file_hash, dhash,
+           camera_make, camera_model, aperture, iso, exposure_time, focal_length
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        image.file_path,
+        image.file_name,
+        image.file_size,
+        image.mime_type,
+        image.width,
+        image.height,
+        image.captured_at,
+        image.latitude,
+        image.longitude,
+        image.city,
+        image.country,
+        image.description,
+        image.favorite ? 1 : 0,
+        image.hidden ? 1 : 0,
+        image.file_hash ?? null,
+        image.dhash ?? null,
+        image.camera_make ?? null,
+        image.camera_model ?? null,
+        image.aperture ?? null,
+        image.iso ?? null,
+        image.exposure_time ?? null,
+        image.focal_length ?? null,
+      );
+    return { id: result.lastInsertRowid as number, created: true, fileHashMatched: false };
   }
 
   insertEmbedding(rowid: number, embedding: number[]) {

@@ -1588,7 +1588,14 @@ export class DatabaseService {
       dhash: null,
     };
 
-    const imageId = this.db.insertImage(imageData);
+    const { id: imageId, created, fileHashMatched } = this.db.upsertImage(imageData);
+
+    // File is bit-identical to what we already indexed — embeddings, palette,
+    // and faces are still valid. Skip the expensive recompute.
+    if (!created && fileHashMatched) {
+      this.invalidateImageCache();
+      return imageId;
+    }
 
     const [embeddingResult, paletteResult] = await Promise.allSettled([
       this.embedder.embedImage(loaded),
