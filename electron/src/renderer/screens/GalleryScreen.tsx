@@ -4,6 +4,7 @@ import { RefreshControl } from '../components/RefreshControl';
 import { MasonryGrid } from '../components/MasonryGrid';
 import { MetadataModal } from '../components/MetadataModal';
 import { AddFromWebPill } from '../components/AddFromWebPill';
+import { SearchHint, WebImportHint } from '../components/OnboardingHints';
 import { useImageStore } from '../stores/imageStore';
 import { useUIStore } from '../stores/uiStore';
 
@@ -47,6 +48,8 @@ export function GalleryScreen() {
           />
         )}
         <AddFromWebPill />
+        <SearchHint />
+        <WebImportHint />
       </main>
     </>
   );
