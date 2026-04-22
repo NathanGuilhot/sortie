@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { version } from '../../../../package.json';
 import { AboutModal } from '../components/AboutModal';
+import { SettingsModal } from '../components/SettingsModal';
 import { Logo } from '../components/Logo';
 import {
   PhotoIcon,
@@ -10,6 +11,7 @@ import {
   BookIcon,
   ClipboardIcon,
   PeopleIcon,
+  SettingsIcon,
 } from '../components/icons';
 import { useImageStore } from '../stores/imageStore';
 import { useUIStore } from '../stores/uiStore';
@@ -42,6 +44,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showAbout, setShowAbout] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const initEmbedder = useEmbedderStore((s) => s.init);
   const requestFocusSearch = useUIStore((s) => s.requestFocusSearch);
   const requestScrollGalleryToTop = useUIStore((s) => s.requestScrollGalleryToTop);
@@ -117,8 +120,19 @@ export function AppLayout() {
           </ul>
         </nav>
 
-        <div className="p-4 border-t border-white/10">
-          <div className="text-center text-xs text-white/50">v{version}</div>
+        <div className="p-2 border-t border-white/10">
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            className="relative group flex items-center justify-center w-full p-2 rounded hover:bg-white/10"
+            aria-label="Settings"
+          >
+            <SettingsIcon className="w-5 h-5" />
+            <span className="absolute left-full ml-2 px-2 py-1 bg-ink text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+              Settings
+            </span>
+          </button>
+          <div className="mt-2 text-center text-xs text-white/50">v{version}</div>
         </div>
       </div>
 
@@ -139,6 +153,7 @@ export function AppLayout() {
         </footer>
 
         {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       </div>
     </div>
   );
