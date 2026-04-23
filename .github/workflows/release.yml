@@ -73,6 +73,14 @@ jobs:
           path: electron/out/*.dmg
           if-no-files-found: warn
 
+      - name: Upload unpacked mac build for itch.io
+        uses: actions/upload-artifact@v4
+        with:
+          name: itch-mac-${{ matrix.arch }}
+          path: electron/out/${{ matrix.arch == 'arm64' && 'mac-arm64' || 'mac' }}
+          if-no-files-found: error
+          retention-days: 1
+
   release-windows:
     needs: generate-icons
     runs-on: windows-latest
@@ -103,6 +111,14 @@ jobs:
           name: dist-windows
           path: electron/out/*.exe
           if-no-files-found: warn
+
+      - name: Upload unpacked windows build for itch.io
+        uses: actions/upload-artifact@v4
+        with:
+          name: itch-windows
+          path: electron/out/win-unpacked
+          if-no-files-found: error
+          retention-days: 1
 
   release-linux:
     needs: generate-icons
@@ -148,3 +164,55 @@ jobs:
             electron/out/*.AppImage
             electron/out/*.deb
           if-no-files-found: warn
+
+      - name: Upload unpacked linux build for itch.io
+        uses: actions/upload-artifact@v4
+        with:
+          name: itch-linux
+          path: electron/out/linux-unpacked
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-itch:
+    needs: [release-mac, release-windows, release-linux]
+    runs-on: ubuntu-latest
+    env:
+      ITCH_USER: nighten
+      ITCH_GAME: sortie
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - artifact: itch-mac-arm64
+            channel: osx-arm64
+          - artifact: itch-mac-x64
+            channel: osx-intel
+          - artifact: itch-windows
+            channel: windows
+          - artifact: itch-linux
+            channel: linux
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ./build
+
+      - name: Install butler
+        run: |
+          curl -L -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip -o butler.zip
+          chmod +x butler
+          ./butler -V
+
+      - name: Derive version from tag
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Push build to itch.io
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          ./butler push \
+            ./build \
+            "${ITCH_USER}/${ITCH_GAME}:${{ matrix.channel }}" \
+            --userversion "${{ steps.version.outputs.value }}"
