@@ -1,95 +1,67 @@
-import { ipcMain } from 'electron';
-import { IPC_CHANNELS } from 'shared';
 import type { MainIpcContext } from './context';
+import { handleInvoke } from './context';
 
 export function registerBoardHandlers({ dbService }: MainIpcContext): void {
-  ipcMain.handle(IPC_CHANNELS.boards.list, async () => {
+  handleInvoke('boardsList', async () => {
     return await dbService.getBoards();
   });
 
-  ipcMain.handle(IPC_CHANNELS.boards.get, async (_event, { tagId }: { tagId: number }) => {
+  handleInvoke('boardsGet', async (_event, { tagId }) => {
     return await dbService.getBoard(tagId);
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.boards.getImages,
-    async (
-      _event,
-      { tagId, limit, offset }: { tagId: number; limit?: number; offset?: number },
-    ) => {
-      return await dbService.getBoardImages(tagId, limit, offset);
-    },
-  );
+  handleInvoke('boardsGetImages', async (_event, { tagId, limit, offset }) => {
+    return await dbService.getBoardImages(tagId, limit, offset);
+  });
 
-  ipcMain.handle(
-    IPC_CHANNELS.boards.reorder,
-    async (_event, { tagId, orderedImageIds }: { tagId: number; orderedImageIds: number[] }) => {
-      await dbService.reorderBoardImages(tagId, orderedImageIds);
-      return { success: true };
-    },
-  );
+  handleInvoke('boardsReorder', async (_event, { tagId, orderedImageIds }) => {
+    await dbService.reorderBoardImages(tagId, orderedImageIds);
+    return { success: true };
+  });
 
-  ipcMain.handle(IPC_CHANNELS.boards.getImageSuggestions, async (_event, { tagId }: { tagId: number }) => {
+  handleInvoke('boardsGetImageSuggestions', async (_event, { tagId }) => {
     return await dbService.getBoardImageSuggestions(tagId);
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.boards.addImage,
-    async (_event, { imageId, tagId }: { imageId: number; tagId: number }) => {
-      await dbService.addImageToBoard(imageId, tagId);
-      return { success: true };
-    },
-  );
+  handleInvoke('boardsAddImage', async (_event, { imageId, tagId }) => {
+    await dbService.addImageToBoard(imageId, tagId);
+    return { success: true };
+  });
 
-  ipcMain.handle(
-    IPC_CHANNELS.boards.removeImage,
-    async (_event, { imageId, tagId }: { imageId: number; tagId: number }) => {
-      await dbService.removeImageFromBoard(imageId, tagId);
-      return { success: true };
-    },
-  );
+  handleInvoke('boardsRemoveImage', async (_event, { imageId, tagId }) => {
+    await dbService.removeImageFromBoard(imageId, tagId);
+    return { success: true };
+  });
 
-  ipcMain.handle(
-    IPC_CHANNELS.boards.create,
-    async (_event, { name, color }: { name: string; color?: string }) => {
-      return await dbService.createBoard(name, color);
-    },
-  );
+  handleInvoke('boardsCreate', async (_event, { name, color }) => {
+    return await dbService.createBoard(name, color);
+  });
 
-  ipcMain.handle(
-    IPC_CHANNELS.boards.rename,
-    async (_event, { tagId, name }: { tagId: number; name: string }) => {
-      await dbService.renameBoard(tagId, name);
-      return { success: true };
-    },
-  );
+  handleInvoke('boardsRename', async (_event, { tagId, name }) => {
+    await dbService.renameBoard(tagId, name);
+    return { success: true };
+  });
 
-  ipcMain.handle(
-    IPC_CHANNELS.boards.setColor,
-    async (_event, { tagId, color }: { tagId: number; color: string }) => {
-      await dbService.setBoardColor(tagId, color);
-      return { success: true };
-    },
-  );
+  handleInvoke('boardsSetColor', async (_event, { tagId, color }) => {
+    await dbService.setBoardColor(tagId, color);
+    return { success: true };
+  });
 
-  ipcMain.handle(IPC_CHANNELS.boards.delete, async (_event, { tagId }: { tagId: number }) => {
+  handleInvoke('boardsDelete', async (_event, { tagId }) => {
     await dbService.deleteBoard(tagId);
     return { success: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.getCollections, async () => {
+  handleInvoke('getCollections', async () => {
     return await dbService.getCollections();
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.createCollection,
-    async (_event, { name, description }: { name: string; description?: string }) => {
-      const collectionId = await dbService.createCollection(name, description);
-      return { collectionId };
-    },
-  );
+  handleInvoke('createCollection', async (_event, { name, description }) => {
+    const collectionId = await dbService.createCollection(name, description);
+    return { collectionId };
+  });
 
-  ipcMain.handle(IPC_CHANNELS.organizeImages, async () => {
+  handleInvoke('organizeImages', async () => {
     const collectionIds = await dbService.organizeImages();
     return { collectionIds };
   });

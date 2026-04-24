@@ -1,50 +1,68 @@
 import { useEffect, useState } from 'react';
-import { FolderWithStats, Person } from 'shared';
+import { Person } from 'shared';
 import { showIpcError } from '../../ipc';
+import { useUIStore } from '../../stores/uiStore';
 import { TagInput } from '../TagInput';
 import { PaletteSearchPicker } from '../PaletteSearchPicker';
 import { buildFaceThumbUrl } from '../faceThumb';
 import { HeartIcon, PersonIcon } from '../icons';
-
-interface SearchBarAdvancedFiltersProps {
-  folders: FolderWithStats[];
-  folderFilter: number | null;
-  setFolderFilter: (value: number | null) => void;
-  tagFilters: string[];
-  setTagFilters: (value: string[]) => void;
-  persons: Person[];
-  personFilter: number | null;
-  setPersonFilter: (value: number | null) => void;
-  paletteFilters: string[];
-  setPaletteFilters: (value: string[]) => void;
-  dateRange: { start: Date | null; end: Date | null };
-  setDateRange: (value: { start: Date | null; end: Date | null }) => void;
-  showFavoritesOnly: boolean;
-  setShowFavoritesOnly: (value: boolean) => void;
-  showHidden: boolean;
-  setShowHidden: (value: boolean) => void;
-  showDivider: boolean;
-}
+import { useSearchFilterData } from './useSearchFilterData';
 
 export function SearchBarAdvancedFilters({
-  folders,
-  folderFilter,
-  setFolderFilter,
-  tagFilters,
-  setTagFilters,
-  persons,
-  personFilter,
-  setPersonFilter,
-  paletteFilters,
-  setPaletteFilters,
-  dateRange,
-  setDateRange,
-  showFavoritesOnly,
-  setShowFavoritesOnly,
-  showHidden,
-  setShowHidden,
   showDivider,
-}: SearchBarAdvancedFiltersProps) {
+}: {
+  showDivider: boolean;
+}) {
+  const {
+    dateRange,
+    folderFilter,
+    paletteFilters,
+    personFilter,
+    setDateRange,
+    setFolderFilter,
+    setPaletteFilters,
+    setPersonFilter,
+    setShowFavoritesOnly,
+    setShowHidden,
+    setTagFilters,
+    showFavoritesOnly,
+    showHidden,
+    tagFilters,
+  } = useUIStore();
+  const { folders, persons } = useSearchFilterData();
+  const [thumbsByPersonId, setThumbsByPersonId] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    const thumbnailIds = persons
+      .filter((person) => person.thumbnail_face_id !== null)
+      .map((person) => person.id);
+    if (thumbnailIds.length === 0) {
+      return;
+    }
+
+    let active = true;
+    void window.sortieAPI
+      .getPersonThumbnails(thumbnailIds)
+      .then((faces) => {
+        if (!active) return;
+
+        const nextThumbs = faces.reduce<Record<number, string>>((result, face) => {
+          if (face.person_id === null) return result;
+          result[face.person_id] = buildFaceThumbUrl(face);
+          return result;
+        }, {});
+        setThumbsByPersonId(nextThumbs);
+      })
+      .catch((error) => {
+        if (!active) return;
+        showIpcError(error, 'Failed to load person thumbnails');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [persons]);
+
   function handleDateChange(field: 'start' | 'end', value: string): void {
     const nextDate = value ? new Date(value) : null;
     setDateRange({
@@ -91,6 +109,7 @@ export function SearchBarAdvancedFilters({
               <PersonFilterChip
                 key={person.id}
                 person={person}
+                thumbUrl={thumbsByPersonId[person.id] ?? null}
                 selected={personFilter === person.id}
                 onToggle={() => setPersonFilter(personFilter === person.id ? null : person.id)}
               />
@@ -158,39 +177,15 @@ export function SearchBarAdvancedFilters({
 
 function PersonFilterChip({
   person,
+  thumbUrl,
   selected,
   onToggle,
 }: {
   person: Person;
+  thumbUrl: string | null;
   selected: boolean;
   onToggle: () => void;
 }) {
-  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!person.thumbnail_face_id) return;
-
-    let cancelled = false;
-    window.sortieAPI
-      .getPersonImages(person.id, 1)
-      .then(async (images) => {
-        if (cancelled || images.length === 0) return;
-        const faces = await window.sortieAPI.getImageFaces(images[0].id);
-        const personFace = faces.find((face) => face.person_id === person.id);
-        if (!cancelled && personFace) {
-          setThumbUrl(buildFaceThumbUrl(personFace));
-        }
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        showIpcError(error, 'Failed to load person thumbnail');
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [person.id, person.thumbnail_face_id]);
-
   const label = person.name || `Person ${person.id}`;
 
   return (

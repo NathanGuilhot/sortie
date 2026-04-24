@@ -38,6 +38,7 @@ export const IPC_CHANNELS = {
   backfillExif: 'backfill-exif',
   getPersons: 'get-persons',
   getPersonImages: 'get-person-images',
+  getPersonThumbnails: 'get-person-thumbnails',
   renamePerson: 'rename-person',
   mergePersons: 'merge-persons',
   splitFaceFromPerson: 'split-face-from-person',

@@ -5,13 +5,18 @@ import {
   Image,
   Face,
   Person,
+  Folder,
+  FolderWithStats,
+  LinkPreview,
   PaletteColor,
+  Tag,
   parseOptionalJson,
   normalizeVector,
   type AppSettingKey,
   type OcrStatus,
 } from 'shared';
 import { decodeEmbeddingRows, decodeEmbeddingValue, type EmbeddingRowValue } from './embedding';
+import { extractExif } from './exif';
 import { runDatabaseMigrations } from './db-migrations';
 import { setupDatabaseSchema } from './db-schema';
 
@@ -37,6 +42,13 @@ interface VecMatchRow {
   rowid: number;
   distance: number;
 }
+
+interface ImageDbRow extends Omit<Image, 'embedded' | 'palette' | 'tags'> {
+  palette_json: string | null;
+  embedded: number;
+}
+
+const IMAGE_DIMENSIONS_MIGRATION_KEY = 'migration:image-dimensions-fixed';
 
 export class DatabaseManager {
   private db: Database.Database;
@@ -240,6 +252,62 @@ export class DatabaseManager {
       .all() as Array<{ id: number; file_path: string }>;
   }
 
+  getVisibleImageIds(): number[] {
+    const rows = this.db
+      .prepare('SELECT id FROM images WHERE hidden = 0 AND missing = 0')
+      .all() as Array<{ id: number }>;
+    return rows.map((row) => row.id);
+  }
+
+  getImagesByIds(ids: number[]): Image[] {
+    if (ids.length === 0) return [];
+
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = this.db
+      .prepare(
+        `SELECT i.*, i.palette_json, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
+         FROM images i
+         WHERE i.id IN (${placeholders})`,
+      )
+      .all(...ids) as ImageDbRow[];
+    const byId = new Map(rows.map((row) => [row.id, row]));
+
+    const images: Image[] = [];
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (!row) continue;
+      const { palette_json: paletteJson, embedded, ...rest } = row;
+
+      images.push({
+        ...rest,
+        embedded: !!embedded,
+        palette: parseOptionalJson<PaletteColor[]>(paletteJson),
+        tags: this.getImageTags(id) as Tag[],
+      });
+    }
+
+    return images;
+  }
+
+  getImageById(imageId: number): Image | null {
+    const row = this.db
+      .prepare(
+        `SELECT i.*, i.palette_json, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
+         FROM images i
+         WHERE i.id = ?`,
+      )
+      .get(imageId) as ImageDbRow | undefined;
+    if (!row) return null;
+    const { palette_json: paletteJson, embedded, ...rest } = row;
+
+    return {
+      ...rest,
+      embedded: !!embedded,
+      palette: parseOptionalJson<PaletteColor[]>(paletteJson),
+      tags: this.getImageTags(imageId) as Tag[],
+    };
+  }
+
   /**
    * Given a set of query colors in Lab space, return the N nearest images.
    * For each image, we take the minimum distance to any of its palette
@@ -327,6 +395,50 @@ export class DatabaseManager {
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`,
       )
       .run(key, value);
+  }
+
+  async runStartupMaintenance(): Promise<{ fixedImageDimensions: number }> {
+    const alreadyRan = this.db
+      .prepare('SELECT value FROM app_settings WHERE key = ?')
+      .get(IMAGE_DIMENSIONS_MIGRATION_KEY) as { value: string } | undefined;
+    if (alreadyRan?.value === '1') {
+      return { fixedImageDimensions: 0 };
+    }
+
+    const rows = this.db
+      .prepare('SELECT id, file_path, width, height FROM images')
+      .all() as Array<{
+      id: number;
+      file_path: string;
+      width: number | null;
+      height: number | null;
+    }>;
+
+    let fixed = 0;
+    for (const row of rows) {
+      try {
+        const exif = await extractExif(row.file_path);
+        if (exif.width !== row.width || exif.height !== row.height) {
+          this.db.prepare('UPDATE images SET width = ?, height = ? WHERE id = ?').run(
+            exif.width,
+            exif.height,
+            row.id,
+          );
+          fixed += 1;
+        }
+      } catch (error) {
+        console.warn(`Failed to fix dimensions for ${row.file_path}:`, error);
+      }
+    }
+
+    this.db
+      .prepare(
+        `INSERT INTO app_settings (key, value, updated_at)
+         VALUES (?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`,
+      )
+      .run(IMAGE_DIMENSIONS_MIGRATION_KEY, '1');
+    return { fixedImageDimensions: fixed };
   }
 
   getAllEmbeddings(): Array<{ rowid: number; embedding: number[] }> {
@@ -419,6 +531,18 @@ export class DatabaseManager {
     `,
       )
       .all() as Array<TagDbRow & { usage_count: number }>;
+  }
+
+  renameTag(tagId: number, name: string): void {
+    this.db.prepare('UPDATE tags SET name = ? WHERE id = ?').run(name, tagId);
+  }
+
+  setTagColor(tagId: number, color: string): void {
+    this.db.prepare('UPDATE tags SET color = ? WHERE id = ?').run(color, tagId);
+  }
+
+  deleteTag(tagId: number): void {
+    this.db.prepare('DELETE FROM tags WHERE id = ?').run(tagId);
   }
 
   createCollection(name: string, description: string | null, clusterId: number | null): number {
@@ -514,6 +638,33 @@ export class DatabaseManager {
     return this.db
       .prepare('SELECT * FROM persons WHERE face_count > 0 ORDER BY face_count DESC')
       .all() as Person[];
+  }
+
+  getPersonImageIds(personId: number): number[] {
+    const rows = this.db
+      .prepare(
+        `SELECT DISTINCT i.id AS id
+         FROM images i
+         JOIN faces f ON f.image_id = i.id
+         WHERE f.person_id = ? AND i.hidden = 0 AND i.missing = 0`,
+      )
+      .all(personId) as Array<{ id: number }>;
+    return rows.map((row) => row.id);
+  }
+
+  getThumbnailFacesForPersons(personIds: number[]): Face[] {
+    if (personIds.length === 0) return [];
+
+    const placeholders = personIds.map(() => '?').join(',');
+    return this.db
+      .prepare(
+        `SELECT f.*, p.name AS person_name, i.file_path AS image_path
+         FROM faces f
+         JOIN persons p ON p.thumbnail_face_id = f.id
+         JOIN images i ON i.id = f.image_id
+         WHERE p.id IN (${placeholders})`,
+      )
+      .all(...personIds) as Face[];
   }
 
   getPersonById(personId: number): Person | null {
@@ -718,5 +869,246 @@ export class DatabaseManager {
       delVec?.run(BigInt(id));
       delPerson.run(id);
     }
+  }
+
+  listFolders(): Folder[] {
+    return this.db.prepare('SELECT * FROM folders ORDER BY created_at DESC').all() as Folder[];
+  }
+
+  listFoldersWithStats(): FolderWithStats[] {
+    const rows = this.db
+      .prepare(
+        `SELECT f.*,
+          COALESCE(s.image_count, 0) AS image_count,
+          COALESCE(s.total_size, 0) AS total_size
+         FROM folders f
+         LEFT JOIN (
+           SELECT fo.id AS folder_id,
+             COUNT(i.id) AS image_count,
+             SUM(i.file_size) AS total_size
+           FROM folders fo
+           LEFT JOIN images i ON i.file_path LIKE fo.path || '/%' AND i.hidden = 0 AND i.missing = 0
+           GROUP BY fo.id
+         ) s ON s.folder_id = f.id
+         ORDER BY f.created_at DESC`,
+      )
+      .all() as Array<Folder & { image_count: number; total_size: number }>;
+
+    return rows.map((row) => ({
+      ...row,
+      folder_name: path.basename(row.path) || row.path,
+    }));
+  }
+
+  findFolderForPath(filePath: string): Folder | null {
+    return (
+      (this.db
+        .prepare(
+          `SELECT * FROM folders
+           WHERE ? LIKE path || '/%' OR ? = path
+           ORDER BY length(path) DESC
+           LIMIT 1`,
+        )
+        .get(filePath, filePath) as Folder | undefined) ?? null
+    );
+  }
+
+  getFolderAvailabilityState(
+    folderPath: string,
+  ): { available: boolean; writable: boolean } | null {
+    const row = this.db
+      .prepare('SELECT available, writable FROM folders WHERE path = ?')
+      .get(folderPath) as { available: number; writable: number } | undefined;
+    if (!row) return null;
+    return { available: !!row.available, writable: !!row.writable };
+  }
+
+  updateFolderAvailabilityState(folderPath: string, available: boolean, writable: boolean): void {
+    this.db
+      .prepare('UPDATE folders SET available = ?, writable = ? WHERE path = ?')
+      .run(available ? 1 : 0, writable ? 1 : 0, folderPath);
+  }
+
+  getFolderFaceScanExclusion(folderPath: string): boolean | null {
+    const row = this.db
+      .prepare('SELECT exclude_from_face_scan FROM folders WHERE path = ?')
+      .get(folderPath) as { exclude_from_face_scan: number } | undefined;
+    return row ? !!row.exclude_from_face_scan : null;
+  }
+
+  setFolderFaceScanExclusionFlag(folderPath: string, excluded: boolean): void {
+    this.db
+      .prepare('UPDATE folders SET exclude_from_face_scan = ? WHERE path = ?')
+      .run(excluded ? 1 : 0, folderPath);
+  }
+
+  clearMissingByPathPrefix(pathPrefix: string): void {
+    this.db.prepare('UPDATE images SET missing = 0 WHERE file_path LIKE ?').run(pathPrefix);
+  }
+
+  markMissingByPathPrefix(pathPrefix: string, excludedFolderPath: string): void {
+    this.db
+      .prepare(
+        `UPDATE images SET missing = 1
+         WHERE file_path LIKE ? AND NOT EXISTS (
+           SELECT 1 FROM folders f
+           WHERE f.path != ?
+             AND f.available = 1
+             AND (
+               images.file_path = f.path
+               OR images.file_path LIKE f.path || '/%'
+             )
+         )`,
+      )
+      .run(pathPrefix, excludedFolderPath);
+  }
+
+  deleteFacesByImagePathPrefix(pathPrefix: string): void {
+    this.db
+      .prepare(
+        `DELETE FROM faces WHERE image_id IN (
+           SELECT id FROM images WHERE file_path LIKE ?
+         )`,
+      )
+      .run(pathPrefix);
+  }
+
+  markFacesUnscannedByPathPrefix(pathPrefix: string): void {
+    this.db.prepare('UPDATE images SET faces_scanned = 0 WHERE file_path LIKE ?').run(pathPrefix);
+  }
+
+  setImageHidden(imageId: number): void {
+    this.db
+      .prepare("UPDATE images SET hidden = 1, modified_at = datetime('now') WHERE id = ?")
+      .run(imageId);
+  }
+
+  setImageMissingByPath(filePath: string): void {
+    this.db
+      .prepare("UPDATE images SET missing = 1, modified_at = datetime('now') WHERE file_path = ?")
+      .run(filePath);
+  }
+
+  updateImageMetadata(
+    imageId: number,
+    metadata: {
+      description?: string;
+      favorite?: boolean;
+      captured_at?: string | null;
+      city?: string | null;
+      country?: string | null;
+      website_link?: string | null;
+    },
+  ): void {
+    const fields: string[] = [];
+    const values: Array<string | number | null> = [];
+
+    if (metadata.description !== undefined) {
+      fields.push('description = ?');
+      values.push(metadata.description);
+    }
+    if (metadata.favorite !== undefined) {
+      fields.push('favorite = ?');
+      values.push(metadata.favorite ? 1 : 0);
+    }
+    if (metadata.captured_at !== undefined) {
+      fields.push('captured_at = ?');
+      values.push(metadata.captured_at);
+    }
+    if (metadata.city !== undefined) {
+      fields.push('city = ?');
+      values.push(metadata.city);
+    }
+    if (metadata.country !== undefined) {
+      fields.push('country = ?');
+      values.push(metadata.country);
+    }
+    if (metadata.website_link !== undefined) {
+      fields.push('website_link = ?');
+      values.push(metadata.website_link);
+    }
+
+    if (fields.length === 0) return;
+
+    fields.push("modified_at = datetime('now')");
+    values.push(imageId);
+    this.db.prepare(`UPDATE images SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  }
+
+  getLinkPreview(urlHash: string): LinkPreview | null {
+    return (
+      (this.db
+        .prepare(
+          'SELECT url, title, description, site_name, image_path, fetched_at, error FROM link_previews WHERE url_hash = ?',
+        )
+        .get(urlHash) as LinkPreview | undefined) ?? null
+    );
+  }
+
+  saveLinkPreview(urlHash: string, preview: LinkPreview): void {
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO link_previews
+          (url_hash, url, title, description, site_name, image_path, fetched_at, error)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        urlHash,
+        preview.url,
+        preview.title,
+        preview.description,
+        preview.site_name,
+        preview.image_path,
+        preview.fetched_at,
+        preview.error,
+      );
+  }
+
+  getImagesMissingFileHash(): Array<{ id: number; file_path: string }> {
+    return this.db
+      .prepare('SELECT id, file_path FROM images WHERE hidden = 0 AND missing = 0 AND file_hash IS NULL')
+      .all() as Array<{ id: number; file_path: string }>;
+  }
+
+  updateImageFileHash(imageId: number, fileHash: string): void {
+    this.db.prepare('UPDATE images SET file_hash = ? WHERE id = ?').run(fileHash, imageId);
+  }
+
+  getVisibleImagesForDuplicates(): Image[] {
+    return this.db
+      .prepare(
+        `SELECT id, file_path, file_name, file_size, mime_type, width, height,
+                created_at, modified_at, captured_at, latitude, longitude,
+                city, country, description, favorite, hidden, missing, file_hash
+         FROM images
+         WHERE hidden = 0 AND missing = 0`,
+      )
+      .all() as Image[];
+  }
+
+  findNearestImageMatches(embedding: number[], limit: number): VecMatchRow[] {
+    return this.db
+      .prepare(
+        `SELECT rowid, distance FROM vec_images
+         WHERE embedding MATCH ? AND k = ?
+         ORDER BY distance`,
+      )
+      .all(new Float32Array(embedding), limit) as VecMatchRow[];
+  }
+
+  getDismissedDuplicatePairs(): Array<{ image_id_1: number; image_id_2: number }> {
+    return this.db
+      .prepare('SELECT image_id_1, image_id_2 FROM dismissed_duplicates')
+      .all() as Array<{ image_id_1: number; image_id_2: number }>;
+  }
+
+  dismissDuplicatePair(imageId1: number, imageId2: number): void {
+    this.db
+      .prepare('INSERT OR IGNORE INTO dismissed_duplicates (image_id_1, image_id_2) VALUES (?, ?)')
+      .run(imageId1, imageId2);
+  }
+
+  deleteImageRecord(imageId: number): void {
+    this.db.prepare('DELETE FROM images WHERE id = ?').run(imageId);
   }
 }

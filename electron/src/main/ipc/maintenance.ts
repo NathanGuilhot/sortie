@@ -1,17 +1,16 @@
-import { app, clipboard, ipcMain, nativeImage, shell } from 'electron';
+import { app, clipboard, nativeImage, shell } from 'electron';
 import fs from 'fs';
-import path from 'path';
-import { IPC_CHANNELS, IPC_EVENTS } from 'shared';
+import { IPC_EVENTS } from 'shared';
 import type { MainIpcContext } from './context';
-import { sendToRenderer, withOperation } from './context';
+import { handleInvoke, sendToRenderer, withOperation } from './context';
+import { getSortieUserDataPaths } from '../userDataPaths';
 
-async function wipeCacheDir(dirName: string): Promise<void> {
-  const dir = path.join(app.getPath('userData'), dirName);
+async function wipeCacheDir(dirPath: string): Promise<void> {
   try {
-    const files = await fs.promises.readdir(dir);
+    const files = await fs.promises.readdir(dirPath);
     await Promise.all(
       files.map((file) =>
-        fs.promises.rm(path.join(dir, file), { recursive: true, force: true }).catch(() => {}),
+        fs.promises.rm(`${dirPath}/${file}`, { recursive: true, force: true }).catch(() => {}),
       ),
     );
   } catch {
@@ -23,48 +22,47 @@ export function registerMaintenanceHandlers({
   dbService,
   watcherService,
 }: MainIpcContext): void {
-  ipcMain.handle(IPC_CHANNELS.resetFaceData, async () => {
+  const userDataPaths = getSortieUserDataPaths(app.getPath('userData'));
+
+  handleInvoke('resetFaceData', async () => {
     await dbService.resetFaceData();
-    await wipeCacheDir('face-thumbs');
+    await wipeCacheDir(userDataPaths.faceThumbs);
     return { success: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.resetDatabase, async () => {
+  handleInvoke('resetDatabase', async () => {
     watcherService.stopAll();
     await dbService.resetDatabase();
     await Promise.all([
-      wipeCacheDir('thumbs'),
-      wipeCacheDir('face-thumbs'),
-      wipeCacheDir('raw-previews'),
-      wipeCacheDir('link-previews'),
+      wipeCacheDir(userDataPaths.thumbs),
+      wipeCacheDir(userDataPaths.faceThumbs),
+      wipeCacheDir(userDataPaths.rawPreviews),
+      wipeCacheDir(userDataPaths.linkPreviews),
     ]);
     return { success: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.computeMissingHashes, async (event, { opId }: { opId: string }) => {
+  handleInvoke('computeMissingHashes', async (event, { opId }) => {
     return await withOperation(opId, (signal) =>
       dbService.computeMissingHashes(sendToRenderer(event.sender, IPC_EVENTS.hashProgress), signal),
     );
   });
 
-  ipcMain.handle(IPC_CHANNELS.findDuplicateGroups, async () => {
+  handleInvoke('findDuplicateGroups', async () => {
     return await dbService.findDuplicateGroups();
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.dismissDuplicatePair,
-    async (_event, { imageId1, imageId2 }: { imageId1: number; imageId2: number }) => {
-      await dbService.dismissDuplicatePair(imageId1, imageId2);
-      return { success: true };
-    },
-  );
+  handleInvoke('dismissDuplicatePair', async (_event, { imageId1, imageId2 }) => {
+    await dbService.dismissDuplicatePair(imageId1, imageId2);
+    return { success: true };
+  });
 
-  ipcMain.handle(IPC_CHANNELS.revealInFinder, async (_event, { filePath }: { filePath: string }) => {
+  handleInvoke('revealInFinder', async (_event, { filePath }) => {
     shell.showItemInFolder(filePath);
     return { success: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.copyImageToClipboard, async (_event, { filePath }: { filePath: string }) => {
+  handleInvoke('copyImageToClipboard', async (_event, { filePath }) => {
     const image = nativeImage.createFromPath(filePath);
     if (image.isEmpty()) return { success: false };
     clipboard.writeImage(image);

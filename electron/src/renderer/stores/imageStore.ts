@@ -1,5 +1,11 @@
 import { create } from 'zustand';
-import { Image, Query, SearchResult, type SortieImageMetadataUpdate } from 'shared';
+import {
+  Image,
+  Query,
+  SearchResult,
+  isPaginatedSearchQuery,
+  type SortieImageMetadataUpdate,
+} from 'shared';
 import { runIpcTask } from '../ipc';
 
 interface ActiveImageQuery {
@@ -43,14 +49,6 @@ function releasePreviewUrl(current: ActiveImageQuery | null) {
   if (current) URL.revokeObjectURL(current.previewUrl);
 }
 
-// Only pure set-filter queries paginate; scored queries return their full ranked set.
-function isPaginated(q: Query): boolean {
-  const hasText = !!q.text && q.text.trim().length > 0;
-  const hasBytes = !!q.imageBytes && q.imageBytes.byteLength > 0;
-  const hasPalette = !!q.palette && q.palette.length > 0;
-  return !(hasText || hasBytes || hasPalette);
-}
-
 export const useImageStore = create<ImageStore>((set, get) => ({
   images: [],
   loading: false,
@@ -73,7 +71,7 @@ export const useImageStore = create<ImageStore>((set, get) => ({
         set({
           images: results,
           loading: false,
-          hasMore: isPaginated(query) && results.length >= limit,
+          hasMore: isPaginatedSearchQuery(query) && results.length >= limit,
           lastQuery: query,
         }),
       onError: (message) => set({ error: message, loading: false }),
@@ -83,7 +81,7 @@ export const useImageStore = create<ImageStore>((set, get) => ({
   loadMore: async () => {
     const { lastQuery, images, loading, hasMore } = get();
     if (!lastQuery || !hasMore || loading) return;
-    if (!isPaginated(lastQuery)) return;
+    if (!isPaginatedSearchQuery(lastQuery)) return;
     const limit = lastQuery.limit ?? DEFAULT_PAGE;
     set({ loading: true, error: null });
     await runIpcTask({

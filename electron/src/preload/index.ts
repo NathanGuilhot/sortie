@@ -3,6 +3,9 @@ import type {
   FolderAvailabilityChange,
   FaceScanProgress,
   EmbedderStatus,
+  InvokeArgsByKey,
+  InvokeKey,
+  InvokeResultByKey,
   OcrResult,
   OcrUpdatePayload,
   PinterestBulkImportCancelResponse,
@@ -17,7 +20,7 @@ import type {
   SortieProgress,
   SuggestDefaultPhotoFolderResult,
 } from 'shared';
-import { IPC_CHANNELS, IPC_EVENTS } from 'shared';
+import { IPC_EVENTS, IPC_INVOKE_CHANNELS } from 'shared';
 
 function subscribe<T>(channel: string, cb: (value: T) => void): () => void {
   const handler = (_event: IpcRendererEvent, value: T) => cb(value);
@@ -27,114 +30,119 @@ function subscribe<T>(channel: string, cb: (value: T) => void): () => void {
   };
 }
 
+function invoke<K extends InvokeKey>(
+  key: K,
+  args: InvokeArgsByKey[K],
+): Promise<InvokeResultByKey[K]> {
+  return ipcRenderer.invoke(IPC_INVOKE_CHANNELS[key], args) as Promise<InvokeResultByKey[K]>;
+}
+
 const sortieAPI: SortieAPI = {
   // Image operations
   getImages: (limit?: number, offset?: number) =>
-    ipcRenderer.invoke(IPC_CHANNELS.getImages, { limit, offset }),
+    invoke('getImages', { limit, offset }),
 
-  getImage: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.getImage, { id }),
+  getImage: (id: number) => invoke('getImage', { id }),
 
-  reshuffleImages: () => ipcRenderer.invoke(IPC_CHANNELS.reshuffleImages),
+  reshuffleImages: () => invoke('reshuffleImages', undefined),
 
-  query: (query) => ipcRenderer.invoke(IPC_CHANNELS.queryImages, query),
+  query: (query) => invoke('queryImages', query),
 
-  getEmbedderStatus: (): Promise<EmbedderStatus> => ipcRenderer.invoke(IPC_CHANNELS.getEmbedderStatus),
+  getEmbedderStatus: (): Promise<EmbedderStatus> => invoke('getEmbedderStatus', undefined),
 
   onEmbedderStatus: (callback: (status: EmbedderStatus) => void) =>
     subscribe<EmbedderStatus>(IPC_EVENTS.embedderStatus, callback),
 
   findSimilarImages: (imageId: number, limit?: number) =>
-    ipcRenderer.invoke(IPC_CHANNELS.findSimilarImages, { imageId, limit }),
+    invoke('findSimilarImages', { imageId, limit }),
 
-  addFolder: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.addFolder, { path }),
+  addFolder: (path: string) => invoke('addFolder', { path }),
 
-  scanFolder: (path: string, opId: string) => ipcRenderer.invoke(IPC_CHANNELS.scanFolder, { path, opId }),
+  scanFolder: (path: string, opId: string) => invoke('scanFolder', { path, opId }),
 
-  cancelOperation: (opId: string) => ipcRenderer.invoke(IPC_CHANNELS.cancelOperation, { opId }),
+  cancelOperation: (opId: string) => invoke('cancelOperation', { opId }),
 
-  getFolders: () => ipcRenderer.invoke(IPC_CHANNELS.getFolders),
+  getFolders: () => invoke('getFolders', undefined),
 
-  getFoldersWithStats: () => ipcRenderer.invoke(IPC_CHANNELS.getFoldersWithStats),
+  getFoldersWithStats: () => invoke('getFoldersWithStats', undefined),
 
-  removeFolder: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.removeFolder, { path }),
+  removeFolder: (path: string) => invoke('removeFolder', { path }),
 
-  getAllTags: () => ipcRenderer.invoke(IPC_CHANNELS.getAllTags),
-  getTagsWithCounts: () => ipcRenderer.invoke(IPC_CHANNELS.getTagsWithCounts),
+  getAllTags: () => invoke('getAllTags', undefined),
+  getTagsWithCounts: () => invoke('getTagsWithCounts', undefined),
 
   updateImageTags: (imageId: number, tags: string[]) =>
-    ipcRenderer.invoke(IPC_CHANNELS.updateImageTags, { imageId, tags }),
+    invoke('updateImageTags', { imageId, tags }),
 
-  hideImage: (imageId: number) => ipcRenderer.invoke(IPC_CHANNELS.hideImage, { imageId }),
+  hideImage: (imageId: number) => invoke('hideImage', { imageId }),
 
   updateImageMetadata: (imageId, metadata) =>
-    ipcRenderer.invoke(IPC_CHANNELS.updateImageMetadata, { imageId, metadata }),
+    invoke('updateImageMetadata', { imageId, metadata }),
 
-  getLinkPreview: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.getLinkPreview, { url }),
-  fetchLinkPreview: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.fetchLinkPreview, { url }),
+  getLinkPreview: (url: string) => invoke('getLinkPreview', { url }),
+  fetchLinkPreview: (url: string) => invoke('fetchLinkPreview', { url }),
 
   // Suggestions
-  getSuggestions: (imageId: number) => ipcRenderer.invoke(IPC_CHANNELS.getSuggestions, { imageId }),
+  getSuggestions: (imageId: number) => invoke('getSuggestions', { imageId }),
   dismissSuggestion: (imageId: number, tagId: number) =>
-    ipcRenderer.invoke(IPC_CHANNELS.dismissSuggestion, { imageId, tagId }),
+    invoke('dismissSuggestion', { imageId, tagId }),
 
   // Boards
   boards: {
-    list: () => ipcRenderer.invoke(IPC_CHANNELS.boards.list),
-    get: (tagId: number) => ipcRenderer.invoke(IPC_CHANNELS.boards.get, { tagId }),
+    list: () => invoke('boardsList', undefined),
+    get: (tagId: number) => invoke('boardsGet', { tagId }),
     getImages: (tagId: number, limit?: number, offset?: number) =>
-      ipcRenderer.invoke(IPC_CHANNELS.boards.getImages, { tagId, limit, offset }),
+      invoke('boardsGetImages', { tagId, limit, offset }),
     getImageSuggestions: (tagId: number) =>
-      ipcRenderer.invoke(IPC_CHANNELS.boards.getImageSuggestions, { tagId }),
+      invoke('boardsGetImageSuggestions', { tagId }),
     reorder: (tagId: number, orderedImageIds: number[]) =>
-      ipcRenderer.invoke(IPC_CHANNELS.boards.reorder, { tagId, orderedImageIds }),
+      invoke('boardsReorder', { tagId, orderedImageIds }),
     addImage: (imageId: number, tagId: number) =>
-      ipcRenderer.invoke(IPC_CHANNELS.boards.addImage, { imageId, tagId }),
+      invoke('boardsAddImage', { imageId, tagId }),
     removeImage: (imageId: number, tagId: number) =>
-      ipcRenderer.invoke(IPC_CHANNELS.boards.removeImage, { imageId, tagId }),
-    create: (name: string, color?: string) => ipcRenderer.invoke(IPC_CHANNELS.boards.create, { name, color }),
-    rename: (tagId: number, name: string) => ipcRenderer.invoke(IPC_CHANNELS.boards.rename, { tagId, name }),
+      invoke('boardsRemoveImage', { imageId, tagId }),
+    create: (name: string, color?: string) => invoke('boardsCreate', { name, color }),
+    rename: (tagId: number, name: string) => invoke('boardsRename', { tagId, name }),
     setColor: (tagId: number, color: string) =>
-      ipcRenderer.invoke(IPC_CHANNELS.boards.setColor, { tagId, color }),
-    delete: (tagId: number) => ipcRenderer.invoke(IPC_CHANNELS.boards.delete, { tagId }),
+      invoke('boardsSetColor', { tagId, color }),
+    delete: (tagId: number) => invoke('boardsDelete', { tagId }),
   },
 
   // Collections
-  getCollections: () => ipcRenderer.invoke(IPC_CHANNELS.getCollections),
+  getCollections: () => invoke('getCollections', undefined),
   createCollection: (name: string, description?: string) =>
-    ipcRenderer
-      .invoke(IPC_CHANNELS.createCollection, { name, description })
+    invoke('createCollection', { name, description })
       .then(({ collectionId }: { collectionId: number }) => collectionId),
   organizeImages: () =>
-    ipcRenderer
-      .invoke(IPC_CHANNELS.organizeImages)
+    invoke('organizeImages', undefined)
       .then(({ collectionIds }: { collectionIds: number[] }) => collectionIds),
 
   // Watcher control
-  watchFolder: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.watchFolder, { path }),
+  watchFolder: (path: string) => invoke('watchFolder', { path }),
 
-  unwatchFolder: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.unwatchFolder, { path }),
+  unwatchFolder: (path: string) => invoke('unwatchFolder', { path }),
 
   setFolderFaceScanExclusion: (path: string, excluded: boolean) =>
-    ipcRenderer.invoke(IPC_CHANNELS.setFolderFaceScanExclusion, { path, excluded }),
+    invoke('setFolderFaceScanExclusion', { path, excluded }),
 
-  recomputeEmbedding: (imageId: number) => ipcRenderer.invoke(IPC_CHANNELS.recomputeEmbedding, { imageId }),
+  recomputeEmbedding: (imageId: number) => invoke('recomputeEmbedding', { imageId }),
 
   // Palette
-  recomputePalette: (imageId: number) => ipcRenderer.invoke(IPC_CHANNELS.recomputePalette, { imageId }),
+  recomputePalette: (imageId: number) => invoke('recomputePalette', { imageId }),
   computeMissingPalettes: (opId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.computeMissingPalettes, { opId }),
+    invoke('computeMissingPalettes', { opId }),
   onPaletteProgress: (callback: (progress: SortieProgress) => void) =>
     subscribe<SortieProgress>(IPC_EVENTS.paletteProgress, callback),
 
   // Cleanup / Duplicate detection
-  computeMissingHashes: (opId: string) => ipcRenderer.invoke(IPC_CHANNELS.computeMissingHashes, { opId }),
+  computeMissingHashes: (opId: string) => invoke('computeMissingHashes', { opId }),
 
-  findDuplicateGroups: () => ipcRenderer.invoke(IPC_CHANNELS.findDuplicateGroups),
+  findDuplicateGroups: () => invoke('findDuplicateGroups', undefined),
 
   dismissDuplicatePair: (imageId1: number, imageId2: number) =>
-    ipcRenderer.invoke(IPC_CHANNELS.dismissDuplicatePair, { imageId1, imageId2 }),
+    invoke('dismissDuplicatePair', { imageId1, imageId2 }),
 
-  deleteImage: (imageId: number) => ipcRenderer.invoke(IPC_CHANNELS.deleteImage, { imageId }),
+  deleteImage: (imageId: number) => invoke('deleteImage', { imageId }),
 
   onHashProgress: (callback: (progress: SortieProgress) => void) =>
     subscribe<SortieProgress>(IPC_EVENTS.hashProgress, callback),
@@ -143,105 +151,105 @@ const sortieAPI: SortieAPI = {
     subscribe<SortieProgress>(IPC_EVENTS.scanProgress, callback),
 
   // File actions
-  revealInFinder: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.revealInFinder, { filePath }),
+  revealInFinder: (filePath: string) => invoke('revealInFinder', { filePath }),
   copyImageToClipboard: (filePath: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.copyImageToClipboard, { filePath }),
-  backfillExif: (opId: string) => ipcRenderer.invoke(IPC_CHANNELS.backfillExif, { opId }),
+    invoke('copyImageToClipboard', { filePath }),
+  backfillExif: (opId: string) => invoke('backfillExif', { opId }),
 
   // Face Detection / People
-  getPersons: () => ipcRenderer.invoke(IPC_CHANNELS.getPersons),
+  getPersons: () => invoke('getPersons', undefined),
 
   getPersonImages: (personId: number, limit?: number, offset?: number) =>
-    ipcRenderer.invoke(IPC_CHANNELS.getPersonImages, { personId, limit, offset }),
+    invoke('getPersonImages', { personId, limit, offset }),
+
+  getPersonThumbnails: (personIds: number[]) => invoke('getPersonThumbnails', { personIds }),
 
   renamePerson: (personId: number, name: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.renamePerson, { personId, name }),
+    invoke('renamePerson', { personId, name }),
 
   mergePersons: (keepPersonId: number, mergePersonId: number) =>
-    ipcRenderer.invoke(IPC_CHANNELS.mergePersons, { keepPersonId, mergePersonId }),
+    invoke('mergePersons', { keepPersonId, mergePersonId }),
 
-  splitFaceFromPerson: (faceId: number) => ipcRenderer.invoke(IPC_CHANNELS.splitFaceFromPerson, { faceId }),
+  splitFaceFromPerson: (faceId: number) => invoke('splitFaceFromPerson', { faceId }),
 
-  getImageFaces: (imageId: number) => ipcRenderer.invoke(IPC_CHANNELS.getImageFaces, { imageId }),
+  getImageFaces: (imageId: number) => invoke('getImageFaces', { imageId }),
 
   setPersonThumbnail: (personId: number, faceId: number) =>
-    ipcRenderer.invoke(IPC_CHANNELS.setPersonThumbnail, { personId, faceId }),
+    invoke('setPersonThumbnail', { personId, faceId }),
 
-  processFaces: (opId: string) => ipcRenderer.invoke(IPC_CHANNELS.processFaces, { opId }),
-  resetFaceData: () => ipcRenderer.invoke(IPC_CHANNELS.resetFaceData),
+  processFaces: (opId: string) => invoke('processFaces', { opId }),
+  resetFaceData: () => invoke('resetFaceData', undefined),
 
-  deletePerson: (personId: number) => ipcRenderer.invoke(IPC_CHANNELS.deletePerson, { personId }),
+  deletePerson: (personId: number) => invoke('deletePerson', { personId }),
 
   onFaceScanProgress: (callback: (progress: FaceScanProgress) => void) =>
     subscribe<FaceScanProgress>(IPC_EVENTS.faceScanProgress, callback),
 
   // System
-  resetDatabase: () => ipcRenderer.invoke(IPC_CHANNELS.resetDatabase),
-  getDatabasePath: () => ipcRenderer.invoke(IPC_CHANNELS.getDatabasePath),
+  resetDatabase: () => invoke('resetDatabase', undefined),
+  getDatabasePath: () => invoke('getDatabasePath', undefined),
 
-  pickFolder: () => ipcRenderer.invoke(IPC_CHANNELS.pickFolder),
+  pickFolder: () => invoke('pickFolder', undefined),
 
   // App settings (key-value, persisted in sortie.db)
   settings: {
-    get: (key): Promise<string | null> => ipcRenderer.invoke(IPC_CHANNELS.settings.get, { key }),
-    set: (key, value): Promise<{ success: boolean }> =>
-      ipcRenderer.invoke(IPC_CHANNELS.settings.set, { key, value }),
+    get: (key): Promise<string | null> => invoke('settingsGet', { key }),
+    set: (key, value): Promise<{ success: boolean }> => invoke('settingsSet', { key, value }),
   },
 
   suggestDefaultPhotoFolder: (): Promise<SuggestDefaultPhotoFolderResult> =>
-    ipcRenderer.invoke(IPC_CHANNELS.suggestDefaultPhotoFolder),
+    invoke('suggestDefaultPhotoFolder', undefined),
 
   // Folder availability (external drives)
   recheckFolderAvailability: (folderPath?: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.recheckFolderAvailability, { path: folderPath }),
+    invoke('recheckFolderAvailability', { path: folderPath }),
 
   onFolderAvailability: (callback: (change: FolderAvailabilityChange) => void) =>
     subscribe<FolderAvailabilityChange>(IPC_EVENTS.folderAvailabilityChanged, callback),
 
   // App info
   app: {
-    getVersion: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.app.getVersion),
-    openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.app.openExternal, { url }),
-    showAboutPanel: () => ipcRenderer.invoke(IPC_CHANNELS.app.showAboutPanel),
+    getVersion: (): Promise<string> => invoke('appGetVersion', undefined),
+    openExternal: (url: string) => invoke('appOpenExternal', { url }),
+    showAboutPanel: () => invoke('appShowAboutPanel', undefined),
     onShowAbout: (callback: () => void) => subscribe<void>(IPC_EVENTS.showAbout, () => callback()),
   },
 
   ocr: {
-    get: (imageId: number): Promise<OcrResult> => ipcRenderer.invoke(IPC_CHANNELS.ocr.get, { imageId }),
+    get: (imageId: number): Promise<OcrResult> => invoke('ocrGet', { imageId }),
     ensure: (
       imageId: number,
     ): Promise<
       { available: false } | { available: true; state: OcrResult }
-    > => ipcRenderer.invoke(IPC_CHANNELS.ocr.ensure, { imageId }),
+    > => invoke('ocrEnsure', { imageId }),
     onUpdated: (cb: (payload: OcrUpdatePayload) => void) =>
       subscribe<OcrUpdatePayload>(IPC_EVENTS.ocrUpdated, cb),
   },
 
   pinterest: {
     scrape: (input: string, target?: number): Promise<PinterestScrapeResponse> =>
-      ipcRenderer.invoke(IPC_CHANNELS.pinterest.scrape, { input, target }),
+      invoke('pinterestScrape', { input, target }),
     loadMore: (
       target: PinterestTarget,
       bookmarks: string[],
       desired?: number,
     ): Promise<PinterestLoadMoreResponse> =>
-      ipcRenderer.invoke(IPC_CHANNELS.pinterest.loadMore, { target, bookmarks, desired }),
+      invoke('pinterestLoadMore', { target, bookmarks, desired }),
     importPin: (pin: PinterestResult): Promise<PinterestImportResponse> =>
-      ipcRenderer.invoke(IPC_CHANNELS.pinterest.importPin, { pin }),
+      invoke('pinterestImportPin', { pin }),
     startBulkImport: (args: {
       username: string;
       slug: string;
       hideAiGenerated: boolean;
-    }) =>
-      ipcRenderer.invoke(IPC_CHANNELS.pinterest.startBulkImport, args),
+    }) => invoke('pinterestStartBulkImport', args),
     cancelBulkImport: (jobId: string): Promise<PinterestBulkImportCancelResponse> =>
-      ipcRenderer.invoke(IPC_CHANNELS.pinterest.cancelBulkImport, { jobId }),
+      invoke('pinterestCancelBulkImport', { jobId }),
     onBulkImportProgress: (cb: (progress: PinterestBulkImportProgress) => void) =>
       subscribe<PinterestBulkImportProgress>(IPC_EVENTS.pinterestBulkImportProgress, cb),
     onBulkImportComplete: (cb: (summary: PinterestBulkImportSummary) => void) =>
       subscribe<PinterestBulkImportSummary>(IPC_EVENTS.pinterestBulkImportComplete, cb),
-    revealImportFolder: () => ipcRenderer.invoke(IPC_CHANNELS.pinterest.revealImportFolder),
-    getImportFolder: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.pinterest.getImportFolder),
+    revealImportFolder: () => invoke('pinterestRevealImportFolder', undefined),
+    getImportFolder: (): Promise<string> => invoke('pinterestGetImportFolder', undefined),
   },
 };
 

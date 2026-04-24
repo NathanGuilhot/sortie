@@ -1,16 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import React, { type MutableRefObject, type RefObject } from 'react';
 import { type EmbedderStatus } from 'shared';
-import { useUIStore } from '../stores/uiStore';
-import { useImageStore } from '../stores/imageStore';
-import { useEmbedderStore } from '../stores/embedderStore';
 import { SearchIcon, XIcon, FilterIcon } from './icons';
-import { useBuiltSearchQuery } from './searchBar/useBuiltSearchQuery';
 import { SearchBarAdvancedFilters } from './searchBar/SearchBarAdvancedFilters';
-import { useReverseImageSearch } from './searchBar/useReverseImageSearch';
-import { useSearchFilterData } from './searchBar/useSearchFilterData';
+import { useGallerySearchBar } from './searchBar/useGallerySearchBar';
 
 interface SearchBarProps {
-  inputRef?: React.RefObject<HTMLInputElement | null>;
+  inputRef?: MutableRefObject<HTMLInputElement | null>;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
 }
 
@@ -18,159 +13,33 @@ const SUGGESTIONS = ['landscape', 'portrait', 'sunset', 'beach', 'family', 'vaca
 
 export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   const {
-    searchQuery,
-    setSearchQuery,
-    dateRange,
-    setDateRange,
-    tagFilters,
-    setTagFilters,
-    showHidden,
-    setShowHidden,
-    showFavoritesOnly,
-    setShowFavoritesOnly,
-    personFilter,
-    setPersonFilter,
-    folderFilter,
-    setFolderFilter,
-    paletteFilters,
-    setPaletteFilters,
-    clearFilters,
-  } = useUIStore();
-  const { runQuery, setActiveImageQuery, clearImageQuery, loading } = useImageStore();
-  const activeImageQuery = useImageStore((s) => s.activeImageQuery);
-  const embedderStatus = useEmbedderStore((s) => s.status);
-
-  const { persons, folders } = useSearchFilterData();
-
-  const [localQuery, setLocalQuery] = useState(searchQuery);
-  const [isFocused, setIsFocused] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-
-  const hasActiveFilters =
-    tagFilters.length > 0 ||
-    dateRange.start !== null ||
-    dateRange.end !== null ||
-    showHidden ||
-    showFavoritesOnly ||
-    personFilter !== null ||
-    folderFilter !== null ||
-    paletteFilters.length > 0;
-
-  // Debounce search query to store
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localQuery !== searchQuery) {
-        setSearchQuery(localQuery);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [localQuery, setSearchQuery, searchQuery]);
-
-  const imageBytes = activeImageQuery?.bytes ?? null;
-  const builtQuery = useBuiltSearchQuery({
-    searchQuery,
-    personFilter,
-    folderFilter,
-    tagFilters,
-    paletteFilters,
-    showFavoritesOnly,
-    showHidden,
-    dateRange,
-    imageBytes,
-  });
-
-  const {
+    activeImageQuery,
+    containerRef,
+    embedderStatus,
+    handleBlur,
+    handleClear,
+    handleClearImageQuery,
     isDragActive,
+    isFocused,
+    loading,
+    localQuery,
+    showAdvanced,
+    showDropdown,
     handleDragEnter,
-    handleDragOver,
     handleDragLeave,
+    handleDragOver,
     handleDrop,
+    handleFocus,
+    handleKeyDown,
     handlePaste,
-  } = useReverseImageSearch({
-    embedderReady: embedderStatus.state === 'ready',
-    embedderWarming: embedderStatus.state === 'warming',
-    setSearchQuery: (value) => {
-      setLocalQuery(value);
-      setSearchQuery(value);
-    },
-    setActiveImageQuery,
+    handleSuggestionClick,
+    hasActiveFilters,
+    setLocalQuery,
+    setShowAdvanced,
+  } = useGallerySearchBar({
+    inputRef,
+    scrollContainerRef,
   });
-
-  useEffect(() => {
-    void runQuery(builtQuery);
-    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [builtQuery]);
-
-  useEffect(() => {
-    if (activeImageQuery) {
-      setLocalQuery('');
-    }
-  }, [activeImageQuery]);
-
-  // Click-outside dismissal
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsFocused(false);
-        setShowAdvanced(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSearch = useCallback(() => {
-    if (localQuery.trim()) {
-      setSearchQuery(localQuery);
-    } else {
-      clearFilters();
-      setLocalQuery('');
-    }
-  }, [localQuery, setSearchQuery, clearFilters]);
-
-  const handleClear = useCallback(() => {
-    setLocalQuery('');
-    clearFilters();
-    inputRef?.current?.focus();
-  }, [clearFilters, inputRef]);
-
-  const handleClearImageQuery = useCallback(() => {
-    clearImageQuery();
-    inputRef?.current?.focus();
-  }, [clearImageQuery, inputRef]);
-
-  const handleFocus = () => {
-    clearTimeout(blurTimeoutRef.current);
-    setIsFocused(true);
-  };
-
-  const handleBlur = () => {
-    blurTimeoutRef.current = setTimeout(() => setIsFocused(false), 150);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-    if (e.key === 'Escape') {
-      setIsFocused(false);
-      setShowAdvanced(false);
-      inputRef?.current?.blur();
-    }
-  };
-
-  const handleSuggestionClick = (term: string) => {
-    setLocalQuery(term);
-    setSearchQuery(term);
-    setIsFocused(false);
-  };
-
-  const showSuggestions = isFocused && !localQuery;
-  const showDropdown = showSuggestions || showAdvanced;
 
   return (
     <div
@@ -198,7 +67,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
         )}
 
         <input
-          ref={inputRef as React.RefObject<HTMLInputElement>}
+          ref={inputRef}
           type="text"
           className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 placeholder-gray-400 ml-3"
           placeholder={getSearchPlaceholder({ activeImageQuery: !!activeImageQuery, isDragActive })}
@@ -266,25 +135,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
           )}
 
           {showAdvanced && (
-            <SearchBarAdvancedFilters
-              folders={folders}
-              folderFilter={folderFilter}
-              setFolderFilter={setFolderFilter}
-              tagFilters={tagFilters}
-              setTagFilters={setTagFilters}
-              persons={persons}
-              personFilter={personFilter}
-              setPersonFilter={setPersonFilter}
-              paletteFilters={paletteFilters}
-              setPaletteFilters={setPaletteFilters}
-              dateRange={dateRange}
-              setDateRange={setDateRange}
-              showFavoritesOnly={showFavoritesOnly}
-              setShowFavoritesOnly={setShowFavoritesOnly}
-              showHidden={showHidden}
-              setShowHidden={setShowHidden}
-              showDivider={isFocused && !localQuery}
-            />
+            <SearchBarAdvancedFilters showDivider={isFocused && !localQuery} />
           )}
         </div>
       )}

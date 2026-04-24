@@ -1,26 +1,22 @@
-import { ipcMain } from 'electron';
-import { IPC_CHANNELS, IPC_EVENTS, type Query, type SortieImageMetadataUpdate } from 'shared';
+import { IPC_EVENTS } from 'shared';
 import type { MainIpcContext } from './context';
-import { sendToRenderer, withOperation } from './context';
+import { handleInvoke, sendToRenderer, withOperation } from './context';
 
 export function registerImageHandlers({ dbService }: MainIpcContext): void {
-  ipcMain.handle(
-    IPC_CHANNELS.getImages,
-    async (_event, { limit, offset }: { limit?: number; offset?: number } = {}) => {
-      return await dbService.getImages(limit, offset);
-    },
-  );
+  handleInvoke('getImages', async (_event, args) => {
+    return await dbService.getImages(args?.limit, args?.offset);
+  });
 
-  ipcMain.handle(IPC_CHANNELS.getImage, async (_event, { id }: { id: number }) => {
+  handleInvoke('getImage', async (_event, { id }) => {
     return await dbService.getImage(id);
   });
 
-  ipcMain.handle(IPC_CHANNELS.reshuffleImages, () => {
+  handleInvoke('reshuffleImages', () => {
     dbService.reshuffle();
     return { success: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.queryImages, async (_event, query: Query) => {
+  handleInvoke('queryImages', async (_event, query) => {
     if (query.imageBytes) {
       const maxQueryBytes = 25 * 1024 * 1024;
       if (query.imageBytes.byteLength > maxQueryBytes) {
@@ -32,89 +28,74 @@ export function registerImageHandlers({ dbService }: MainIpcContext): void {
     return await dbService.queryImages(query);
   });
 
-  ipcMain.handle(IPC_CHANNELS.getEmbedderStatus, () => dbService.getEmbedderStatus());
+  handleInvoke('getEmbedderStatus', () => dbService.getEmbedderStatus());
 
-  ipcMain.handle(
-    IPC_CHANNELS.findSimilarImages,
-    async (_event, { imageId, limit }: { imageId: number; limit?: number }) => {
-      return await dbService.findSimilarImages(imageId, limit);
-    },
-  );
+  handleInvoke('findSimilarImages', async (_event, { imageId, limit }) => {
+    return await dbService.findSimilarImages(imageId, limit);
+  });
 
-  ipcMain.handle(IPC_CHANNELS.getAllTags, async () => {
+  handleInvoke('getAllTags', async () => {
     return await dbService.getAllTags();
   });
 
-  ipcMain.handle(IPC_CHANNELS.getTagsWithCounts, async () => {
+  handleInvoke('getTagsWithCounts', async () => {
     return await dbService.getTagsWithCounts();
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.updateImageTags,
-    async (_event, { imageId, tags }: { imageId: number; tags: string[] }) => {
-      await dbService.updateImageTags(imageId, tags);
-      return { success: true };
-    },
-  );
+  handleInvoke('updateImageTags', async (_event, { imageId, tags }) => {
+    await dbService.updateImageTags(imageId, tags);
+    return { success: true };
+  });
 
-  ipcMain.handle(IPC_CHANNELS.getSuggestions, async (_event, { imageId }: { imageId: number }) => {
+  handleInvoke('getSuggestions', async (_event, { imageId }) => {
     return await dbService.getSuggestions(imageId);
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.dismissSuggestion,
-    async (_event, { imageId, tagId }: { imageId: number; tagId: number }) => {
-      await dbService.dismissSuggestion(imageId, tagId);
-      return { success: true };
-    },
-  );
+  handleInvoke('dismissSuggestion', async (_event, { imageId, tagId }) => {
+    await dbService.dismissSuggestion(imageId, tagId);
+    return { success: true };
+  });
 
-  ipcMain.handle(IPC_CHANNELS.hideImage, async (_event, { imageId }: { imageId: number }) => {
+  handleInvoke('hideImage', async (_event, { imageId }) => {
     await dbService.hideImage(imageId);
     return { success: true };
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.updateImageMetadata,
-    async (
-      _event,
-      { imageId, metadata }: { imageId: number; metadata: SortieImageMetadataUpdate },
-    ) => {
-      await dbService.updateImageMetadata(imageId, metadata);
-      return { success: true };
-    },
-  );
+  handleInvoke('updateImageMetadata', async (_event, { imageId, metadata }) => {
+    await dbService.updateImageMetadata(imageId, metadata);
+    return { success: true };
+  });
 
-  ipcMain.handle(IPC_CHANNELS.getLinkPreview, async (_event, { url }: { url: string }) => {
+  handleInvoke('getLinkPreview', async (_event, { url }) => {
     return await dbService.getLinkPreview(url);
   });
 
-  ipcMain.handle(IPC_CHANNELS.fetchLinkPreview, async (_event, { url }: { url: string }) => {
+  handleInvoke('fetchLinkPreview', async (_event, { url }) => {
     return await dbService.fetchAndCacheLinkPreview(url);
   });
 
-  ipcMain.handle(IPC_CHANNELS.recomputeEmbedding, async (_event, { imageId }: { imageId: number }) => {
+  handleInvoke('recomputeEmbedding', async (_event, { imageId }) => {
     await dbService.recomputeEmbedding(imageId);
     return { success: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.recomputePalette, async (_event, { imageId }: { imageId: number }) => {
+  handleInvoke('recomputePalette', async (_event, { imageId }) => {
     await dbService.recomputePalette(imageId);
     return { success: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.computeMissingPalettes, async (event, { opId }: { opId: string }) => {
+  handleInvoke('computeMissingPalettes', async (event, { opId }) => {
     return await withOperation(opId, (signal) =>
       dbService.computeMissingPalettes(sendToRenderer(event.sender, IPC_EVENTS.paletteProgress), signal),
     );
   });
 
-  ipcMain.handle(IPC_CHANNELS.deleteImage, async (_event, { imageId }: { imageId: number }) => {
+  handleInvoke('deleteImage', async (_event, { imageId }) => {
     await dbService.deleteImage(imageId);
     return { success: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.backfillExif, async (_event, { opId }: { opId: string }) => {
+  handleInvoke('backfillExif', async (_event, { opId }) => {
     return await withOperation(opId, (signal) => dbService.backfillExifData(signal));
   });
 }

@@ -2,6 +2,7 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { getSortieUserDataPaths } from './userDataPaths';
 
 export interface LinkPreviewRow {
   url: string;
@@ -19,7 +20,7 @@ const FETCH_TIMEOUT_MS = 10_000;
 const USER_AGENT = 'Mozilla/5.0 (compatible; SortieBot/0.1; +local)';
 
 export function previewDir(): string {
-  return path.join(app.getPath('userData'), 'link-previews');
+  return getSortieUserDataPaths(app.getPath('userData')).linkPreviews;
 }
 
 export function ensurePreviewDir(): string {

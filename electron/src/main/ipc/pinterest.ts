@@ -1,7 +1,7 @@
-import { ipcMain, shell } from 'electron';
+import { shell } from 'electron';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
-import { IPC_CHANNELS, IPC_EVENTS, type PinterestResult, type PinterestTarget } from 'shared';
+import { IPC_EVENTS } from 'shared';
 import { getImportFolder, importPin } from '../pinterest/import';
 import { bulkImportBoard } from '../pinterest/bulkImport';
 import {
@@ -11,6 +11,7 @@ import {
   scrapeFirstPage,
 } from '../pinterest/scraper';
 import type { MainIpcContext } from './context';
+import { handleInvoke } from './context';
 
 async function pinterestResult<T extends object>(
   run: () => Promise<T>,
@@ -29,49 +30,25 @@ export function registerPinterestHandlers({
   dbService,
   bulkImportJobs,
 }: MainIpcContext): void {
-  ipcMain.handle(
-    IPC_CHANNELS.pinterest.scrape,
-    (_event, { input, target }: { input: string; target?: number }) =>
-      pinterestResult(async () => {
-        const parsed = parsePinterestInput(input);
-        const page = await scrapeFirstPage(parsed, target ?? 50);
-        return { target: parsed, page };
-      }),
+  handleInvoke('pinterestScrape', (_event, { input, target }) =>
+    pinterestResult(async () => {
+      const parsed = parsePinterestInput(input);
+      const page = await scrapeFirstPage(parsed, target ?? 50);
+      return { target: parsed, page };
+    }),
   );
 
-  ipcMain.handle(
-    IPC_CHANNELS.pinterest.loadMore,
-    (
-      _event,
-      {
-        target,
-        bookmarks,
-        desired,
-      }: {
-        target: PinterestTarget;
-        bookmarks: string[];
-        desired?: number;
-      },
-    ) =>
-      pinterestResult(async () => ({
-        page: await pinterestLoadMore(target, bookmarks, desired ?? 50),
-      })),
+  handleInvoke('pinterestLoadMore', (_event, { target, bookmarks, desired }) =>
+    pinterestResult(async () => ({
+      page: await pinterestLoadMore(target, bookmarks, desired ?? 50),
+    })),
   );
 
-  ipcMain.handle(IPC_CHANNELS.pinterest.importPin, (_event, { pin }: { pin: PinterestResult }) =>
+  handleInvoke('pinterestImportPin', (_event, { pin }) =>
     pinterestResult(async () => ({ result: await importPin(pin, { dbService }) })),
   );
 
-  ipcMain.handle(
-    IPC_CHANNELS.pinterest.startBulkImport,
-    async (
-      event,
-      {
-        username,
-        slug,
-        hideAiGenerated,
-      }: { username: string; slug: string; hideAiGenerated: boolean },
-    ) => {
+  handleInvoke('pinterestStartBulkImport', async (event, { username, slug, hideAiGenerated }) => {
       const jobId = randomUUID();
       const controller = new AbortController();
       bulkImportJobs.set(jobId, controller);
@@ -109,22 +86,21 @@ export function registerPinterestHandlers({
       })();
 
       return { ok: true as const, jobId };
-    },
-  );
+    });
 
-  ipcMain.handle(IPC_CHANNELS.pinterest.cancelBulkImport, async (_event, { jobId }: { jobId: string }) => {
+  handleInvoke('pinterestCancelBulkImport', async (_event, { jobId }) => {
     const controller = bulkImportJobs.get(jobId);
     if (!controller) return { ok: false as const, message: 'Job not found' };
     controller.abort();
     return { ok: true as const };
   });
 
-  ipcMain.handle(IPC_CHANNELS.pinterest.revealImportFolder, async () => {
+  handleInvoke('pinterestRevealImportFolder', async () => {
     const dir = getImportFolder();
     fs.mkdirSync(dir, { recursive: true });
     await shell.openPath(dir);
     return { success: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.pinterest.getImportFolder, () => getImportFolder());
+  handleInvoke('pinterestGetImportFolder', () => getImportFolder());
 }

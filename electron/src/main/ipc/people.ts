@@ -1,60 +1,45 @@
-import { ipcMain } from 'electron';
-import { IPC_CHANNELS, IPC_EVENTS } from 'shared';
+import { IPC_EVENTS } from 'shared';
 import type { MainIpcContext } from './context';
-import { sendToRenderer, withOperation } from './context';
+import { handleInvoke, sendToRenderer, withOperation } from './context';
 
 export function registerPeopleHandlers({ dbService }: MainIpcContext): void {
-  ipcMain.handle(IPC_CHANNELS.getPersons, async () => {
+  handleInvoke('getPersons', async () => {
     return await dbService.getPersons();
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.getPersonImages,
-    async (
-      _event,
-      { personId, limit, offset }: { personId: number; limit?: number; offset?: number },
-    ) => {
-      return await dbService.getPersonImages(personId, limit, offset);
-    },
-  );
+  handleInvoke('getPersonImages', async (_event, { personId, limit, offset }) => {
+    return await dbService.getPersonImages(personId, limit, offset);
+  });
 
-  ipcMain.handle(
-    IPC_CHANNELS.renamePerson,
-    async (_event, { personId, name }: { personId: number; name: string }) => {
-      await dbService.renamePerson(personId, name);
-      return { success: true };
-    },
-  );
+  handleInvoke('getPersonThumbnails', async (_event, { personIds }) => {
+    return await dbService.getPersonThumbnails(personIds);
+  });
 
-  ipcMain.handle(
-    IPC_CHANNELS.mergePersons,
-    async (
-      _event,
-      { keepPersonId, mergePersonId }: { keepPersonId: number; mergePersonId: number },
-    ) => {
-      await dbService.mergePersons(keepPersonId, mergePersonId);
-      return { success: true };
-    },
-  );
+  handleInvoke('renamePerson', async (_event, { personId, name }) => {
+    await dbService.renamePerson(personId, name);
+    return { success: true };
+  });
 
-  ipcMain.handle(IPC_CHANNELS.splitFaceFromPerson, async (_event, { faceId }: { faceId: number }) => {
+  handleInvoke('mergePersons', async (_event, { keepPersonId, mergePersonId }) => {
+    await dbService.mergePersons(keepPersonId, mergePersonId);
+    return { success: true };
+  });
+
+  handleInvoke('splitFaceFromPerson', async (_event, { faceId }) => {
     const newPersonId = await dbService.splitFaceFromPerson(faceId);
     return { newPersonId };
   });
 
-  ipcMain.handle(IPC_CHANNELS.getImageFaces, async (_event, { imageId }: { imageId: number }) => {
+  handleInvoke('getImageFaces', async (_event, { imageId }) => {
     return await dbService.getImageFaces(imageId);
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.setPersonThumbnail,
-    async (_event, { personId, faceId }: { personId: number; faceId: number }) => {
-      await dbService.setPersonThumbnail(personId, faceId);
-      return { success: true };
-    },
-  );
+  handleInvoke('setPersonThumbnail', async (_event, { personId, faceId }) => {
+    await dbService.setPersonThumbnail(personId, faceId);
+    return { success: true };
+  });
 
-  ipcMain.handle(IPC_CHANNELS.processFaces, async (event, { opId }: { opId: string }) => {
+  handleInvoke('processFaces', async (event, { opId }) => {
     return await withOperation(opId, (signal) =>
       dbService.processExistingImagesForFaces(
         sendToRenderer(event.sender, IPC_EVENTS.faceScanProgress),
@@ -63,7 +48,7 @@ export function registerPeopleHandlers({ dbService }: MainIpcContext): void {
     );
   });
 
-  ipcMain.handle(IPC_CHANNELS.deletePerson, async (_event, { personId }: { personId: number }) => {
+  handleInvoke('deletePerson', async (_event, { personId }) => {
     await dbService.deletePerson(personId);
     return { success: true };
   });

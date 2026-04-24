@@ -1,14 +1,13 @@
-import { ipcMain } from 'electron';
-import { IPC_CHANNELS, IPC_EVENTS } from 'shared';
+import { IPC_EVENTS } from 'shared';
 import type { MainIpcContext } from './context';
-import { sendToRenderer, withOperation } from './context';
+import { handleInvoke, sendToRenderer, withOperation } from './context';
 
 export function registerFolderHandlers({
   dbService,
   watcherService,
   availabilityMonitor,
 }: MainIpcContext): void {
-  ipcMain.handle(IPC_CHANNELS.addFolder, async (_event, { path }: { path: string }) => {
+  handleInvoke('addFolder', async (_event, { path }) => {
     const overlap = await dbService.findOverlappingFolders(path);
     const folderId = await dbService.addFolder(path);
     await watcherService.watchFolder(path);
@@ -16,40 +15,37 @@ export function registerFolderHandlers({
     return { folderId, overlap };
   });
 
-  ipcMain.handle(IPC_CHANNELS.scanFolder, async (event, { path, opId }: { path: string; opId: string }) => {
+  handleInvoke('scanFolder', async (event, { path, opId }) => {
     return await withOperation(opId, (signal) =>
       dbService.scanFolder(path, sendToRenderer(event.sender, IPC_EVENTS.scanProgress), signal),
     );
   });
 
-  ipcMain.handle(IPC_CHANNELS.getFolders, async () => {
+  handleInvoke('getFolders', async () => {
     return await dbService.getFolders();
   });
 
-  ipcMain.handle(IPC_CHANNELS.getFoldersWithStats, async () => {
+  handleInvoke('getFoldersWithStats', async () => {
     return await dbService.getFoldersWithStats();
   });
 
-  ipcMain.handle(IPC_CHANNELS.removeFolder, async (_event, { path }: { path: string }) => {
+  handleInvoke('removeFolder', async (_event, { path }) => {
     watcherService.stopWatching(path);
     await dbService.removeFolder(path);
     return { success: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.watchFolder, async (_event, { path }: { path: string }) => {
+  handleInvoke('watchFolder', async (_event, { path }) => {
     await watcherService.watchFolder(path);
     return { watching: true };
   });
 
-  ipcMain.handle(IPC_CHANNELS.unwatchFolder, async (_event, { path }: { path: string }) => {
+  handleInvoke('unwatchFolder', async (_event, { path }) => {
     watcherService.stopWatching(path);
     return { watching: false };
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.setFolderFaceScanExclusion,
-    async (_event, { path, excluded }: { path: string; excluded: boolean }) => {
-      return await dbService.setFolderFaceScanExclusion(path, excluded);
-    },
-  );
+  handleInvoke('setFolderFaceScanExclusion', async (_event, { path, excluded }) => {
+    return await dbService.setFolderFaceScanExclusion(path, excluded);
+  });
 }

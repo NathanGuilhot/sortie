@@ -9,6 +9,7 @@ import {
   hexToOklab,
   FaceDetector,
   FaceMatcher,
+  FaceScanService,
   loadImageInput,
 } from 'pipeline';
 import {
@@ -52,6 +53,8 @@ import { DatabaseOcrService } from './database-ocr';
 import path from 'path';
 import fs from 'fs/promises';
 
+type SqlBinding = string | number | bigint | Uint8Array | null;
+
 export class DatabaseService {
   private db: DatabaseManager | null = null;
   private embedder: ClipEmbedder | null = null;
@@ -59,6 +62,7 @@ export class DatabaseService {
   private organizer: Organizer | null = null;
   private faceDetector: FaceDetector | null = null;
   private faceMatcher: FaceMatcher | null = null;
+  private faceScan: FaceScanService | null = null;
   private imageCache = new Map<string, Image[]>();
   // Per-view shuffled ID lists. Built lazily on first request and reused for
   // pagination so LIMIT/OFFSET pages stay stable within a session. A new
@@ -83,7 +87,17 @@ export class DatabaseService {
     this.organizer = new Organizer(this.db, this.suggestionEngine);
     this.faceDetector = new FaceDetector(faceModelsPath, faceCacheDir);
     this.faceMatcher = new FaceMatcher(this.db);
+    this.faceScan = new FaceScanService(this.db, this.faceDetector, this.faceMatcher);
     this.ocr = new DatabaseOcrService(this.db, ocrModelsPath);
+  }
+
+  async runStartupMaintenance(): Promise<void> {
+    if (!this.db) return;
+    const result = await this.db.runStartupMaintenance();
+    if (result.fixedImageDimensions > 0) {
+      this.invalidateImageCache();
+      console.log(`[migration] fixed dimensions for ${result.fixedImageDimensions} images`);
+    }
   }
 
   async warmupEmbedder(): Promise<void> {
@@ -156,45 +170,25 @@ export class DatabaseService {
     }
   }
 
-  private getOrBuildShuffledIds(
-    cacheKey: string,
-    idQuery: string,
-    params: unknown[] = [],
-  ): number[] {
+  private getOrBuildShuffledIds(cacheKey: string, loadIds: () => number[]): number[] {
     const cached = this.shuffledIdCache.get(cacheKey);
     if (cached) return cached;
-    if (!this.db) throw new Error('Database not initialized');
-    const stmt = this.db.getDatabase().prepare(idQuery);
-    const rows = stmt.all(...(params as never[])) as Array<{ id: number }>;
-    const ids = rows.map((r) => r.id);
+    const ids = loadIds();
     this.shuffleInPlace(ids);
     this.shuffledIdCache.set(cacheKey, ids);
     return ids;
   }
 
+  private queryIds(idQuery: string, params: SqlBinding[] = []): number[] {
+    if (!this.db) throw new Error('Database not initialized');
+    const stmt = this.db.getDatabase().prepare(idQuery);
+    const rows = stmt.all(...params) as Array<{ id: number }>;
+    return rows.map((row) => row.id);
+  }
+
   private fetchImagesByIdsInOrder(ids: number[]): Image[] {
     if (!this.db) throw new Error('Database not initialized');
-    if (ids.length === 0) return [];
-    const placeholders = ids.map(() => '?').join(',');
-    const stmt = this.db.getDatabase().prepare(`
-      SELECT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
-      FROM images i
-      WHERE i.id IN (${placeholders})
-    `);
-    const rows = stmt.all(...ids) as ImageDbRow[];
-    const byId = new Map(rows.map((r) => [r.id, r]));
-    const images: Image[] = [];
-    for (const id of ids) {
-      const row = byId.get(id);
-      if (row) {
-        const { palette_json: _ignored, ...rest } = row;
-        images.push({ ...rest, embedded: !!row.embedded, palette: hydratePalette(row) });
-      }
-    }
-    for (const image of images) {
-      image.tags = this.db.getImageTags(image.id) as Tag[];
-    }
-    return images;
+    return this.db.getImagesByIds(ids);
   }
 
   async getImages(limit: number = 100, offset: number = 0): Promise<Image[]> {
@@ -206,7 +200,7 @@ export class DatabaseService {
     }
     const allIds = this.getOrBuildShuffledIds(
       'default',
-      `SELECT id FROM images WHERE hidden = 0 AND missing = 0`,
+      () => this.db!.getVisibleImageIds(),
     );
     const pageIds = allIds.slice(offset, offset + limit);
     const images = this.fetchImagesByIdsInOrder(pageIds);
@@ -216,17 +210,7 @@ export class DatabaseService {
 
   async getImage(id: number): Promise<Image | null> {
     if (!this.db) throw new Error('Database not initialized');
-    const stmt = this.db.getDatabase().prepare(`
-      SELECT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
-      FROM images i
-      WHERE i.id = ?
-    `);
-    const row = stmt.get(id) as ImageDbRow | undefined;
-    if (!row) return null;
-    const { palette_json: _ignored, ...rest } = row;
-    const image: Image = { ...rest, embedded: !!row.embedded, palette: hydratePalette(row) };
-    image.tags = this.db.getImageTags(image.id) as Tag[];
-    return image;
+    return this.db.getImageById(id);
   }
 
   // Structural invalidation — image set changed (add/hide/delete/scan/missing).
@@ -278,7 +262,7 @@ export class DatabaseService {
       setIds ??
       this.getOrBuildShuffledIds(
         'default',
-        `SELECT id FROM images WHERE hidden = 0 AND missing = 0`,
+        () => this.db!.getVisibleImageIds(),
       );
     const pageIds = ids.slice(offset, offset + limit);
     return this.fetchImagesByIdsInOrder(pageIds) as SearchResult[];
@@ -287,7 +271,7 @@ export class DatabaseService {
   // Returns ids matching every active set filter, or null if none are active.
   private buildSetFilterIds(q: Query): number[] | null {
     const where: string[] = [];
-    const params: unknown[] = [];
+    const params: SqlBinding[] = [];
 
     where.push(q.includeHidden ? 'i.missing = 0' : 'i.hidden = 0 AND i.missing = 0');
 
@@ -335,8 +319,7 @@ export class DatabaseService {
     const cacheKey = this.setFilterCacheKey(q);
     return this.getOrBuildShuffledIds(
       cacheKey,
-      `SELECT i.id FROM images i WHERE ${where.join(' AND ')}`,
-      params,
+      () => this.queryIds(`SELECT i.id FROM images i WHERE ${where.join(' AND ')}`, params),
     );
   }
 
@@ -479,51 +462,19 @@ export class DatabaseService {
 
   async findSimilarImages(imageId: number, limit: number = 20): Promise<SearchResult[]> {
     if (!this.db) throw new Error('Database not initialized');
-    const dbManager = this.db;
-    const db = dbManager.getDatabase();
+    const embedding = this.db.getEmbedding(imageId);
+    if (!embedding) return [];
 
-    const embRow = db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(imageId) as
-      | { embedding: Buffer }
-      | undefined;
-    if (!embRow) return [];
-
-    const buf = embRow.embedding;
-    const floats = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
-    const embJson = JSON.stringify(Array.from(floats));
-
-    // Request limit+1 to account for the source image appearing in results
-    const stmt = db.prepare(`
-      SELECT sub.rowid, sub.distance
-      FROM (
-        SELECT v.rowid, v.distance
-        FROM vec_images v
-        WHERE v.embedding MATCH ? AND k = ?
-      ) sub
-      INNER JOIN images i ON i.id = sub.rowid AND i.hidden = 0 AND i.missing = 0
-      WHERE sub.rowid != ?
-      ORDER BY sub.distance
-    `);
-    const results = stmt.all(embJson, limit + 1, imageId) as Array<{
-      rowid: number;
-      distance: number;
-    }>;
-
-    const imageIds = results.map((r) => r.rowid);
+    const results = this.db
+      .findNearestImageMatches(embedding, limit + 1)
+      .filter((match) => match.rowid !== imageId);
+    const imageIds = results.map((result) => result.rowid);
     if (imageIds.length === 0) return [];
 
-    const placeholders = imageIds.map(() => '?').join(',');
-    const imageStmt = db.prepare(`
-      SELECT * FROM images WHERE id IN (${placeholders})
-    `);
-    const images = imageStmt.all(...imageIds) as ImageDbRow[];
-
     const distanceMap = new Map(results.map((r) => [r.rowid, r.distance]));
-    const resultImages: SearchResult[] = images.map((img) => ({
-      ...img,
-      embedded: true,
-      palette: hydratePalette(img),
-      distance: distanceMap.get(img.id),
-      tags: dbManager.getImageTags(img.id) as Tag[],
+    const resultImages: SearchResult[] = this.db.getImagesByIds(imageIds).map((image) => ({
+      ...image,
+      distance: distanceMap.get(image.id),
     }));
 
     // IN query doesn't preserve order
@@ -660,34 +611,12 @@ export class DatabaseService {
 
   async getFolders(): Promise<Folder[]> {
     if (!this.db) throw new Error('Database not initialized');
-    const stmt = this.db.getDatabase().prepare(`
-      SELECT * FROM folders ORDER BY created_at DESC
-    `);
-    return stmt.all() as Folder[];
+    return this.db.listFolders();
   }
 
   async getFoldersWithStats(): Promise<FolderWithStats[]> {
     if (!this.db) throw new Error('Database not initialized');
-    const stmt = this.db.getDatabase().prepare(`
-      SELECT f.*,
-        COALESCE(s.image_count, 0) AS image_count,
-        COALESCE(s.total_size, 0) AS total_size
-      FROM folders f
-      LEFT JOIN (
-        SELECT fo.id AS folder_id,
-          COUNT(i.id) AS image_count,
-          SUM(i.file_size) AS total_size
-        FROM folders fo
-        LEFT JOIN images i ON i.file_path LIKE fo.path || '/%' AND i.hidden = 0 AND i.missing = 0
-        GROUP BY fo.id
-      ) s ON s.folder_id = f.id
-      ORDER BY f.created_at DESC
-    `);
-    const rows = stmt.all() as (Folder & { image_count: number; total_size: number })[];
-    return rows.map((row) => ({
-      ...row,
-      folder_name: path.basename(row.path) || row.path,
-    }));
+    return this.db.listFoldersWithStats();
   }
 
   async removeFolder(folderPath: string): Promise<void> {
@@ -955,50 +884,36 @@ export class DatabaseService {
     if (!this.db) throw new Error('Database not initialized');
     const trimmed = name.trim();
     if (!trimmed) throw new Error('Board name cannot be empty');
-    this.db.getDatabase().prepare(`UPDATE tags SET name = ? WHERE id = ?`).run(trimmed, tagId);
+    this.db.renameTag(tagId, trimmed);
     this.invalidateMetadataCaches();
   }
 
   async setBoardColor(tagId: number, color: string): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    this.db.getDatabase().prepare(`UPDATE tags SET color = ? WHERE id = ?`).run(color, tagId);
+    this.db.setTagColor(tagId, color);
   }
 
   async deleteBoard(tagId: number): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    this.db.getDatabase().prepare(`DELETE FROM tags WHERE id = ?`).run(tagId);
+    this.db.deleteTag(tagId);
     this.invalidateMetadataCaches();
   }
 
   async hideImage(imageId: number): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    this.db
-      .getDatabase()
-      .prepare(`UPDATE images SET hidden = 1, modified_at = datetime('now') WHERE id = ?`)
-      .run(imageId);
+    this.db.setImageHidden(imageId);
     this.invalidateImageCache();
   }
 
   async markImageMissing(filePath: string): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    this.db
-      .getDatabase()
-      .prepare(`UPDATE images SET missing = 1, modified_at = datetime('now') WHERE file_path = ?`)
-      .run(filePath);
+    this.db.setImageMissingByPath(filePath);
     this.invalidateImageCache();
   }
 
   getFolderForPath(filePath: string): Folder | null {
     if (!this.db) return null;
-    const normalized = path.resolve(filePath);
-    const stmt = this.db.getDatabase().prepare(`
-      SELECT * FROM folders
-      WHERE ? LIKE path || '/%' OR ? = path
-      ORDER BY length(path) DESC
-      LIMIT 1
-    `);
-    const row = stmt.get(normalized, normalized) as Folder | undefined;
-    return row ?? null;
+    return this.db.findFolderForPath(path.resolve(filePath));
   }
 
   async setFolderAvailability(
@@ -1007,36 +922,21 @@ export class DatabaseService {
     writable: boolean,
   ): Promise<{ changed: boolean }> {
     if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
     const normalized = path.resolve(folderPath);
-    const current = db
-      .prepare('SELECT available, writable FROM folders WHERE path = ?')
-      .get(normalized) as { available: number; writable: number } | undefined;
+    const current = this.db.getFolderAvailabilityState(normalized);
     if (!current) return { changed: false };
-    const availableChanged = !!current.available !== available;
-    const writableChanged = !!current.writable !== writable;
+    const availableChanged = current.available !== available;
+    const writableChanged = current.writable !== writable;
     if (!availableChanged && !writableChanged) return { changed: false };
 
-    const txn = db.transaction(() => {
-      db.prepare('UPDATE folders SET available = ?, writable = ? WHERE path = ?').run(
-        available ? 1 : 0,
-        writable ? 1 : 0,
-        normalized,
-      );
+    const txn = this.db.getDatabase().transaction(() => {
+      this.db!.updateFolderAvailabilityState(normalized, available, writable);
       if (availableChanged) {
         const pattern = normalized + '/%';
         if (available) {
-          // Coming back online — clear missing for everything this folder covers.
-          // Safe to use plain LIKE: a sibling folder overlap can only leave us
-          // clearing missing on files that are indeed present.
-          db.prepare('UPDATE images SET missing = 0 WHERE file_path LIKE ?').run(pattern);
+          this.db!.clearMissingByPathPrefix(pattern);
         } else {
-          // Going offline — only flip to missing if no other available folder
-          // still covers the path.
-          db.prepare(
-            `UPDATE images SET missing = 1
-             WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_AVAILABLE_CLAUSE}`,
-          ).run(pattern, normalized);
+          this.db!.markMissingByPathPrefix(pattern, normalized);
         }
       }
     });
@@ -1053,27 +953,17 @@ export class DatabaseService {
     excluded: boolean,
   ): Promise<{ changed: boolean }> {
     if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
     const normalized = path.resolve(folderPath);
-    const current = db
-      .prepare('SELECT exclude_from_face_scan FROM folders WHERE path = ?')
-      .get(normalized) as { exclude_from_face_scan: number } | undefined;
-    if (!current) return { changed: false };
-    if (!!current.exclude_from_face_scan === excluded) return { changed: false };
+    const current = this.db.getFolderFaceScanExclusion(normalized);
+    if (current === null) return { changed: false };
+    if (current === excluded) return { changed: false };
 
     const pattern = normalized + '/%';
-    const txn = db.transaction(() => {
-      db.prepare('UPDATE folders SET exclude_from_face_scan = ? WHERE path = ?').run(
-        excluded ? 1 : 0,
-        normalized,
-      );
+    const txn = this.db.getDatabase().transaction(() => {
+      this.db!.setFolderFaceScanExclusionFlag(normalized, excluded);
       if (excluded) {
-        db.prepare(
-          `DELETE FROM faces WHERE image_id IN (
-             SELECT id FROM images WHERE file_path LIKE ?
-           )`,
-        ).run(pattern);
-        db.prepare('UPDATE images SET faces_scanned = 0 WHERE file_path LIKE ?').run(pattern);
+        this.db!.deleteFacesByImagePathPrefix(pattern);
+        this.db!.markFacesUnscannedByPathPrefix(pattern);
       }
     });
     txn();
@@ -1095,76 +985,19 @@ export class DatabaseService {
     },
   ): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-
-    const fields: string[] = [];
-    const values: (string | number | boolean | null | undefined)[] = [];
-
-    if (metadata.description !== undefined) {
-      fields.push('description = ?');
-      values.push(metadata.description);
-    }
-    if (metadata.favorite !== undefined) {
-      fields.push('favorite = ?');
-      values.push(metadata.favorite ? 1 : 0);
-    }
-    if (metadata.captured_at !== undefined) {
-      fields.push('captured_at = ?');
-      values.push(metadata.captured_at);
-    }
-    if (metadata.city !== undefined) {
-      fields.push('city = ?');
-      values.push(metadata.city);
-    }
-    if (metadata.country !== undefined) {
-      fields.push('country = ?');
-      values.push(metadata.country);
-    }
-    if (metadata.website_link !== undefined) {
-      fields.push('website_link = ?');
-      values.push(metadata.website_link);
-    }
-
-    if (fields.length === 0) return;
-
-    fields.push("modified_at = datetime('now')");
-    values.push(imageId);
-
-    db.prepare(`UPDATE images SET ${fields.join(', ')} WHERE id = ?`).run(
-      ...(values as (string | number)[]),
-    );
+    this.db.updateImageMetadata(imageId, metadata);
     this.invalidateMetadataCaches();
   }
 
   async getLinkPreview(url: string): Promise<LinkPreview | null> {
     if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-    const row = db
-      .prepare(
-        'SELECT url, title, description, site_name, image_path, fetched_at, error FROM link_previews WHERE url_hash = ?',
-      )
-      .get(hashUrl(url)) as LinkPreview | undefined;
-    return row ?? null;
+    return this.db.getLinkPreview(hashUrl(url));
   }
 
   async fetchAndCacheLinkPreview(url: string): Promise<LinkPreview> {
     if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
     const preview = await fetchLinkPreview(url);
-    db.prepare(
-      `INSERT OR REPLACE INTO link_previews
-        (url_hash, url, title, description, site_name, image_path, fetched_at, error)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      hashUrl(preview.url),
-      preview.url,
-      preview.title,
-      preview.description,
-      preview.site_name,
-      preview.image_path,
-      preview.fetched_at,
-      preview.error,
-    );
+    this.db.saveLinkPreview(hashUrl(preview.url), preview);
     return preview;
   }
 
@@ -1208,40 +1041,6 @@ export class DatabaseService {
   async organizeImages(): Promise<number[]> {
     if (!this.organizer) throw new Error('Organizer not initialized');
     return this.organizer.createCollectionsFromClusters();
-  }
-
-  async fixImageDimensions(): Promise<void> {
-    if (!this.db) return;
-    const db = this.db.getDatabase();
-    const version = db.pragma('user_version', { simple: true }) as number;
-    if (version >= 1) return;
-
-    console.log('[migration] fixing image dimensions for EXIF rotation...');
-    const rows = db.prepare('SELECT id, file_path, width, height FROM images').all() as Array<{
-      id: number;
-      file_path: string;
-      width: number | null;
-      height: number | null;
-    }>;
-    let fixed = 0;
-    for (const row of rows) {
-      try {
-        const exif = await extractExif(row.file_path);
-        if (exif.width !== row.width || exif.height !== row.height) {
-          db.prepare('UPDATE images SET width = ?, height = ? WHERE id = ?').run(
-            exif.width,
-            exif.height,
-            row.id,
-          );
-          fixed++;
-        }
-      } catch (err) {
-        console.warn(`Failed to fix dimensions for ${row.file_path}:`, err);
-      }
-    }
-    db.pragma(`user_version = 1`);
-    this.invalidateImageCache();
-    console.log(`[migration] fixed dimensions for ${fixed}/${rows.length} images`);
   }
 
   async backfillExifData(signal?: AbortSignal): Promise<BackfillExifResult> {
@@ -1298,116 +1097,31 @@ export class DatabaseService {
 
   // --- Face Detection / People ---
 
-  private async detectFacesForImage(
-    imageId: number,
-    filePath: string,
-    input?: string | Buffer,
-  ): Promise<{ count: number; personIds: number[] }> {
-    if (!this.db || !this.faceDetector || !this.faceMatcher) {
-      throw new Error('Face detection is not available');
-    }
-
-    const faces = await this.faceDetector.detectFaces(filePath, undefined, input);
-    if (faces.length === 0) {
-      this.db.markImageFacesScanned(imageId);
-      return { count: 0, personIds: [] };
-    }
-
-    // 1. Insert all faces and their embeddings first.
-    const faceIds: number[] = [];
-    for (const face of faces) {
-      const faceId = this.db.insertFace({
-        image_id: imageId,
-        person_id: null,
-        bbox_x: face.bbox.x,
-        bbox_y: face.bbox.y,
-        bbox_w: face.bbox.width,
-        bbox_h: face.bbox.height,
-        confidence: face.confidence,
-      });
-      this.db.insertFaceEmbedding(faceId, face.descriptor);
-      faceIds.push(faceId);
-    }
-
-    // 2. Optimally assign faces to persons using the Hungarian algorithm.
-    //    This finds the global min-cost pairing so that, e.g., two faces in a
-    //    group photo can't both greedily grab the wrong person.
-    const descriptors = faces.map((f) => f.descriptor);
-    const matches = this.faceMatcher.matchFaces(descriptors);
-
-    // 3. Apply assignments.
-    const usedPersonIds = new Set<number>();
-    for (let i = 0; i < faceIds.length; i++) {
-      this.faceMatcher.assignFaceToPerson(faceIds[i], matches[i].personId);
-      usedPersonIds.add(matches[i].personId);
-    }
-
-    // 4. Recompute centroids once per affected person after all faces in this
-    //    image are assigned, to avoid intra-image centroid drift.
-    for (const personId of usedPersonIds) {
-      this.faceMatcher.updatePersonCentroid(personId);
-    }
-
-    this.db.markImageFacesScanned(imageId);
-    for (const personId of usedPersonIds) {
-      this.shuffledIdCache.delete(`person:${personId}`);
-    }
-    return { count: faces.length, personIds: [...usedPersonIds] };
-  }
-
   async processExistingImagesForFaces(
     onProgress?: (progress: FaceScanProgress) => void,
     signal?: AbortSignal,
   ): Promise<FaceScanResult> {
-    if (!this.db) throw new Error('Database not initialized');
-    if (!this.faceDetector || !this.faceMatcher) {
+    if (!this.faceScan) {
       throw new Error(
         'Face detection is not available. The face-api models may have failed to load.',
       );
     }
 
-    const images = this.db.getUnscannedFaceImages();
-    let totalFaces = 0;
-    let scanned = 0;
-    let cancelled = false;
-
-    for (let i = 0; i < images.length; i++) {
-      if (signal?.aborted) {
-        cancelled = true;
-        break;
-      }
-      const img = images[i];
-      let personIds: number[] = [];
-      try {
-        const result = await this.detectFacesForImage(img.id, img.file_path);
-        totalFaces += result.count;
-        personIds = result.personIds;
-      } catch (error) {
-        console.error(`Failed face detection for ${img.file_path}:`, error);
-        this.db.markImageFacesScanned(img.id);
-      }
-      scanned++;
-      const personUpdates = personIds
-        .map((pid) => this.db!.getPersonById(pid))
-        .filter((p): p is Person => p !== null && p !== undefined);
-      onProgress?.({
-        current: i + 1,
-        total: images.length,
-        currentFile: img.file_path,
-        personUpdates,
-      });
-
-      // Yield to event loop between images to prevent UI freezes
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    const result = await this.faceScan.processPendingImages(onProgress, signal);
+    for (const personId of result.personIds) {
+      this.shuffledIdCache.delete(`person:${personId}`);
     }
-
     for (const key of Array.from(this.shuffledIdCache.keys())) {
       if (key.startsWith('person:')) {
         this.shuffledIdCache.delete(key);
       }
     }
 
-    return { scanned, detected: totalFaces, cancelled };
+    return {
+      scanned: result.scanned,
+      detected: result.detected,
+      cancelled: result.cancelled,
+    };
   }
 
   async getPersons(): Promise<Person[]> {
@@ -1423,14 +1137,15 @@ export class DatabaseService {
     if (!this.db) throw new Error('Database not initialized');
     const allIds = this.getOrBuildShuffledIds(
       `person:${personId}`,
-      `SELECT DISTINCT i.id AS id
-       FROM images i
-       JOIN faces f ON f.image_id = i.id
-       WHERE f.person_id = ? AND i.hidden = 0 AND i.missing = 0`,
-      [personId],
+      () => this.db!.getPersonImageIds(personId),
     );
     const pageIds = allIds.slice(offset, offset + limit);
     return this.fetchImagesByIdsInOrder(pageIds);
+  }
+
+  async getPersonThumbnails(personIds: number[]): Promise<Face[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.db.getThumbnailFacesForPersons(personIds);
   }
 
   async renamePerson(personId: number, name: string): Promise<void> {
@@ -1563,7 +1278,13 @@ export class DatabaseService {
     const folder = this.getFolderForPath(filePath);
     if (!folder?.exclude_from_face_scan) {
       try {
-        await this.detectFacesForImage(imageId, filePath, loaded);
+        if (!this.faceScan) {
+          throw new Error('Face detection is not available');
+        }
+        const result = await this.faceScan.processImage(imageId, filePath, loaded);
+        for (const personId of result.personIds) {
+          this.shuffledIdCache.delete(`person:${personId}`);
+        }
       } catch (error) {
         console.error(`Failed face detection for ${filePath}:`, error);
       }
@@ -1576,22 +1297,19 @@ export class DatabaseService {
   async recomputeEmbedding(imageId: number): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     if (!this.embedder) throw new Error('Embedder not initialized');
+    const filePath = this.db.getImagePath(imageId);
+    if (!filePath) throw new Error(`Image ${imageId} not found`);
 
-    const stmt = this.db.getDatabase().prepare('SELECT file_path FROM images WHERE id = ?');
-    const row = stmt.get(imageId) as { file_path: string } | undefined;
-    if (!row) throw new Error(`Image ${imageId} not found`);
-
-    const embedding = await this.embedder.embedImage(row.file_path);
+    const embedding = await this.embedder.embedImage(filePath);
     this.db.insertEmbedding(imageId, embedding);
     this.invalidateImageCache();
   }
 
   async recomputePalette(imageId: number): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    const stmt = this.db.getDatabase().prepare('SELECT file_path FROM images WHERE id = ?');
-    const row = stmt.get(imageId) as { file_path: string } | undefined;
-    if (!row) throw new Error(`Image ${imageId} not found`);
-    const palette = await extractPalette(row.file_path);
+    const filePath = this.db.getImagePath(imageId);
+    if (!filePath) throw new Error(`Image ${imageId} not found`);
+    const palette = await extractPalette(filePath);
     this.db.insertPalette(imageId, palette);
     this.invalidateImageCache();
   }
@@ -1628,13 +1346,7 @@ export class DatabaseService {
     signal?: AbortSignal,
   ): Promise<HashScanResult> {
     if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-
-    const rows = db
-      .prepare(
-        'SELECT id, file_path FROM images WHERE hidden = 0 AND missing = 0 AND file_hash IS NULL',
-      )
-      .all() as Array<{ id: number; file_path: string }>;
+    const rows = this.db.getImagesMissingFileHash();
 
     let computed = 0;
     let cancelled = false;
@@ -1646,7 +1358,7 @@ export class DatabaseService {
       const row = rows[i];
       try {
         const fileHash = await computeFileHash(row.file_path);
-        db.prepare('UPDATE images SET file_hash = ? WHERE id = ?').run(fileHash, row.id);
+        this.db.updateImageFileHash(row.id, fileHash);
         computed++;
       } catch (err) {
         console.warn(`Failed to hash ${row.file_path}:`, err);
@@ -1660,7 +1372,6 @@ export class DatabaseService {
 
   async findDuplicateGroups(): Promise<DuplicateGroup[]> {
     if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
 
     // Cosine distance threshold for "near-duplicate" via CLIP embeddings.
     // Embeddings are L2-normalized so distance ∈ [0, 2]; near-identical photos
@@ -1671,19 +1382,10 @@ export class DatabaseService {
     // fast, large enough to capture all true near-duplicates of a single image.
     const VEC_K = 12;
 
-    const images = db
-      .prepare(
-        `SELECT id, file_path, file_name, file_size, mime_type, width, height,
-                created_at, modified_at, captured_at, latitude, longitude,
-                city, country, description, favorite, hidden, file_hash
-         FROM images WHERE hidden = 0 AND missing = 0`,
-      )
-      .all() as Image[];
+    const images = this.db.getVisibleImagesForDuplicates();
     const imagesById = new Map(images.map((img) => [img.id, img]));
 
-    const dismissed = db
-      .prepare('SELECT image_id_1, image_id_2 FROM dismissed_duplicates')
-      .all() as Array<{ image_id_1: number; image_id_2: number }>;
+    const dismissed = this.db.getDismissedDuplicatePairs();
     const pairKey = (a: number, b: number) => `${Math.min(a, b)}_${Math.max(a, b)}`;
     const dismissedSet = new Set(dismissed.map((d) => pairKey(d.image_id_1, d.image_id_2)));
 
@@ -1722,27 +1424,11 @@ export class DatabaseService {
     // Skipping single-edge unions avoids the transitive false-grouping problem
     // dHash had ("A≈B and B≈C therefore A,C grouped" even when A and C are
     // unrelated).
-    const matchStmt = db.prepare(`
-      SELECT v.rowid, v.distance
-      FROM vec_images v
-      WHERE v.embedding MATCH ? AND k = ?
-      ORDER BY v.distance
-    `);
-
     for (const img of images) {
-      const embRow = db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(img.id) as
-        | { embedding: Buffer }
-        | undefined;
-      if (!embRow) continue;
+      const embedding = this.db.getEmbedding(img.id);
+      if (!embedding) continue;
 
-      const buf = embRow.embedding;
-      const floats = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
-      const queryJson = JSON.stringify(Array.from(floats));
-
-      const matches = matchStmt.all(queryJson, VEC_K) as Array<{
-        rowid: number;
-        distance: number;
-      }>;
+      const matches = this.db.findNearestImageMatches(embedding, VEC_K);
 
       for (const match of matches) {
         if (match.rowid === img.id) continue;
@@ -1772,30 +1458,23 @@ export class DatabaseService {
     if (!this.db) throw new Error('Database not initialized');
     const lo = Math.min(imageId1, imageId2);
     const hi = Math.max(imageId1, imageId2);
-    this.db
-      .getDatabase()
-      .prepare('INSERT OR IGNORE INTO dismissed_duplicates (image_id_1, image_id_2) VALUES (?, ?)')
-      .run(lo, hi);
+    this.db.dismissDuplicatePair(lo, hi);
   }
 
   async deleteImage(imageId: number): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-
-    const row = db.prepare('SELECT file_path FROM images WHERE id = ?').get(imageId) as
-      | { file_path: string }
-      | undefined;
-    if (!row) return;
+    const filePath = this.db.getImagePath(imageId);
+    if (!filePath) return;
 
     try {
-      await fs.unlink(row.file_path);
+      await fs.unlink(filePath);
     } catch (error) {
       const code = (error as NodeJS.ErrnoException)?.code;
       if (code !== 'ENOENT') {
-        throw new FileDeletionError(row.file_path, code, error as Error);
+        throw new FileDeletionError(filePath, code, error as Error);
       }
     }
-    db.prepare('DELETE FROM images WHERE id = ?').run(imageId);
+    this.db.deleteImageRecord(imageId);
     this.invalidateImageCache();
   }
 }

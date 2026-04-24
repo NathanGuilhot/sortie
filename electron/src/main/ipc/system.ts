@@ -1,9 +1,10 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, shell } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import { IPC_CHANNELS, SUPPORTED_IMAGE_EXTENSIONS, type AppSettingKey } from 'shared';
+import { SUPPORTED_IMAGE_EXTENSIONS } from 'shared';
 import { cancelOperation } from '../operations';
 import type { MainIpcContext } from './context';
+import { handleInvoke } from './context';
 
 const IMAGE_EXTENSIONS = new Set<string>(SUPPORTED_IMAGE_EXTENSIONS);
 
@@ -45,7 +46,7 @@ export function registerSystemHandlers({
   availabilityMonitor,
   dbPath,
 }: MainIpcContext): void {
-  ipcMain.handle(IPC_CHANNELS.pickFolder, async (event) => {
+  handleInvoke('pickFolder', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     const result = window
       ? await dialog.showOpenDialog(window, { properties: ['openDirectory'] })
@@ -54,23 +55,20 @@ export function registerSystemHandlers({
     return result.filePaths[0];
   });
 
-  ipcMain.handle(IPC_CHANNELS.cancelOperation, async (_event, { opId }: { opId: string }) => {
+  handleInvoke('cancelOperation', async (_event, { opId }) => {
     return { cancelled: cancelOperation(opId) };
   });
 
-  ipcMain.handle(IPC_CHANNELS.settings.get, (_event, { key }: { key: AppSettingKey }) => {
+  handleInvoke('settingsGet', (_event, { key }) => {
     return dbService.getSetting(key);
   });
 
-  ipcMain.handle(
-    IPC_CHANNELS.settings.set,
-    (_event, { key, value }: { key: AppSettingKey; value: string }) => {
+  handleInvoke('settingsSet', (_event, { key, value }) => {
     dbService.setSetting(key, value);
     return { success: true };
-    },
-  );
+  });
 
-  ipcMain.handle(IPC_CHANNELS.suggestDefaultPhotoFolder, async () => {
+  handleInvoke('suggestDefaultPhotoFolder', async () => {
     const picturesPath = app.getPath('pictures');
     let exists = false;
     let approxImageCount: number | null = null;
@@ -95,22 +93,22 @@ export function registerSystemHandlers({
     return { path: picturesPath, exists, approxImageCount, capped };
   });
 
-  ipcMain.handle(IPC_CHANNELS.recheckFolderAvailability, async (_event, args?: { path?: string }) => {
+  handleInvoke('recheckFolderAvailability', async (_event, args) => {
     const changes = await availabilityMonitor.checkNow(args?.path);
     return { changes };
   });
 
-  ipcMain.handle(IPC_CHANNELS.getDatabasePath, async () => {
+  handleInvoke('getDatabasePath', async () => {
     return dbPath;
   });
 
-  ipcMain.handle(IPC_CHANNELS.app.getVersion, () => app.getVersion());
+  handleInvoke('appGetVersion', () => app.getVersion());
 
-  ipcMain.handle(IPC_CHANNELS.app.showAboutPanel, () => {
+  handleInvoke('appShowAboutPanel', () => {
     app.showAboutPanel();
   });
 
-  ipcMain.handle(IPC_CHANNELS.app.openExternal, async (_event, { url }: { url: string }) => {
+  handleInvoke('appOpenExternal', async (_event, { url }) => {
     if (!/^https?:\/\//i.test(url)) {
       throw new Error(`Refusing to open non-http(s) URL: ${url}`);
     }

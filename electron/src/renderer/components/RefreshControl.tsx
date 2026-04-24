@@ -1,4 +1,5 @@
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { hasScoredSearchDimension } from 'shared';
 import { useImageStore } from '../stores/imageStore';
 import { toast } from '../stores/toastStore';
 import { ArrowDownIcon, RefreshIcon } from './icons';
@@ -33,11 +34,7 @@ export function RefreshControl({ scrollContainerRef }: RefreshControlProps) {
   const pullDistanceRef = useRef(0);
 
   // Scored queries own their own order; disable reshuffle in that case.
-  const hasScoredDimension =
-    !!lastQuery &&
-    ((!!lastQuery.text && lastQuery.text.length > 0) ||
-      !!lastQuery.imageBytes ||
-      (!!lastQuery.palette && lastQuery.palette.length > 0));
+  const hasScoredDimension = hasScoredSearchDimension(lastQuery);
   const disabled = hasScoredDimension;
 
   const triggerRefresh = useCallback(async () => {

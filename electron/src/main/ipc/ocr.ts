@@ -1,13 +1,12 @@
-import { ipcMain } from 'electron';
-import { IPC_CHANNELS } from 'shared';
 import type { MainIpcContext } from './context';
+import { handleInvoke } from './context';
 
 export function registerOcrHandlers({ dbService }: MainIpcContext): void {
-  ipcMain.handle(IPC_CHANNELS.ocr.get, async (_event, { imageId }: { imageId: number }) => {
+  handleInvoke('ocrGet', async (_event, { imageId }) => {
     return dbService.getOcr(imageId);
   });
 
-  ipcMain.handle(IPC_CHANNELS.ocr.ensure, async (_event, { imageId }: { imageId: number }) => {
+  handleInvoke('ocrEnsure', async (_event, { imageId }) => {
     if (!dbService.isOcrAvailable()) {
       return { available: false as const };
     }
