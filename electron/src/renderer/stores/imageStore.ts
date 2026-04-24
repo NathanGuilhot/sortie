@@ -49,7 +49,37 @@ function releasePreviewUrl(current: ActiveImageQuery | null) {
   if (current) URL.revokeObjectURL(current.previewUrl);
 }
 
-export const useImageStore = create<ImageStore>((set, get) => ({
+export const useImageStore = create<ImageStore>((set, get) => {
+  const patchUpdatedImage = (imageId: number, updated: Image | null) => {
+    if (!updated) return;
+    set((state) => ({
+      images: state.images.map((img) => (img.id === imageId ? { ...img, ...updated } : img)),
+      selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
+    }));
+  };
+
+  const removeImageFromState = (imageId: number) => {
+    set((state) => ({
+      images: state.images.filter((img) => img.id !== imageId),
+      selectedImage: state.selectedImage?.id === imageId ? null : state.selectedImage,
+    }));
+  };
+
+  const refreshImageAfterMutation = async (
+    imageId: number,
+    mutate: () => Promise<void>,
+  ): Promise<void> => {
+    await runIpcTask({
+      run: async () => {
+        await mutate();
+        return await window.sortieAPI.getImage(imageId);
+      },
+      onSuccess: (updated) => patchUpdatedImage(imageId, updated),
+      onError: (message) => set({ error: message }),
+    });
+  };
+
+  return {
   images: [],
   loading: false,
   error: null,
@@ -116,51 +146,18 @@ export const useImageStore = create<ImageStore>((set, get) => ({
   },
 
   updateImageTags: async (imageId: number, tags: string[]) => {
-    await runIpcTask({
-      run: async () => {
-        await window.sortieAPI.updateImageTags(imageId, tags);
-        return await window.sortieAPI.getImage(imageId);
-      },
-      onSuccess: (updated) => {
-        if (!updated) return;
-        set((state) => ({
-          images: state.images.map((img) => (img.id === imageId ? { ...img, ...updated } : img)),
-          selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
-        }));
-      },
-      onError: (message) => set({ error: message }),
+    await refreshImageAfterMutation(imageId, async () => {
+      await window.sortieAPI.updateImageTags(imageId, tags);
     });
   },
   addToBoard: async (imageId: number, tagId: number) => {
-    await runIpcTask({
-      run: async () => {
-        await window.sortieAPI.boards.addImage(imageId, tagId);
-        return await window.sortieAPI.getImage(imageId);
-      },
-      onSuccess: (updated) => {
-        if (!updated) return;
-        set((state) => ({
-          images: state.images.map((img) => (img.id === imageId ? { ...img, ...updated } : img)),
-          selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
-        }));
-      },
-      onError: (message) => set({ error: message }),
+    await refreshImageAfterMutation(imageId, async () => {
+      await window.sortieAPI.boards.addImage(imageId, tagId);
     });
   },
   removeFromBoard: async (imageId: number, tagId: number) => {
-    await runIpcTask({
-      run: async () => {
-        await window.sortieAPI.boards.removeImage(imageId, tagId);
-        return await window.sortieAPI.getImage(imageId);
-      },
-      onSuccess: (updated) => {
-        if (!updated) return;
-        set((state) => ({
-          images: state.images.map((img) => (img.id === imageId ? { ...img, ...updated } : img)),
-          selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
-        }));
-      },
-      onError: (message) => set({ error: message }),
+    await refreshImageAfterMutation(imageId, async () => {
+      await window.sortieAPI.boards.removeImage(imageId, tagId);
     });
   },
   fetchBoardImages: async (tagId: number, limit = 200, offset = 0) => {
@@ -195,39 +192,21 @@ export const useImageStore = create<ImageStore>((set, get) => ({
   hideImage: async (imageId: number) => {
     await runIpcTask({
       run: () => window.sortieAPI.hideImage(imageId),
-      onSuccess: () =>
-        set((state) => ({
-          images: state.images.filter((img) => img.id !== imageId),
-          selectedImage: state.selectedImage?.id === imageId ? null : state.selectedImage,
-        })),
+      onSuccess: () => removeImageFromState(imageId),
       onError: (message) => set({ error: message }),
     });
   },
   deleteImage: async (imageId: number) => {
     await runIpcTask({
       run: () => window.sortieAPI.deleteImage(imageId),
-      onSuccess: () =>
-        set((state) => ({
-          images: state.images.filter((img) => img.id !== imageId),
-          selectedImage: state.selectedImage?.id === imageId ? null : state.selectedImage,
-        })),
+      onSuccess: () => removeImageFromState(imageId),
       onError: (message) => set({ error: message }),
     });
   },
   updateImageMetadata: async (imageId, metadata) => {
-    await runIpcTask({
-      run: async () => {
-        await window.sortieAPI.updateImageMetadata(imageId, metadata);
-        return await window.sortieAPI.getImage(imageId);
-      },
-      onSuccess: (updated) => {
-        if (!updated) return;
-        set((state) => ({
-          images: state.images.map((img) => (img.id === imageId ? { ...img, ...updated } : img)),
-          selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
-        }));
-      },
-      onError: (message) => set({ error: message }),
+    await refreshImageAfterMutation(imageId, async () => {
+      await window.sortieAPI.updateImageMetadata(imageId, metadata);
     });
   },
-}));
+  };
+});

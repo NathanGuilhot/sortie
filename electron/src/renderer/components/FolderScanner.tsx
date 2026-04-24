@@ -5,37 +5,15 @@ import { toast } from '../stores/toastStore';
 import { useFolderStore } from '../stores/folderStore';
 import { useOnboardingStore } from '../stores/onboardingStore';
 import { showIpcError } from '../ipc';
+import { FolderScannerCard } from './FolderScannerCard';
 import {
   PlusIcon as PlusIconSvg,
   FolderPlusIcon as FolderPlusIconSvg,
-  TrashIcon,
-  PhotoIcon,
-  RefreshIcon,
 } from './icons';
+import { formatSize } from './folderScannerUtils';
 
 const PlusIcon = <PlusIconSvg />;
 const FolderPlusIcon = <FolderPlusIconSvg />;
-
-function formatRelativeTime(dateStr: string): string {
-  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  return `${Math.floor(months / 12)}y ago`;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
-}
 
 export function FolderScanner() {
   const refreshFolderStore = useFolderStore((s) => s.load);
@@ -237,180 +215,21 @@ export function FolderScanner() {
         /* Folder card grid */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {folders.map((folder) => (
-            <div
+            <FolderScannerCard
               key={folder.id}
-              className={`rounded-lg border p-5 hover:shadow-md transition-shadow duration-150 ${
-                folder.available
-                  ? 'bg-white border-gray-200'
-                  : 'bg-gray-50 border-gray-200 opacity-75'
-              }`}
-            >
-              {/* Top row: folder name + remove */}
-              <div className="flex items-start justify-between mb-1">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3
-                      className={`text-sm font-semibold truncate ${
-                        folder.available ? 'text-gray-900' : 'text-gray-500'
-                      }`}
-                    >
-                      {folder.folder_name}
-                    </h3>
-                    {!folder.available && (
-                      <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide rounded bg-amber-100 text-amber-700 border border-amber-200">
-                        Drive offline
-                      </span>
-                    )}
-                    {!!folder.available && !folder.writable && (
-                      <span
-                        className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide rounded bg-amber-50 text-amber-700 border border-amber-200"
-                        title="This volume is read-only. Files in this folder cannot be deleted from Sortie."
-                      >
-                        Read-only
-                      </span>
-                    )}
-                  </div>
-                  <CopyText
-                    value={folder.path}
-                    className="text-xs text-gray-400 truncate mt-0.5 block"
-                    title={folder.path}
-                  >
-                    {folder.path}
-                  </CopyText>
-                </div>
-                {removingFolder === folder.path ? (
-                  <div className="flex items-center gap-1 ml-2 shrink-0">
-                    <button
-                      onClick={() => void handleRemoveFolder(folder.path)}
-                      className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer"
-                    >
-                      Remove
-                    </button>
-                    <button
-                      onClick={() => setRemovingFolder(null)}
-                      className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => void handleRemoveFolder(folder.path)}
-                    className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors ml-2 shrink-0 cursor-pointer"
-                  >
-                    <TrashIcon />
-                  </button>
-                )}
-              </div>
-
-              {/* Stats row */}
-              <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
-                <span className="flex items-center gap-1">
-                  <PhotoIcon className="w-3.5 h-3.5" strokeWidth={2} />
-                  {folder.image_count.toLocaleString()} images
-                </span>
-                <span>{formatSize(folder.total_size)}</span>
-                {folder.last_scanned && (
-                  <span>Scanned {formatRelativeTime(folder.last_scanned)}</span>
-                )}
-              </div>
-
-              {/* Scan progress */}
-              {scanningFolder === folder.path && scanProgress && scanProgress.total > 0 && (
-                <div className="mt-3">
-                  <div className="w-full bg-lavender/40 rounded-full h-1.5">
-                    <div
-                      className="bg-ink h-1.5 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${(scanProgress.current / scanProgress.total) * 100}%`,
-                      }}
-                    />
-                  </div>
-                  <p
-                    className="text-xs text-gray-400 mt-1 truncate"
-                    title={scanProgress.currentFile}
-                  >
-                    {scanProgress.currentFile.split('/').pop()}
-                  </p>
-                </div>
-              )}
-
-              {/* Bottom row: watch toggle + scan */}
-              <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-                <button
-                  onClick={() => void handleWatchToggle(folder.path, folder.watched)}
-                  disabled={!folder.available}
-                  className="flex items-center gap-2 text-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <div
-                    className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
-                      folder.watched ? 'bg-mint' : 'bg-gray-300'
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform duration-200 ${
-                        folder.watched ? 'translate-x-[19px]' : 'translate-x-[3px]'
-                      }`}
-                    />
-                  </div>
-                  <span className={folder.watched ? 'text-ink' : 'text-gray-500'}>
-                    {folder.watched ? 'Watching' : 'Paused'}
-                  </span>
-                </button>
-
-                {scanningFolder === folder.path ? (
-                  <button
-                    onClick={() => void handleCancelScan()}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
-                  >
-                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-red-300 border-t-red-600" />
-                    Cancel
-                    {scanProgress ? ` (${scanProgress.current}/${scanProgress.total})` : ''}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => void handleScanFolder(folder.path)}
-                    disabled={scanningFolder !== null || !folder.available}
-                    title={!folder.available ? 'Drive offline' : undefined}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-ink hover:bg-lavender/30 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <RefreshIcon className="w-3.5 h-3.5" />
-                    Scan Now
-                  </button>
-                )}
-              </div>
-
-              {/* Face scan exclusion */}
-              <div className="flex items-center mt-3 pt-3 border-t border-gray-100">
-                <button
-                  onClick={() =>
-                    void handleFaceScanExclusionToggle(folder.path, folder.exclude_from_face_scan)
-                  }
-                  disabled={!folder.available}
-                  title={
-                    folder.exclude_from_face_scan
-                      ? 'Re-enable face scanning for this folder'
-                      : 'Exclude this folder from face scanning (deletes existing detections)'
-                  }
-                  className="flex items-center gap-2 text-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <div
-                    className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
-                      folder.exclude_from_face_scan ? 'bg-gray-300' : 'bg-mint'
-                    }`}
-                  >
-                    <div
-                      className={`absolute top-[3px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform duration-200 ${
-                        folder.exclude_from_face_scan ? 'translate-x-[3px]' : 'translate-x-[19px]'
-                      }`}
-                    />
-                  </div>
-                  <span className={folder.exclude_from_face_scan ? 'text-gray-500' : 'text-ink'}>
-                    {folder.exclude_from_face_scan ? 'Face scan off' : 'Face scan on'}
-                  </span>
-                </button>
-              </div>
-            </div>
+              folder={folder}
+              removingFolder={removingFolder}
+              scanningFolder={scanningFolder}
+              scanProgress={scanProgress}
+              onRemoveFolder={(folderPath) => void handleRemoveFolder(folderPath)}
+              onCancelRemove={() => setRemovingFolder(null)}
+              onWatchToggle={(folderPath, watched) => void handleWatchToggle(folderPath, watched)}
+              onScanFolder={(folderPath) => void handleScanFolder(folderPath)}
+              onCancelScan={() => void handleCancelScan()}
+              onFaceScanToggle={(folderPath, excluded) =>
+                void handleFaceScanExclusionToggle(folderPath, excluded)
+              }
+            />
           ))}
         </div>
       )}

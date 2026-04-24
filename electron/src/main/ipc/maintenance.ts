@@ -25,14 +25,14 @@ export function registerMaintenanceHandlers({
   const userDataPaths = getSortieUserDataPaths(app.getPath('userData'));
 
   handleInvoke('resetFaceData', async () => {
-    await dbService.resetFaceData();
+    await dbService.maintenance.resetFaceData();
     await wipeCacheDir(userDataPaths.faceThumbs);
     return { success: true };
   });
 
   handleInvoke('resetDatabase', async () => {
     watcherService.stopAll();
-    await dbService.resetDatabase();
+    await dbService.maintenance.resetDatabase();
     await Promise.all([
       wipeCacheDir(userDataPaths.thumbs),
       wipeCacheDir(userDataPaths.faceThumbs),
@@ -44,16 +44,19 @@ export function registerMaintenanceHandlers({
 
   handleInvoke('computeMissingHashes', async (event, { opId }) => {
     return await withOperation(opId, (signal) =>
-      dbService.computeMissingHashes(sendToRenderer(event.sender, IPC_EVENTS.hashProgress), signal),
+      dbService.maintenance.computeMissingHashes(
+        sendToRenderer(event.sender, IPC_EVENTS.hashProgress),
+        signal,
+      ),
     );
   });
 
   handleInvoke('findDuplicateGroups', async () => {
-    return await dbService.findDuplicateGroups();
+    return await dbService.maintenance.findDuplicateGroups();
   });
 
   handleInvoke('dismissDuplicatePair', async (_event, { imageId1, imageId2 }) => {
-    await dbService.dismissDuplicatePair(imageId1, imageId2);
+    await dbService.maintenance.dismissDuplicatePair(imageId1, imageId2);
     return { success: true };
   });
 

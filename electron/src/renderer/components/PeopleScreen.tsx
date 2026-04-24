@@ -1,8 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { usePeopleStore } from '../stores/peopleStore';
-import { Person, Face, Image } from 'shared';
-import { buildFaceThumbUrl } from './faceThumb';
-import { MetadataModal } from './MetadataModal';
+import type { Person } from 'shared';
 import {
   ScreenShell,
   StatHeader,
@@ -11,264 +9,11 @@ import {
   PrimaryButton,
   CancelButton,
 } from './screen';
-import { toast } from '../stores/toastStore';
 import { SearchIcon, PeopleIcon as PeopleIconSvg, PersonIcon, ChevronLeftIcon, XIcon } from './icons';
+import { PeoplePersonCard } from './PeoplePersonCard';
+import { PeoplePersonDetail } from './PeoplePersonDetail';
 
 const peopleIconNode = <PeopleIconSvg className="w-8 h-8" strokeWidth={1.5} />;
-
-function PersonCard({
-  person,
-  isSelected,
-  onClick,
-  onMergeTarget,
-  merging,
-}: {
-  person: Person;
-  isSelected: boolean;
-  onClick: () => void;
-  onMergeTarget?: () => void;
-  merging: boolean;
-}) {
-  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!person.thumbnail_face_id) return;
-    let cancelled = false;
-    window.sortieAPI
-      .getPersonImages(person.id, 1)
-      .then(async (images) => {
-        if (cancelled || images.length === 0) return;
-        const faces = await window.sortieAPI.getImageFaces(images[0].id);
-        const personFace = faces.find((f) => f.person_id === person.id);
-        if (!cancelled && personFace) setThumbUrl(buildFaceThumbUrl(personFace));
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        const message = error instanceof Error ? error.message : String(error);
-        toast.error(`Failed to load face thumbnail: ${message}`);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [person.id, person.thumbnail_face_id]);
-
-  return (
-    <button
-      onClick={merging ? onMergeTarget : onClick}
-      className={`flex flex-col items-center p-4 rounded-xl transition-all ${
-        isSelected
-          ? 'bg-lavender/30 ring-2 ring-ink/40'
-          : merging
-            ? 'bg-lavender/30 ring-2 ring-ink/20 hover:bg-lavender/50 cursor-crosshair'
-            : 'bg-white hover:bg-gray-50 hover:shadow-md'
-      } border border-gray-200`}
-    >
-      <div className="w-20 h-20 rounded-full bg-gray-200 overflow-hidden mb-3 flex-shrink-0">
-        {thumbUrl ? (
-          <img
-            src={thumbUrl}
-            alt={person.name || 'Unknown'}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400">
-            <PersonIcon className="w-10 h-10" />
-          </div>
-        )}
-      </div>
-      <span className="text-sm font-medium text-gray-800 truncate max-w-full">
-        {person.name || `Person ${person.id}`}
-      </span>
-      <span className="text-xs text-gray-400 mt-0.5">
-        {person.face_count} {person.face_count === 1 ? 'photo' : 'photos'}
-      </span>
-    </button>
-  );
-}
-
-function PersonDetail({
-  person,
-  onClose,
-  onStartMerge,
-}: {
-  person: Person;
-  onClose: () => void;
-  onStartMerge: () => void;
-}) {
-  const { personImages, renamePerson, deletePerson, fetchPersonImages } = usePeopleStore();
-  const [editing, setEditing] = useState(false);
-  const [nameInput, setNameInput] = useState(person.name || '');
-  const [faces, setFaces] = useState<Face[]>([]);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<Image | null>(null);
-  const nameRef = useRef<HTMLInputElement>(null);
-
-  if (selectedImage && !personImages.some((i) => i.id === selectedImage.id)) {
-    setSelectedImage(null);
-  }
-
-  /* eslint-disable react-hooks/set-state-in-effect -- intentional reset on prop change */
-  useEffect(() => {
-    setNameInput(person.name || '');
-    setConfirmDelete(false);
-    void fetchPersonImages(person.id);
-  }, [person.id, person.name, fetchPersonImages]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  // Load faces for all person images
-  useEffect(() => {
-    const loadFaces = async () => {
-      const allFaces: Face[] = [];
-      for (const img of personImages) {
-        const imgFaces = await window.sortieAPI.getImageFaces(img.id);
-        allFaces.push(...imgFaces.filter((f) => f.person_id === person.id));
-      }
-      setFaces(allFaces);
-    };
-    if (personImages.length > 0) void loadFaces();
-  }, [personImages, person.id]);
-
-  const handleSaveName = async () => {
-    if (nameInput.trim()) {
-      await renamePerson(person.id, nameInput.trim());
-    }
-    setEditing(false);
-  };
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <ChevronLeftIcon className="w-5 h-5" />
-          </button>
-          {editing ? (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void handleSaveName();
-              }}
-              className="flex items-center gap-2"
-            >
-              <input
-                ref={nameRef}
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                onBlur={() => void handleSaveName()}
-                autoFocus
-                className="text-xl font-semibold border-b-2 border-ink outline-none bg-transparent px-1"
-              />
-            </form>
-          ) : (
-            <h2
-              className="text-xl font-semibold cursor-pointer hover:text-ink"
-              onClick={() => setEditing(true)}
-            >
-              {person.name || `Person ${person.id}`}
-            </h2>
-          )}
-          <span className="text-sm text-gray-400">
-            {person.face_count} {person.face_count === 1 ? 'photo' : 'photos'}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onStartMerge}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-          >
-            Merge into
-          </button>
-          {confirmDelete ? (
-            <button
-              onClick={() => {
-                void deletePerson(person.id).then(onClose);
-              }}
-              className="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors"
-            >
-              Confirm Delete
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                setConfirmDelete(true);
-              }}
-              className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              Delete
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Face thumbnails */}
-      {faces.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Detected Faces</h3>
-          <div className="flex flex-wrap gap-3">
-            {faces.map((face) => (
-              <FaceThumbnail key={face.id} face={face} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Image grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {personImages.map((img) => (
-          <button
-            key={img.id}
-            type="button"
-            onClick={() => setSelectedImage(img)}
-            className="aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
-          >
-            <img
-              src={`sortie-thumb://${img.file_path}?w=300`}
-              alt={img.file_name}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          </button>
-        ))}
-      </div>
-
-      {selectedImage && (
-        <MetadataModal
-          image={selectedImage}
-          images={personImages}
-          onClose={() => setSelectedImage(null)}
-          onNavigate={(img) => setSelectedImage(img)}
-        />
-      )}
-    </div>
-  );
-}
-
-function FaceThumbnail({ face }: { face: Face }) {
-  const { splitFace } = usePeopleStore();
-  const [hover, setHover] = useState(false);
-
-  return (
-    <div
-      className="relative"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200">
-        <img src={buildFaceThumbUrl(face, 100)} alt="face" className="w-full h-full object-cover" />
-      </div>
-      {hover && (
-        <button
-          onClick={() => void splitFace(face.id)}
-          className="absolute -top-1.5 -right-1.5 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
-          title="Split from this person"
-        >
-          <XIcon className="w-3.5 h-3.5" strokeWidth={2.5} />
-        </button>
-      )}
-    </div>
-  );
-}
 
 export function PeopleScreen() {
   const {
@@ -369,7 +114,7 @@ export function PeopleScreen() {
 
       {/* Content */}
       {selectedPerson && !merging ? (
-        <PersonDetail
+        <PeoplePersonDetail
           person={selectedPerson}
           onClose={() => selectPerson(null)}
           onStartMerge={() => setMerging(selectedPerson.id)}
@@ -408,7 +153,7 @@ export function PeopleScreen() {
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
               {persons.map((person) => (
-                <PersonCard
+                <PeoplePersonCard
                   key={person.id}
                   person={person}
                   isSelected={selectedPerson?.id === person.id}

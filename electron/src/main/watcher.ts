@@ -75,13 +75,13 @@ export class WatcherService {
     // Drive disconnects fire `unlink` for every file in the tree. The
     // availability monitor handles bulk mark-as-missing; ignore unlinks
     // when the parent folder is currently offline.
-    const folder = this.dbService.getFolderForPath(filePath);
+    const folder = this.dbService.folders.getFolderForPath(filePath);
     if (folder && !folder.available) return;
     const abs = path.resolve(filePath);
     const dbService = this.dbService;
     await coalesceByPath(this.inflightRemoves, abs, async (p) => {
       try {
-        await dbService.markImageMissing(p);
+        await dbService.folders.markImageMissing(p);
       } catch (error) {
         console.error('Failed to mark image as missing:', p, error);
       }

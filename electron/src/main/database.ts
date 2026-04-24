@@ -2,7 +2,6 @@ import {
   DatabaseManager,
   ClipEmbedder,
   SuggestionEngine,
-  Organizer,
   extractExif,
   computeFileHash,
   extractPalette,
@@ -34,9 +33,7 @@ import {
   OcrResult,
   OcrUpdatePayload,
   TagSuggestion,
-  Collection,
   OcrBlock,
-  DEFAULT_TAG_COLOR,
 } from 'shared';
 import { fetchLinkPreview, hashUrl } from './linkPreview';
 import {
@@ -50,6 +47,10 @@ import {
   type ImageDbRow,
 } from './database-helpers';
 import { DatabaseOcrService } from './database-ocr';
+import { DatabaseBoardsService } from './database/boards';
+import { DatabaseFoldersService } from './database/folders';
+import { DatabaseMaintenanceService } from './database/maintenance';
+import { DatabasePeopleService } from './database/people';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -59,7 +60,6 @@ export class DatabaseService {
   private db: DatabaseManager | null = null;
   private embedder: ClipEmbedder | null = null;
   private suggestionEngine: SuggestionEngine | null = null;
-  private organizer: Organizer | null = null;
   private faceDetector: FaceDetector | null = null;
   private faceMatcher: FaceMatcher | null = null;
   private faceScan: FaceScanService | null = null;
@@ -73,6 +73,57 @@ export class DatabaseService {
   private embedderStatus: EmbedderStatus = { state: 'idle' };
   private embedderStatusListeners = new Set<(status: EmbedderStatus) => void>();
   private ocr: DatabaseOcrService | null = null;
+  readonly boards = new DatabaseBoardsService({
+    requireDb: () => this.requireDb(),
+    fetchImagesByIdsInOrder: (ids) => this.fetchImagesByIdsInOrder(ids),
+    invalidateMetadataCaches: () => this.invalidateMetadataCaches(),
+    getSuggestionEngine: () => {
+      if (!this.suggestionEngine) throw new Error('SuggestionEngine not initialized');
+      return this.suggestionEngine;
+    },
+  });
+  readonly folders = new DatabaseFoldersService({
+    requireDb: () => this.requireDb(),
+    addImage: (filePath) => this.addImage(filePath),
+    invalidateImageCache: () => this.invalidateImageCache(),
+  });
+  readonly people = new DatabasePeopleService({
+    requireDb: () => this.requireDb(),
+    getOrBuildShuffledIds: (cacheKey, loadIds) => this.getOrBuildShuffledIds(cacheKey, loadIds),
+    fetchImagesByIdsInOrder: (ids) => this.fetchImagesByIdsInOrder(ids),
+    deleteShuffledIds: (prefixOrKey, exact = false) => {
+      if (exact) {
+        this.shuffledIdCache.delete(prefixOrKey);
+        return;
+      }
+      for (const key of Array.from(this.shuffledIdCache.keys())) {
+        if (key.startsWith(prefixOrKey)) {
+          this.shuffledIdCache.delete(key);
+        }
+      }
+    },
+    getFaceMatcher: () => {
+      if (!this.faceMatcher) throw new Error('FaceMatcher not initialized');
+      return this.faceMatcher;
+    },
+    getFaceScan: () => {
+      if (!this.faceScan) {
+        throw new Error(
+          'Face detection is not available. The face-api models may have failed to load.',
+        );
+      }
+      return this.faceScan;
+    },
+  });
+  readonly maintenance = new DatabaseMaintenanceService({
+    requireDb: () => this.requireDb(),
+    invalidateImageCache: () => this.invalidateImageCache(),
+    getEmbedder: () => {
+      if (!this.embedder) throw new Error('Embedder not initialized');
+      return this.embedder;
+    },
+    createFileDeletionError: (filePath, code, cause) => new FileDeletionError(filePath, code, cause),
+  });
 
   initialize(
     dbPath: string,
@@ -84,7 +135,6 @@ export class DatabaseService {
     this.db = new DatabaseManager(dbPath);
     this.embedder = new ClipEmbedder(clipCacheDir);
     this.suggestionEngine = new SuggestionEngine(this.db);
-    this.organizer = new Organizer(this.db, this.suggestionEngine);
     this.faceDetector = new FaceDetector(faceModelsPath, faceCacheDir);
     this.faceMatcher = new FaceMatcher(this.db);
     this.faceScan = new FaceScanService(this.db, this.faceDetector, this.faceMatcher);
@@ -162,6 +212,11 @@ export class DatabaseService {
     this.suggestionEngine?.close();
   }
 
+  private requireDb(): DatabaseManager {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.db;
+  }
+
   // Fisher-Yates shuffle in place.
   private shuffleInPlace<T>(arr: T[]): void {
     for (let i = arr.length - 1; i > 0; i--) {
@@ -180,19 +235,17 @@ export class DatabaseService {
   }
 
   private queryIds(idQuery: string, params: SqlBinding[] = []): number[] {
-    if (!this.db) throw new Error('Database not initialized');
-    const stmt = this.db.getDatabase().prepare(idQuery);
+    const stmt = this.requireDb().getDatabase().prepare(idQuery);
     const rows = stmt.all(...params) as Array<{ id: number }>;
     return rows.map((row) => row.id);
   }
 
   private fetchImagesByIdsInOrder(ids: number[]): Image[] {
-    if (!this.db) throw new Error('Database not initialized');
-    return this.db.getImagesByIds(ids);
+    return this.requireDb().getImagesByIds(ids);
   }
 
   async getImages(limit: number = 100, offset: number = 0): Promise<Image[]> {
-    if (!this.db) throw new Error('Database not initialized');
+    const db = this.requireDb();
     const cacheKey = `images:${limit}:${offset}`;
     const cached = this.imageCache.get(cacheKey);
     if (cached) {
@@ -200,7 +253,7 @@ export class DatabaseService {
     }
     const allIds = this.getOrBuildShuffledIds(
       'default',
-      () => this.db!.getVisibleImageIds(),
+      () => db.getVisibleImageIds(),
     );
     const pageIds = allIds.slice(offset, offset + limit);
     const images = this.fetchImagesByIdsInOrder(pageIds);
@@ -209,8 +262,7 @@ export class DatabaseService {
   }
 
   async getImage(id: number): Promise<Image | null> {
-    if (!this.db) throw new Error('Database not initialized');
-    return this.db.getImageById(id);
+    return this.requireDb().getImageById(id);
   }
 
   // Structural invalidation — image set changed (add/hide/delete/scan/missing).
@@ -237,7 +289,7 @@ export class DatabaseService {
   }
 
   async queryImages(q: Query): Promise<SearchResult[]> {
-    if (!this.db) throw new Error('Database not initialized');
+    const db = this.requireDb();
     const limit = q.limit ?? 100;
     const offset = q.offset ?? 0;
 
@@ -262,7 +314,7 @@ export class DatabaseService {
       setIds ??
       this.getOrBuildShuffledIds(
         'default',
-        () => this.db!.getVisibleImageIds(),
+        () => db.getVisibleImageIds(),
       );
     const pageIds = ids.slice(offset, offset + limit);
     return this.fetchImagesByIdsInOrder(pageIds) as SearchResult[];
@@ -349,8 +401,7 @@ export class DatabaseService {
     limit: number,
     offset: number,
   ): SearchResult[] {
-    if (!this.db) throw new Error('Database not initialized');
-    const db = this.db;
+    const db = this.requireDb();
 
     const SIMILARITY_DISTANCE_THRESHOLD = 1.3;
     // sqlite-vec knn queries cap `k` at 4096.
@@ -413,7 +464,7 @@ export class DatabaseService {
     limit: number,
     offset: number,
   ): SearchResult[] {
-    if (!this.db) throw new Error('Database not initialized');
+    const db = this.requireDb();
     const labs: Array<[number, number, number]> = [];
     for (const hex of hexColors) {
       const lab = hexToOklab(hex);
@@ -424,7 +475,7 @@ export class DatabaseService {
     // findImagesByColors multiplies by 10 internally; sqlite-vec's k caps at 4096.
     const PALETTE_LIMIT_CAP = 409;
     const overfetch = this.scoredOverfetch(offset + limit, setIds, PALETTE_LIMIT_CAP);
-    const ranked = this.db.findImagesByColors(labs, overfetch);
+    const ranked = db.findImagesByColors(labs, overfetch);
     const setIdSet = setIds ? new Set(setIds) : null;
 
     const kept: Array<{ imageId: number; score: number }> = [];
@@ -436,7 +487,6 @@ export class DatabaseService {
     const page = kept.slice(offset, offset + limit);
     if (page.length === 0) return [];
 
-    const db = this.db;
     const placeholders = page.map(() => '?').join(',');
     const imageStmt = db.getDatabase().prepare(
       `SELECT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
@@ -461,18 +511,18 @@ export class DatabaseService {
   }
 
   async findSimilarImages(imageId: number, limit: number = 20): Promise<SearchResult[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    const embedding = this.db.getEmbedding(imageId);
+    const db = this.requireDb();
+    const embedding = db.getEmbedding(imageId);
     if (!embedding) return [];
 
-    const results = this.db
+    const results = db
       .findNearestImageMatches(embedding, limit + 1)
       .filter((match) => match.rowid !== imageId);
     const imageIds = results.map((result) => result.rowid);
     if (imageIds.length === 0) return [];
 
     const distanceMap = new Map(results.map((r) => [r.rowid, r.distance]));
-    const resultImages: SearchResult[] = this.db.getImagesByIds(imageIds).map((image) => ({
+    const resultImages: SearchResult[] = db.getImagesByIds(imageIds).map((image) => ({
       ...image,
       distance: distanceMap.get(image.id),
     }));
@@ -483,62 +533,13 @@ export class DatabaseService {
   }
 
   async addFolder(folderPath: string): Promise<number> {
-    if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-    const normalized = path.resolve(folderPath);
-    let available = true;
-    try {
-      await fs.access(normalized);
-    } catch {
-      available = false;
-    }
-    db.prepare('INSERT OR IGNORE INTO folders (path, available) VALUES (?, ?)').run(
-      normalized,
-      available ? 1 : 0,
-    );
-    db.prepare('UPDATE folders SET available = ? WHERE path = ?').run(
-      available ? 1 : 0,
-      normalized,
-    );
-    const row = db.prepare('SELECT id FROM folders WHERE path = ?').get(normalized) as
-      | { id: number }
-      | undefined;
-    if (!row) throw new Error('Folder insert failed');
-    if (!available) {
-      db.prepare(
-        `UPDATE images SET missing = 1
-         WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_AVAILABLE_CLAUSE}`,
-      ).run(normalized + '/%', normalized);
-    }
-    this.invalidateImageCache();
-    return row.id;
+    return this.folders.addFolder(folderPath);
   }
 
   async findOverlappingFolders(
     folderPath: string,
   ): Promise<{ parents: string[]; children: string[] }> {
-    if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-    const normalized = path.resolve(folderPath);
-    const rows = db
-      .prepare(
-        `SELECT path FROM folders
-         WHERE path <> ?
-           AND (? LIKE path || '/%' OR path LIKE ? || '/%')`,
-      )
-      .all(normalized, normalized, normalized) as { path: string }[];
-
-    const parents: string[] = [];
-    const children: string[] = [];
-    const childPrefix = normalized + '/';
-    for (const { path: p } of rows) {
-      if (p.startsWith(childPrefix)) {
-        children.push(p);
-      } else {
-        parents.push(p);
-      }
-    }
-    return { parents, children };
+    return this.folders.findOverlappingFolders(folderPath);
   }
 
   async scanFolder(
@@ -546,157 +547,27 @@ export class DatabaseService {
     onProgress?: (progress: { current: number; total: number; currentFile: string }) => void,
     signal?: AbortSignal,
   ): Promise<ScanFolderResult> {
-    if (!this.db) throw new Error('Database not initialized');
-    const normalized = path.resolve(folderPath);
-    let reachable = true;
-    try {
-      await fs.access(normalized);
-    } catch {
-      reachable = false;
-    }
-    const folderId = await this.addFolder(normalized);
-    if (!reachable) {
-      console.log(`[scan] folder ${normalized} is offline; skipping scan`);
-      return { folderId, processed: 0, cancelled: false };
-    }
-
-    const imageFiles: string[] = [];
-
-    async function walk(dir: string): Promise<void> {
-      if (signal?.aborted) return;
-      const entries = await fs.readdir(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (signal?.aborted) return;
-        const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          await walk(fullPath);
-        } else if (entry.isFile()) {
-          const ext = path.extname(entry.name).toLowerCase();
-          if (IMAGE_EXTENSIONS.has(ext)) {
-            imageFiles.push(fullPath);
-          }
-        }
-      }
-    }
-
-    console.log(`Scanning folder ${normalized} for images...`);
-    await walk(normalized);
-    console.log(`Found ${imageFiles.length} image files`);
-
-    let processed = 0;
-    let cancelled = false;
-    for (let i = 0; i < imageFiles.length; i++) {
-      if (signal?.aborted) {
-        cancelled = true;
-        break;
-      }
-      const file = imageFiles[i];
-      try {
-        await this.addImage(file);
-        processed++;
-      } catch (error) {
-        console.error(`Failed to process ${file}:`, error);
-      }
-      onProgress?.({ current: i + 1, total: imageFiles.length, currentFile: file });
-    }
-
-    const stmt = this.db.getDatabase().prepare(`
-      UPDATE folders SET last_scanned = datetime('now') WHERE path = ?
-    `);
-    stmt.run(normalized);
-
-    console.log(`Scan completed: ${processed} images processed${cancelled ? ' (cancelled)' : ''}`);
-    return { folderId, processed, cancelled };
+    return this.folders.scanFolder(folderPath, onProgress, signal);
   }
 
   async getFolders(): Promise<Folder[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    return this.db.listFolders();
+    return this.folders.getFolders();
   }
 
   async getFoldersWithStats(): Promise<FolderWithStats[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    return this.db.listFoldersWithStats();
+    return this.folders.getFoldersWithStats();
   }
 
   async removeFolder(folderPath: string): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-    const normalized = path.resolve(folderPath);
-    const pattern = normalized + '/%';
-
-    const txn = db.transaction(() => {
-      // Only delete images that are NOT still covered by another registered
-      // folder — if /foo and /foo/bar both exist, removing /foo keeps the
-      // files under /foo/bar intact.
-      const imageIds = db
-        .prepare(
-          `SELECT id FROM images
-           WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`,
-        )
-        .all(pattern, normalized) as { id: number }[];
-
-      if (imageIds.length > 0) {
-        const deleteVec = db.prepare('DELETE FROM vec_images WHERE rowid = ?');
-        const deletePaletteVec = db.prepare('DELETE FROM vec_palette WHERE rowid = ?');
-        const selectPaletteIds = db.prepare('SELECT id FROM palette_colors WHERE image_id = ?');
-        const deleteImage = db.prepare('DELETE FROM images WHERE id = ?');
-        for (const { id } of imageIds) {
-          deleteVec.run(id);
-          const colorIds = selectPaletteIds.all(id) as Array<{ id: number }>;
-          for (const { id: colorId } of colorIds) {
-            deletePaletteVec.run(BigInt(colorId));
-          }
-          deleteImage.run(id);
-        }
-      }
-
-      db.prepare('DELETE FROM folders WHERE path = ?').run(normalized);
-    });
-    txn();
-
-    this.invalidateImageCache();
+    return this.folders.removeFolder(folderPath);
   }
 
   async resetFaceData(): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-
-    const txn = db.transaction(() => {
-      db.prepare('DELETE FROM vec_faces').run();
-      db.prepare('DELETE FROM vec_persons').run();
-      db.prepare('DELETE FROM faces').run();
-      db.prepare('DELETE FROM persons').run();
-      db.prepare('UPDATE images SET faces_scanned = 0').run();
-    });
-    txn();
+    return this.maintenance.resetFaceData();
   }
 
   async resetDatabase(): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-
-    const rows = db
-      .prepare(
-        `SELECT name FROM sqlite_master
-         WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`,
-      )
-      .all() as Array<{ name: string }>;
-
-    // FKs off so we don't depend on delete order.
-    db.pragma('foreign_keys = OFF');
-    try {
-      const txn = db.transaction(() => {
-        for (const { name } of rows) {
-          db.prepare(`DELETE FROM "${name}"`).run();
-        }
-      });
-      txn();
-    } finally {
-      db.pragma('foreign_keys = ON');
-    }
-
-    this.invalidateImageCache();
+    return this.maintenance.resetDatabase();
   }
 
   async updateImageTags(imageId: number, tagNames: string[]): Promise<void> {
@@ -731,172 +602,44 @@ export class DatabaseService {
     this.invalidateMetadataCaches();
   }
 
-  private queryBoards(extraWhere: string = '', params: unknown[] = []): Board[] {
-    if (!this.db) throw new Error('Database not initialized');
-    const rows = this.db
-      .getDatabase()
-      .prepare(
-        `WITH cover AS (
-           SELECT it.tag_id, it.image_id, img.file_path,
-                  ROW_NUMBER() OVER (
-                    PARTITION BY it.tag_id
-                    ORDER BY COALESCE(it.position, 1000000000), it.created_at DESC
-                  ) AS rn
-           FROM image_tags it
-           INNER JOIN images img ON img.id = it.image_id
-           WHERE img.hidden = 0 AND img.missing = 0
-         ),
-         previews AS (
-           SELECT tag_id, json_group_array(file_path) AS paths
-           FROM (
-             SELECT tag_id, file_path, rn FROM cover WHERE rn <= 4 ORDER BY tag_id, rn
-           )
-           GROUP BY tag_id
-         )
-         SELECT
-           t.id,
-           t.name,
-           t.color,
-           COALESCE(SUM(CASE WHEN i.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS image_count,
-           (SELECT c.image_id FROM cover c WHERE c.tag_id = t.id AND c.rn = 1) AS cover_image_id,
-           (SELECT c.file_path FROM cover c WHERE c.tag_id = t.id AND c.rn = 1) AS cover_image_path,
-           (SELECT p.paths FROM previews p WHERE p.tag_id = t.id) AS preview_paths_json
-         FROM tags t
-         LEFT JOIN image_tags it ON t.id = it.tag_id
-         LEFT JOIN images i ON i.id = it.image_id AND i.hidden = 0 AND i.missing = 0
-         WHERE t.category IN ('user', 'ai')${extraWhere ? ` AND ${extraWhere}` : ''}
-         GROUP BY t.id
-         ORDER BY image_count DESC, t.name ASC`,
-      )
-      .all(...(params as never[])) as Array<{
-      id: number;
-      name: string;
-      color: string;
-      image_count: number;
-      cover_image_id: number | null;
-      cover_image_path: string | null;
-      preview_paths_json: string | null;
-    }>;
-    return rows.map((row) => {
-      const { preview_paths_json, ...rest } = row;
-      let preview_image_paths: string[] = [];
-      if (preview_paths_json) {
-        try {
-          const parsed: unknown = JSON.parse(preview_paths_json);
-          if (Array.isArray(parsed)) {
-            preview_image_paths = parsed.filter((p): p is string => typeof p === 'string');
-          }
-        } catch {
-          preview_image_paths = [];
-        }
-      }
-      return { ...rest, preview_image_paths };
-    });
-  }
-
   async getBoards(): Promise<Board[]> {
-    return this.queryBoards();
+    return this.boards.getBoards();
   }
 
   async getBoard(tagId: number): Promise<Board | null> {
-    return this.queryBoards('t.id = ?', [tagId])[0] ?? null;
+    return this.boards.getBoard(tagId);
   }
 
   async getBoardImages(tagId: number, limit: number = 100, offset: number = 0): Promise<Image[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    const rows = this.db
-      .getDatabase()
-      .prepare(
-        `SELECT i.id AS id
-         FROM images i
-         INNER JOIN image_tags it ON i.id = it.image_id
-         WHERE it.tag_id = ? AND i.hidden = 0 AND i.missing = 0
-         ORDER BY COALESCE(it.position, 1000000000), it.created_at DESC
-         LIMIT ? OFFSET ?`,
-      )
-      .all(tagId, limit, offset) as Array<{ id: number }>;
-    return this.fetchImagesByIdsInOrder(rows.map((r) => r.id));
+    return this.boards.getBoardImages(tagId, limit, offset);
   }
 
   async reorderBoardImages(tagId: number, orderedImageIds: number[]): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-    const stmt = db.prepare(`UPDATE image_tags SET position = ? WHERE tag_id = ? AND image_id = ?`);
-    const txn = db.transaction(() => {
-      orderedImageIds.forEach((imageId, index) => {
-        stmt.run(index, tagId, imageId);
-      });
-    });
-    txn();
-    this.invalidateMetadataCaches();
+    return this.boards.reorderBoardImages(tagId, orderedImageIds);
   }
 
   async addImageToBoard(imageId: number, tagId: number): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-    const txn = db.transaction(() => {
-      const { next } = db
-        .prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS next FROM image_tags WHERE tag_id = ?`)
-        .get(tagId) as { next: number };
-      db.prepare(
-        `INSERT OR IGNORE INTO image_tags (image_id, tag_id, source, position)
-         VALUES (?, ?, 'user', ?)`,
-      ).run(imageId, tagId, next);
-    });
-    txn();
-    this.invalidateMetadataCaches();
+    return this.boards.addImageToBoard(imageId, tagId);
   }
 
   async removeImageFromBoard(imageId: number, tagId: number): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    this.db
-      .getDatabase()
-      .prepare(`DELETE FROM image_tags WHERE image_id = ? AND tag_id = ?`)
-      .run(imageId, tagId);
-    this.invalidateMetadataCaches();
+    return this.boards.removeImageFromBoard(imageId, tagId);
   }
 
   async createBoard(name: string, color?: string): Promise<Board> {
-    if (!this.db) throw new Error('Database not initialized');
-    const db = this.db.getDatabase();
-    const trimmed = name.trim();
-    if (!trimmed) throw new Error('Board name cannot be empty');
-    const insert = db.prepare(
-      `INSERT INTO tags (name, category, color) VALUES (?, 'user', COALESCE(?, '${DEFAULT_TAG_COLOR}'))
-       ON CONFLICT(name) DO UPDATE SET category = COALESCE(tags.category, 'user')`,
-    );
-    insert.run(trimmed, color ?? null);
-    const row = db.prepare(`SELECT id, name, color FROM tags WHERE name = ?`).get(trimmed) as {
-      id: number;
-      name: string;
-      color: string;
-    };
-    return {
-      ...row,
-      image_count: 0,
-      cover_image_id: null,
-      cover_image_path: null,
-      preview_image_paths: [],
-    };
+    return this.boards.createBoard(name, color);
   }
 
   async renameBoard(tagId: number, name: string): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    const trimmed = name.trim();
-    if (!trimmed) throw new Error('Board name cannot be empty');
-    this.db.renameTag(tagId, trimmed);
-    this.invalidateMetadataCaches();
+    return this.boards.renameBoard(tagId, name);
   }
 
   async setBoardColor(tagId: number, color: string): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    this.db.setTagColor(tagId, color);
+    return this.boards.setBoardColor(tagId, color);
   }
 
   async deleteBoard(tagId: number): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    this.db.deleteTag(tagId);
-    this.invalidateMetadataCaches();
+    return this.boards.deleteBoard(tagId);
   }
 
   async hideImage(imageId: number): Promise<void> {
@@ -906,14 +649,12 @@ export class DatabaseService {
   }
 
   async markImageMissing(filePath: string): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    this.db.setImageMissingByPath(filePath);
-    this.invalidateImageCache();
+    return this.folders.markImageMissing(filePath);
   }
 
   getFolderForPath(filePath: string): Folder | null {
     if (!this.db) return null;
-    return this.db.findFolderForPath(path.resolve(filePath));
+    return this.folders.getFolderForPath(filePath);
   }
 
   async setFolderAvailability(
@@ -921,56 +662,14 @@ export class DatabaseService {
     available: boolean,
     writable: boolean,
   ): Promise<{ changed: boolean }> {
-    if (!this.db) throw new Error('Database not initialized');
-    const normalized = path.resolve(folderPath);
-    const current = this.db.getFolderAvailabilityState(normalized);
-    if (!current) return { changed: false };
-    const availableChanged = current.available !== available;
-    const writableChanged = current.writable !== writable;
-    if (!availableChanged && !writableChanged) return { changed: false };
-
-    const txn = this.db.getDatabase().transaction(() => {
-      this.db!.updateFolderAvailabilityState(normalized, available, writable);
-      if (availableChanged) {
-        const pattern = normalized + '/%';
-        if (available) {
-          this.db!.clearMissingByPathPrefix(pattern);
-        } else {
-          this.db!.markMissingByPathPrefix(pattern, normalized);
-        }
-      }
-    });
-    txn();
-
-    if (availableChanged) {
-      this.invalidateImageCache();
-    }
-    return { changed: true };
+    return this.folders.setFolderAvailability(folderPath, available, writable);
   }
 
   async setFolderFaceScanExclusion(
     folderPath: string,
     excluded: boolean,
   ): Promise<{ changed: boolean }> {
-    if (!this.db) throw new Error('Database not initialized');
-    const normalized = path.resolve(folderPath);
-    const current = this.db.getFolderFaceScanExclusion(normalized);
-    if (current === null) return { changed: false };
-    if (current === excluded) return { changed: false };
-
-    const pattern = normalized + '/%';
-    const txn = this.db.getDatabase().transaction(() => {
-      this.db!.setFolderFaceScanExclusionFlag(normalized, excluded);
-      if (excluded) {
-        this.db!.deleteFacesByImagePathPrefix(pattern);
-        this.db!.markFacesUnscannedByPathPrefix(pattern);
-      }
-    });
-    txn();
-
-    if (excluded) this.db.cleanupOrphanedPersons();
-    this.invalidateImageCache();
-    return { changed: true };
+    return this.folders.setFolderFaceScanExclusion(folderPath, excluded);
   }
 
   async updateImageMetadata(
@@ -1022,77 +721,11 @@ export class DatabaseService {
   }
 
   async getBoardImageSuggestions(tagId: number): Promise<Image[]> {
-    if (!this.suggestionEngine) throw new Error('Suggestion engine not initialized');
-    const suggestions = await this.suggestionEngine.generateImageSuggestionsForBoard(tagId, 20);
-    if (suggestions.length === 0) return [];
-    return this.fetchImagesByIdsInOrder(suggestions.map((s) => s.imageId));
-  }
-
-  async getCollections(): Promise<Collection[]> {
-    if (!this.organizer) throw new Error('Organizer not initialized');
-    return this.organizer.getAllCollections();
-  }
-
-  async createCollection(name: string, description?: string): Promise<number> {
-    if (!this.organizer) throw new Error('Organizer not initialized');
-    return this.organizer.createCollection(name, description);
-  }
-
-  async organizeImages(): Promise<number[]> {
-    if (!this.organizer) throw new Error('Organizer not initialized');
-    return this.organizer.createCollectionsFromClusters();
+    return this.boards.getBoardImageSuggestions(tagId);
   }
 
   async backfillExifData(signal?: AbortSignal): Promise<BackfillExifResult> {
-    if (!this.db) return { filled: 0, cancelled: false };
-    const db = this.db.getDatabase();
-
-    console.log('[migration] backfilling camera EXIF data...');
-    const rows = db
-      .prepare(
-        'SELECT id, file_path FROM images WHERE camera_make IS NULL AND camera_model IS NULL',
-      )
-      .all() as Array<{ id: number; file_path: string }>;
-
-    let filled = 0;
-    let cancelled = false;
-    for (const row of rows) {
-      if (signal?.aborted) {
-        cancelled = true;
-        break;
-      }
-      try {
-        const exif = await extractExif(row.file_path);
-        if (
-          exif.cameraMake ||
-          exif.cameraModel ||
-          exif.aperture ||
-          exif.iso ||
-          exif.exposureTime ||
-          exif.focalLength
-        ) {
-          db.prepare(
-            `UPDATE images SET camera_make = ?, camera_model = ?, aperture = ?, iso = ?, exposure_time = ?, focal_length = ? WHERE id = ?`,
-          ).run(
-            exif.cameraMake,
-            exif.cameraModel,
-            exif.aperture,
-            exif.iso,
-            exif.exposureTime,
-            exif.focalLength,
-            row.id,
-          );
-          filled++;
-        }
-      } catch (err) {
-        console.warn(`Failed to backfill EXIF for ${row.file_path}:`, err);
-      }
-    }
-    this.invalidateImageCache();
-    console.log(
-      `[migration] backfilled EXIF for ${filled}/${rows.length} images${cancelled ? ' (cancelled)' : ''}`,
-    );
-    return { filled, cancelled };
+    return this.maintenance.backfillExifData(signal);
   }
 
   // --- Face Detection / People ---
@@ -1101,32 +734,11 @@ export class DatabaseService {
     onProgress?: (progress: FaceScanProgress) => void,
     signal?: AbortSignal,
   ): Promise<FaceScanResult> {
-    if (!this.faceScan) {
-      throw new Error(
-        'Face detection is not available. The face-api models may have failed to load.',
-      );
-    }
-
-    const result = await this.faceScan.processPendingImages(onProgress, signal);
-    for (const personId of result.personIds) {
-      this.shuffledIdCache.delete(`person:${personId}`);
-    }
-    for (const key of Array.from(this.shuffledIdCache.keys())) {
-      if (key.startsWith('person:')) {
-        this.shuffledIdCache.delete(key);
-      }
-    }
-
-    return {
-      scanned: result.scanned,
-      detected: result.detected,
-      cancelled: result.cancelled,
-    };
+    return this.people.processExistingImagesForFaces(onProgress, signal);
   }
 
   async getPersons(): Promise<Person[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    return this.db.getAllPersons();
+    return this.people.getPersons();
   }
 
   async getPersonImages(
@@ -1134,50 +746,35 @@ export class DatabaseService {
     limit: number = 100,
     offset: number = 0,
   ): Promise<Image[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    const allIds = this.getOrBuildShuffledIds(
-      `person:${personId}`,
-      () => this.db!.getPersonImageIds(personId),
-    );
-    const pageIds = allIds.slice(offset, offset + limit);
-    return this.fetchImagesByIdsInOrder(pageIds);
+    return this.people.getPersonImages(personId, limit, offset);
   }
 
   async getPersonThumbnails(personIds: number[]): Promise<Face[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    return this.db.getThumbnailFacesForPersons(personIds);
+    return this.people.getPersonThumbnails(personIds);
   }
 
   async renamePerson(personId: number, name: string): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    this.db.updatePersonName(personId, name);
+    return this.people.renamePerson(personId, name);
   }
 
   async mergePersons(keepPersonId: number, mergePersonId: number): Promise<void> {
-    if (!this.faceMatcher) throw new Error('FaceMatcher not initialized');
-    this.faceMatcher.mergePersons(keepPersonId, mergePersonId);
-    this.shuffledIdCache.delete(`person:${keepPersonId}`);
-    this.shuffledIdCache.delete(`person:${mergePersonId}`);
+    return this.people.mergePersons(keepPersonId, mergePersonId);
   }
 
   async splitFaceFromPerson(faceId: number): Promise<number> {
-    if (!this.faceMatcher) throw new Error('FaceMatcher not initialized');
-    return this.faceMatcher.splitFaceFromPerson(faceId);
+    return this.people.splitFaceFromPerson(faceId);
   }
 
   async getImageFaces(imageId: number): Promise<Face[]> {
-    if (!this.db) throw new Error('Database not initialized');
-    return this.db.getImageFaces(imageId);
+    return this.people.getImageFaces(imageId);
   }
 
   async setPersonThumbnail(personId: number, faceId: number): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    this.db.updatePersonThumbnail(personId, faceId);
+    return this.people.setPersonThumbnail(personId, faceId);
   }
 
   async deletePerson(personId: number): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    this.db.deletePerson(personId);
+    return this.people.deletePerson(personId);
   }
 
   getDatabase(): DatabaseManager | null {
@@ -1185,13 +782,11 @@ export class DatabaseService {
   }
 
   getSetting(key: AppSettingKey): string | null {
-    if (!this.db) throw new Error('Database not initialized');
-    return this.db.getSetting(key);
+    return this.requireDb().getSetting(key);
   }
 
   setSetting(key: AppSettingKey, value: string): void {
-    if (!this.db) throw new Error('Database not initialized');
-    this.db.setSetting(key, value);
+    this.requireDb().setSetting(key, value);
   }
 
   async addImage(filePath: string): Promise<number> {
@@ -1295,187 +890,37 @@ export class DatabaseService {
   }
 
   async recomputeEmbedding(imageId: number): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    if (!this.embedder) throw new Error('Embedder not initialized');
-    const filePath = this.db.getImagePath(imageId);
-    if (!filePath) throw new Error(`Image ${imageId} not found`);
-
-    const embedding = await this.embedder.embedImage(filePath);
-    this.db.insertEmbedding(imageId, embedding);
-    this.invalidateImageCache();
+    return this.maintenance.recomputeEmbedding(imageId);
   }
 
   async recomputePalette(imageId: number): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    const filePath = this.db.getImagePath(imageId);
-    if (!filePath) throw new Error(`Image ${imageId} not found`);
-    const palette = await extractPalette(filePath);
-    this.db.insertPalette(imageId, palette);
-    this.invalidateImageCache();
+    return this.maintenance.recomputePalette(imageId);
   }
 
   async computeMissingPalettes(
     onProgress?: (progress: { current: number; total: number; currentFile: string }) => void,
     signal?: AbortSignal,
   ): Promise<{ computed: number; cancelled: boolean }> {
-    if (!this.db) throw new Error('Database not initialized');
-    const pending = this.db.getImagesMissingPalette();
-    let computed = 0;
-    let cancelled = false;
-    for (let i = 0; i < pending.length; i++) {
-      if (signal?.aborted) {
-        cancelled = true;
-        break;
-      }
-      const { id, file_path } = pending[i];
-      try {
-        const palette = await extractPalette(file_path);
-        this.db.insertPalette(id, palette);
-        computed++;
-      } catch (error) {
-        console.error(`Failed to extract palette for ${file_path}:`, error);
-      }
-      onProgress?.({ current: i + 1, total: pending.length, currentFile: file_path });
-    }
-    if (computed > 0) this.invalidateImageCache();
-    return { computed, cancelled };
+    return this.maintenance.computeMissingPalettes(onProgress, signal);
   }
 
   async computeMissingHashes(
     onProgress?: (progress: { current: number; total: number; currentFile: string }) => void,
     signal?: AbortSignal,
   ): Promise<HashScanResult> {
-    if (!this.db) throw new Error('Database not initialized');
-    const rows = this.db.getImagesMissingFileHash();
-
-    let computed = 0;
-    let cancelled = false;
-    for (let i = 0; i < rows.length; i++) {
-      if (signal?.aborted) {
-        cancelled = true;
-        break;
-      }
-      const row = rows[i];
-      try {
-        const fileHash = await computeFileHash(row.file_path);
-        this.db.updateImageFileHash(row.id, fileHash);
-        computed++;
-      } catch (err) {
-        console.warn(`Failed to hash ${row.file_path}:`, err);
-      }
-      onProgress?.({ current: i + 1, total: rows.length, currentFile: row.file_path });
-    }
-
-    this.invalidateImageCache();
-    return { computed, cancelled };
+    return this.maintenance.computeMissingHashes(onProgress, signal);
   }
 
   async findDuplicateGroups(): Promise<DuplicateGroup[]> {
-    if (!this.db) throw new Error('Database not initialized');
-
-    // Cosine distance threshold for "near-duplicate" via CLIP embeddings.
-    // Embeddings are L2-normalized so distance ∈ [0, 2]; near-identical photos
-    // (re-encodes, light edits, crops) sit well under 0.10. Stricter than the
-    // search threshold (1.3) by design.
-    const NEAR_DUPLICATE_DISTANCE = 0.1;
-    // Per-image candidate pool when querying sqlite-vec. Small enough to be
-    // fast, large enough to capture all true near-duplicates of a single image.
-    const VEC_K = 12;
-
-    const images = this.db.getVisibleImagesForDuplicates();
-    const imagesById = new Map(images.map((img) => [img.id, img]));
-
-    const dismissed = this.db.getDismissedDuplicatePairs();
-    const pairKey = (a: number, b: number) => `${Math.min(a, b)}_${Math.max(a, b)}`;
-    const dismissedSet = new Set(dismissed.map((d) => pairKey(d.image_id_1, d.image_id_2)));
-
-    const groups: DuplicateGroup[] = [];
-    const seenPairs = new Set<string>();
-
-    // Phase 1: exact matches via file_hash. One group per hash bucket so users
-    // can resolve N-way exact duplicates in one go.
-    const hashBuckets = new Map<string, Image[]>();
-    for (const img of images) {
-      if (!img.file_hash) continue;
-      const bucket = hashBuckets.get(img.file_hash) ?? [];
-      bucket.push(img);
-      hashBuckets.set(img.file_hash, bucket);
-    }
-    for (const bucket of hashBuckets.values()) {
-      if (bucket.length < 2) continue;
-      const filtered = bucket.filter((img, idx) => {
-        if (idx === 0) return true;
-        return !dismissedSet.has(pairKey(bucket[0].id, img.id));
-      });
-      if (filtered.length < 2) continue;
-      for (let i = 0; i < filtered.length; i++) {
-        for (let j = i + 1; j < filtered.length; j++) {
-          seenPairs.add(pairKey(filtered[i].id, filtered[j].id));
-        }
-      }
-      groups.push({
-        groupId: Math.min(...filtered.map((i) => i.id)),
-        images: filtered,
-        matchType: 'exact',
-      });
-    }
-
-    // Phase 2: visual matches via CLIP embeddings, emitted as pairwise groups.
-    // Skipping single-edge unions avoids the transitive false-grouping problem
-    // dHash had ("A≈B and B≈C therefore A,C grouped" even when A and C are
-    // unrelated).
-    for (const img of images) {
-      const embedding = this.db.getEmbedding(img.id);
-      if (!embedding) continue;
-
-      const matches = this.db.findNearestImageMatches(embedding, VEC_K);
-
-      for (const match of matches) {
-        if (match.rowid === img.id) continue;
-        if (match.distance > NEAR_DUPLICATE_DISTANCE) break;
-        // Pair each image with the lower id once to dedupe and skip self.
-        if (img.id >= match.rowid) continue;
-
-        const other = imagesById.get(match.rowid);
-        if (!other) continue;
-        const key = pairKey(img.id, match.rowid);
-        if (dismissedSet.has(key) || seenPairs.has(key)) continue;
-        seenPairs.add(key);
-
-        groups.push({
-          groupId: Math.min(img.id, match.rowid),
-          images: [img, other],
-          matchType: 'visual',
-        });
-      }
-    }
-
-    groups.sort((a, b) => b.images.length - a.images.length || a.groupId - b.groupId);
-    return groups;
+    return this.maintenance.findDuplicateGroups();
   }
 
   async dismissDuplicatePair(imageId1: number, imageId2: number): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    const lo = Math.min(imageId1, imageId2);
-    const hi = Math.max(imageId1, imageId2);
-    this.db.dismissDuplicatePair(lo, hi);
+    return this.maintenance.dismissDuplicatePair(imageId1, imageId2);
   }
 
   async deleteImage(imageId: number): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized');
-    const filePath = this.db.getImagePath(imageId);
-    if (!filePath) return;
-
-    try {
-      await fs.unlink(filePath);
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code;
-      if (code !== 'ENOENT') {
-        throw new FileDeletionError(filePath, code, error as Error);
-      }
-    }
-    this.db.deleteImageRecord(imageId);
-    this.invalidateImageCache();
+    return this.maintenance.deleteImage(imageId);
   }
 }
 

@@ -1,7 +1,6 @@
 import { DatabaseManager } from './db';
-import kmeans from 'kmeans-ts';
 import { LRUCache } from 'lru-cache';
-import { EmbeddingRow, ImageSuggestion, Tag, DismissedSuggestion, TagSuggestion } from 'shared';
+import { ImageSuggestion, Tag, DismissedSuggestion, TagSuggestion } from 'shared';
 
 export class SuggestionEngine {
   private db: DatabaseManager;
@@ -12,11 +11,7 @@ export class SuggestionEngine {
     this.embeddingCache = new LRUCache({ max: 1000 });
   }
 
-  async getAllEmbeddings(): Promise<EmbeddingRow[]> {
-    return this.db.getAllEmbeddings();
-  }
-
-  async getVisibleEmbeddings(): Promise<EmbeddingRow[]> {
+  async getVisibleEmbeddings(): Promise<Array<{ rowid: number; embedding: number[] }>> {
     return this.db.getVisibleEmbeddings();
   }
 
@@ -62,16 +57,6 @@ export class SuggestionEngine {
       color: row.color,
       created_at: row.created_at,
     }));
-  }
-
-  clusterEmbeddings(embeddings: number[][], k?: number): number[] {
-    const n = embeddings.length;
-    if (n === 0) return [];
-    if (!k) {
-      k = Math.max(2, Math.min(20, Math.floor(Math.sqrt(n / 2))));
-    }
-    const result = kmeans(embeddings, k) as { indexes: number[] };
-    return result.indexes;
   }
 
   async generateSuggestionsForImage(imageId: number, topK: number = 10): Promise<TagSuggestion[]> {

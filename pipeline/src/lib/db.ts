@@ -1,7 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import {
-  Collection,
   Image,
   Face,
   Person,
@@ -17,30 +16,15 @@ import {
 } from 'shared';
 import { decodeEmbeddingRows, decodeEmbeddingValue, type EmbeddingRowValue } from './embedding';
 import { extractExif } from './exif';
+import { DatabaseFolderRepository } from './db-folders';
 import { runDatabaseMigrations } from './db-migrations';
+import { DatabaseOcrRepository } from './db-ocr';
+import { DatabasePeopleRepository, type VecMatchRow } from './db-people';
 import { setupDatabaseSchema } from './db-schema';
+import { DatabaseTagRepository, type DismissedDbRow, type TagDbRow } from './db-tags';
 
 interface EmbeddingDbRow extends EmbeddingRowValue {
   rowid: number;
-}
-
-interface TagDbRow {
-  id: number;
-  name: string;
-  category: string;
-  color: string;
-  created_at: string;
-}
-
-interface DismissedDbRow {
-  image_id: number;
-  tag_id: number;
-  dismissed_at: string;
-}
-
-interface VecMatchRow {
-  rowid: number;
-  distance: number;
 }
 
 interface ImageDbRow extends Omit<Image, 'embedded' | 'palette' | 'tags'> {
@@ -53,6 +37,10 @@ const IMAGE_DIMENSIONS_MIGRATION_KEY = 'migration:image-dimensions-fixed';
 export class DatabaseManager {
   private db: Database.Database;
   private vecLoaded = false;
+  private readonly tags: DatabaseTagRepository;
+  private readonly people: DatabasePeopleRepository;
+  private readonly ocr: DatabaseOcrRepository;
+  private readonly folders: DatabaseFolderRepository;
 
   constructor(dbPath: string) {
     this.db = new Database(dbPath);
@@ -60,6 +48,10 @@ export class DatabaseManager {
     this.setupExtensions();
     this.setupSchema();
     this.runMigrations();
+    this.tags = new DatabaseTagRepository(this.db);
+    this.people = new DatabasePeopleRepository(this.db, this.vecLoaded);
+    this.ocr = new DatabaseOcrRepository(this.db);
+    this.folders = new DatabaseFolderRepository(this.db);
   }
 
   private setupPragmas() {
@@ -441,12 +433,6 @@ export class DatabaseManager {
     return { fixedImageDimensions: fixed };
   }
 
-  getAllEmbeddings(): Array<{ rowid: number; embedding: number[] }> {
-    return decodeEmbeddingRows(
-      this.db.prepare('SELECT rowid, embedding FROM vec_images').all() as EmbeddingDbRow[],
-    );
-  }
-
   getVisibleEmbeddings(): Array<{ rowid: number; embedding: number[] }> {
     return decodeEmbeddingRows(
       this.db
@@ -469,105 +455,43 @@ export class DatabaseManager {
   }
 
   getImageTags(imageId: number): TagDbRow[] {
-    return this.db
-      .prepare(
-        `
-      SELECT t.* FROM tags t
-      JOIN image_tags it ON t.id = it.tag_id
-      WHERE it.image_id = ?
-    `,
-      )
-      .all(imageId) as TagDbRow[];
+    return this.tags.getImageTags(imageId);
   }
 
   getDismissedSuggestions(imageId: number): DismissedDbRow[] {
-    return this.db
-      .prepare('SELECT * FROM dismissed_suggestions WHERE image_id = ?')
-      .all(imageId) as DismissedDbRow[];
+    return this.tags.getDismissedSuggestions(imageId);
   }
 
   getDismissedSuggestionsByTag(tagId: number): DismissedDbRow[] {
-    return this.db
-      .prepare('SELECT * FROM dismissed_suggestions WHERE tag_id = ?')
-      .all(tagId) as DismissedDbRow[];
+    return this.tags.getDismissedSuggestionsByTag(tagId);
   }
 
   getBoardImageIds(tagId: number): number[] {
-    const rows = this.db
-      .prepare(
-        `SELECT it.image_id AS image_id
-         FROM image_tags it
-         INNER JOIN images img ON img.id = it.image_id
-         WHERE it.tag_id = ? AND img.hidden = 0 AND img.missing = 0`,
-      )
-      .all(tagId) as Array<{ image_id: number }>;
-    return rows.map((r) => r.image_id);
+    return this.tags.getBoardImageIds(tagId);
   }
 
   dismissSuggestion(imageId: number, tagId: number): void {
-    this.db
-      .prepare(
-        `
-      INSERT OR REPLACE INTO dismissed_suggestions (image_id, tag_id)
-      VALUES (?, ?)
-    `,
-      )
-      .run(imageId, tagId);
+    this.tags.dismissSuggestion(imageId, tagId);
   }
 
   getAllTags(): TagDbRow[] {
-    return this.db.prepare('SELECT * FROM tags').all() as TagDbRow[];
+    return this.tags.getAllTags();
   }
 
   getTagsWithCounts(): Array<TagDbRow & { usage_count: number }> {
-    return this.db
-      .prepare(
-        `
-      SELECT t.*, COUNT(it.image_id) AS usage_count
-      FROM tags t
-      LEFT JOIN image_tags it ON t.id = it.tag_id
-      GROUP BY t.id
-      ORDER BY usage_count DESC
-    `,
-      )
-      .all() as Array<TagDbRow & { usage_count: number }>;
+    return this.tags.getTagsWithCounts();
   }
 
   renameTag(tagId: number, name: string): void {
-    this.db.prepare('UPDATE tags SET name = ? WHERE id = ?').run(name, tagId);
+    this.tags.renameTag(tagId, name);
   }
 
   setTagColor(tagId: number, color: string): void {
-    this.db.prepare('UPDATE tags SET color = ? WHERE id = ?').run(color, tagId);
+    this.tags.setTagColor(tagId, color);
   }
 
   deleteTag(tagId: number): void {
-    this.db.prepare('DELETE FROM tags WHERE id = ?').run(tagId);
-  }
-
-  createCollection(name: string, description: string | null, clusterId: number | null): number {
-    const result = this.db
-      .prepare('INSERT INTO collections (name, description, cluster_id) VALUES (?, ?, ?)')
-      .run(name, description, clusterId);
-    return result.lastInsertRowid as number;
-  }
-
-  addImagesToCollection(collectionId: number, imageIds: number[]): void {
-    const insertImage = this.db.prepare(
-      'INSERT OR IGNORE INTO collection_images (collection_id, image_id) VALUES (?, ?)',
-    );
-    const txn = this.db.transaction((ids: number[]) => {
-      for (const imageId of ids) {
-        insertImage.run(collectionId, imageId);
-      }
-    });
-    txn(imageIds);
-  }
-
-  getCollections(): Collection[] {
-    return this.db
-      .prepare('SELECT * FROM collections ORDER BY created_at DESC')
-      .all() as Collection[];
+    this.tags.deleteTag(tagId);
   }
 
   // --- Face / Person methods ---
@@ -581,186 +505,83 @@ export class DatabaseManager {
     bbox_h: number;
     confidence: number;
   }): number {
-    const stmt = this.db.prepare(`
-      INSERT INTO faces (image_id, person_id, bbox_x, bbox_y, bbox_w, bbox_h, confidence)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(
-      face.image_id,
-      face.person_id,
-      face.bbox_x,
-      face.bbox_y,
-      face.bbox_w,
-      face.bbox_h,
-      face.confidence,
-    );
-    return result.lastInsertRowid as number;
+    return this.people.insertFace(face);
   }
 
   insertFaceEmbedding(faceRowid: number, embedding: number[]): void {
-    this.db
-      .prepare('INSERT OR REPLACE INTO vec_faces (rowid, embedding) VALUES (?, ?)')
-      .run(BigInt(faceRowid), new Float32Array(normalizeVector(embedding)));
+    this.people.insertFaceEmbedding(faceRowid, embedding);
   }
 
   getFaceEmbedding(faceId: number): number[] | null {
-    const row = this.db
-      .prepare('SELECT embedding FROM vec_faces WHERE rowid = ?')
-      .get(BigInt(faceId)) as { embedding: Buffer | number[] } | undefined;
-    if (!row) return null;
-    return decodeEmbeddingValue(row.embedding);
+    return this.people.getFaceEmbedding(faceId);
   }
 
   insertPerson(name?: string | null): number {
-    const stmt = this.db.prepare('INSERT INTO persons (name) VALUES (?)');
-    const result = stmt.run(name ?? null);
-    return result.lastInsertRowid as number;
+    return this.people.insertPerson(name);
   }
 
   insertPersonEmbedding(personRowid: number, embedding: number[]): void {
-    // vec0 virtual tables don't support REPLACE — delete first, then insert.
-    this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?').run(BigInt(personRowid));
-    this.db
-      .prepare('INSERT INTO vec_persons (rowid, embedding) VALUES (?, ?)')
-      .run(BigInt(personRowid), new Float32Array(normalizeVector(embedding)));
+    this.people.insertPersonEmbedding(personRowid, embedding);
   }
 
   findNearestPerson(embedding: number[], limit: number = 1): VecMatchRow[] {
-    const stmt = this.db.prepare(`
-      SELECT rowid, distance FROM vec_persons
-      WHERE embedding MATCH ? AND k = ?
-      ORDER BY distance
-    `);
-    return stmt.all(new Float32Array(embedding), limit) as VecMatchRow[];
+    return this.people.findNearestPerson(embedding, limit);
   }
 
   getAllPersons(): Person[] {
-    return this.db
-      .prepare('SELECT * FROM persons WHERE face_count > 0 ORDER BY face_count DESC')
-      .all() as Person[];
+    return this.people.getAllPersons();
   }
 
   getPersonImageIds(personId: number): number[] {
-    const rows = this.db
-      .prepare(
-        `SELECT DISTINCT i.id AS id
-         FROM images i
-         JOIN faces f ON f.image_id = i.id
-         WHERE f.person_id = ? AND i.hidden = 0 AND i.missing = 0`,
-      )
-      .all(personId) as Array<{ id: number }>;
-    return rows.map((row) => row.id);
+    return this.people.getPersonImageIds(personId);
   }
 
   getThumbnailFacesForPersons(personIds: number[]): Face[] {
-    if (personIds.length === 0) return [];
-
-    const placeholders = personIds.map(() => '?').join(',');
-    return this.db
-      .prepare(
-        `SELECT f.*, p.name AS person_name, i.file_path AS image_path
-         FROM faces f
-         JOIN persons p ON p.thumbnail_face_id = f.id
-         JOIN images i ON i.id = f.image_id
-         WHERE p.id IN (${placeholders})`,
-      )
-      .all(...personIds) as Face[];
+    return this.people.getThumbnailFacesForPersons(personIds);
   }
 
   getPersonById(personId: number): Person | null {
-    return (
-      (this.db.prepare('SELECT * FROM persons WHERE id = ?').get(personId) as Person | undefined) ??
-      null
-    );
+    return this.people.getPersonById(personId);
   }
 
   getImageFaces(imageId: number): Face[] {
-    return this.db
-      .prepare(
-        `SELECT f.*, p.name AS person_name, i.file_path AS image_path
-         FROM faces f
-         LEFT JOIN persons p ON f.person_id = p.id
-         LEFT JOIN images i ON f.image_id = i.id
-         WHERE f.image_id = ?`,
-      )
-      .all(imageId) as Face[];
+    return this.people.getImageFaces(imageId);
   }
 
   getPersonFaces(personId: number): Face[] {
-    return this.db
-      .prepare(
-        `SELECT f.*, p.name AS person_name, i.file_path AS image_path
-         FROM faces f
-         LEFT JOIN persons p ON f.person_id = p.id
-         LEFT JOIN images i ON f.image_id = i.id
-         WHERE f.person_id = ?`,
-      )
-      .all(personId) as Face[];
+    return this.people.getPersonFaces(personId);
   }
 
   updateFacePerson(faceId: number, personId: number | null): void {
-    this.db.prepare('UPDATE faces SET person_id = ? WHERE id = ?').run(personId, faceId);
+    this.people.updateFacePerson(faceId, personId);
   }
 
   getFacePersonId(faceId: number): number | null {
-    const row = this.db.prepare('SELECT person_id FROM faces WHERE id = ?').get(faceId) as
-      | { person_id: number | null }
-      | undefined;
-    return row?.person_id ?? null;
+    return this.people.getFacePersonId(faceId);
   }
 
   updatePersonName(personId: number, name: string): void {
-    this.db
-      .prepare("UPDATE persons SET name = ?, updated_at = datetime('now') WHERE id = ?")
-      .run(name, personId);
+    this.people.updatePersonName(personId, name);
   }
 
   updatePersonThumbnail(personId: number, faceId: number): void {
-    this.db
-      .prepare(
-        "UPDATE persons SET thumbnail_face_id = ?, updated_at = datetime('now') WHERE id = ?",
-      )
-      .run(faceId, personId);
+    this.people.updatePersonThumbnail(personId, faceId);
   }
 
   updatePersonFaceCount(personId: number): void {
-    this.db
-      .prepare(
-        `UPDATE persons SET
-           face_count = (SELECT COUNT(*) FROM faces WHERE person_id = ?),
-           updated_at = datetime('now')
-         WHERE id = ?`,
-      )
-      .run(personId, personId);
+    this.people.updatePersonFaceCount(personId);
   }
 
   deletePerson(personId: number): void {
-    this.db.prepare('UPDATE faces SET person_id = NULL WHERE person_id = ?').run(personId);
-    if (this.vecLoaded) {
-      this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?').run(BigInt(personId));
-    }
-    this.db.prepare('DELETE FROM persons WHERE id = ?').run(personId);
+    this.people.deletePerson(personId);
   }
 
   markImageFacesScanned(imageId: number): void {
-    this.db.prepare('UPDATE images SET faces_scanned = 1 WHERE id = ?').run(imageId);
+    this.people.markImageFacesScanned(imageId);
   }
 
   getUnscannedFaceImages(): Array<{ id: number; file_path: string }> {
-    const excluded = this.db
-      .prepare('SELECT path FROM folders WHERE exclude_from_face_scan = 1')
-      .all() as Array<{ path: string }>;
-    if (excluded.length === 0) {
-      return this.db
-        .prepare('SELECT id, file_path FROM images WHERE faces_scanned = 0 AND hidden = 0')
-        .all() as Array<{ id: number; file_path: string }>;
-    }
-    const likeClauses = excluded.map(() => "file_path NOT LIKE ? || '/%'").join(' AND ');
-    const stmt = this.db.prepare(
-      `SELECT id, file_path FROM images
-       WHERE faces_scanned = 0 AND hidden = 0 AND ${likeClauses}`,
-    );
-    return stmt.all(...excluded.map((e) => e.path)) as Array<{ id: number; file_path: string }>;
+    return this.people.getUnscannedFaceImages();
   }
 
   // --- OCR methods ---
@@ -773,10 +594,7 @@ export class DatabaseManager {
   }
 
   getOcrStatus(imageId: number): { status: OcrStatus; at: number | null } {
-    const row = this.db
-      .prepare('SELECT ocr_status AS status, ocr_at AS at FROM images WHERE id = ?')
-      .get(imageId) as { status: OcrStatus; at: number | null } | undefined;
-    return row ?? { status: null, at: null };
+    return this.ocr.getOcrStatus(imageId);
   }
 
   getImageOcr(imageId: number): Array<{
@@ -789,23 +607,7 @@ export class DatabaseManager {
     polygon_json: string | null;
     confidence: number;
   }> {
-    return this.db
-      .prepare(
-        `SELECT block_index, text, bbox_x, bbox_y, bbox_w, bbox_h, polygon_json, confidence
-         FROM image_ocr
-         WHERE image_id = ?
-         ORDER BY block_index`,
-      )
-      .all(imageId) as Array<{
-      block_index: number;
-      text: string;
-      bbox_x: number;
-      bbox_y: number;
-      bbox_w: number;
-      bbox_h: number;
-      polygon_json: string | null;
-      confidence: number;
-    }>;
+    return this.ocr.getImageOcr(imageId);
   }
 
   saveImageOcr(
@@ -817,176 +619,69 @@ export class DatabaseManager {
       confidence: number;
     }>,
   ): void {
-    const now = Date.now();
-    const txn = this.db.transaction(() => {
-      this.db.prepare('DELETE FROM image_ocr WHERE image_id = ?').run(imageId);
-      const insert = this.db.prepare(
-        `INSERT INTO image_ocr
-           (image_id, block_index, text, bbox_x, bbox_y, bbox_w, bbox_h, polygon_json, confidence)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      );
-      for (let i = 0; i < blocks.length; i++) {
-        const b = blocks[i];
-        insert.run(
-          imageId,
-          i,
-          b.text,
-          b.bbox.x,
-          b.bbox.y,
-          b.bbox.width,
-          b.bbox.height,
-          b.polygon ? JSON.stringify(b.polygon) : null,
-          b.confidence,
-        );
-      }
-      this.db
-        .prepare('UPDATE images SET ocr_status = ?, ocr_at = ? WHERE id = ?')
-        .run(blocks.length === 0 ? 'empty' : 'done', now, imageId);
-    });
-    txn();
+    this.ocr.saveImageOcr(imageId, blocks);
   }
 
   markOcrError(imageId: number, message: string): void {
-    // Truncate to avoid storing multi-kilobyte stack traces as status rows.
-    const short = message.length > 200 ? message.slice(0, 200) : message;
-    this.db
-      .prepare('UPDATE images SET ocr_status = ?, ocr_at = ? WHERE id = ?')
-      .run(`error:${short}`, Date.now(), imageId);
+    this.ocr.markOcrError(imageId, message);
   }
 
   cleanupOrphanedPersons(): void {
-    const orphans = this.db
-      .prepare(
-        `SELECT id FROM persons
-         WHERE id NOT IN (SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL)`,
-      )
-      .all() as Array<{ id: number }>;
-    const delVec = this.vecLoaded
-      ? this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?')
-      : null;
-    const delPerson = this.db.prepare('DELETE FROM persons WHERE id = ?');
-    for (const { id } of orphans) {
-      delVec?.run(BigInt(id));
-      delPerson.run(id);
-    }
+    this.people.cleanupOrphanedPersons();
   }
 
   listFolders(): Folder[] {
-    return this.db.prepare('SELECT * FROM folders ORDER BY created_at DESC').all() as Folder[];
+    return this.folders.listFolders();
   }
 
   listFoldersWithStats(): FolderWithStats[] {
-    const rows = this.db
-      .prepare(
-        `SELECT f.*,
-          COALESCE(s.image_count, 0) AS image_count,
-          COALESCE(s.total_size, 0) AS total_size
-         FROM folders f
-         LEFT JOIN (
-           SELECT fo.id AS folder_id,
-             COUNT(i.id) AS image_count,
-             SUM(i.file_size) AS total_size
-           FROM folders fo
-           LEFT JOIN images i ON i.file_path LIKE fo.path || '/%' AND i.hidden = 0 AND i.missing = 0
-           GROUP BY fo.id
-         ) s ON s.folder_id = f.id
-         ORDER BY f.created_at DESC`,
-      )
-      .all() as Array<Folder & { image_count: number; total_size: number }>;
-
-    return rows.map((row) => ({
-      ...row,
-      folder_name: path.basename(row.path) || row.path,
-    }));
+    return this.folders.listFoldersWithStats();
   }
 
   findFolderForPath(filePath: string): Folder | null {
-    return (
-      (this.db
-        .prepare(
-          `SELECT * FROM folders
-           WHERE ? LIKE path || '/%' OR ? = path
-           ORDER BY length(path) DESC
-           LIMIT 1`,
-        )
-        .get(filePath, filePath) as Folder | undefined) ?? null
-    );
+    return this.folders.findFolderForPath(filePath);
   }
 
   getFolderAvailabilityState(
     folderPath: string,
   ): { available: boolean; writable: boolean } | null {
-    const row = this.db
-      .prepare('SELECT available, writable FROM folders WHERE path = ?')
-      .get(folderPath) as { available: number; writable: number } | undefined;
-    if (!row) return null;
-    return { available: !!row.available, writable: !!row.writable };
+    return this.folders.getFolderAvailabilityState(folderPath);
   }
 
   updateFolderAvailabilityState(folderPath: string, available: boolean, writable: boolean): void {
-    this.db
-      .prepare('UPDATE folders SET available = ?, writable = ? WHERE path = ?')
-      .run(available ? 1 : 0, writable ? 1 : 0, folderPath);
+    this.folders.updateFolderAvailabilityState(folderPath, available, writable);
   }
 
   getFolderFaceScanExclusion(folderPath: string): boolean | null {
-    const row = this.db
-      .prepare('SELECT exclude_from_face_scan FROM folders WHERE path = ?')
-      .get(folderPath) as { exclude_from_face_scan: number } | undefined;
-    return row ? !!row.exclude_from_face_scan : null;
+    return this.folders.getFolderFaceScanExclusion(folderPath);
   }
 
   setFolderFaceScanExclusionFlag(folderPath: string, excluded: boolean): void {
-    this.db
-      .prepare('UPDATE folders SET exclude_from_face_scan = ? WHERE path = ?')
-      .run(excluded ? 1 : 0, folderPath);
+    this.folders.setFolderFaceScanExclusionFlag(folderPath, excluded);
   }
 
   clearMissingByPathPrefix(pathPrefix: string): void {
-    this.db.prepare('UPDATE images SET missing = 0 WHERE file_path LIKE ?').run(pathPrefix);
+    this.folders.clearMissingByPathPrefix(pathPrefix);
   }
 
   markMissingByPathPrefix(pathPrefix: string, excludedFolderPath: string): void {
-    this.db
-      .prepare(
-        `UPDATE images SET missing = 1
-         WHERE file_path LIKE ? AND NOT EXISTS (
-           SELECT 1 FROM folders f
-           WHERE f.path != ?
-             AND f.available = 1
-             AND (
-               images.file_path = f.path
-               OR images.file_path LIKE f.path || '/%'
-             )
-         )`,
-      )
-      .run(pathPrefix, excludedFolderPath);
+    this.folders.markMissingByPathPrefix(pathPrefix, excludedFolderPath);
   }
 
   deleteFacesByImagePathPrefix(pathPrefix: string): void {
-    this.db
-      .prepare(
-        `DELETE FROM faces WHERE image_id IN (
-           SELECT id FROM images WHERE file_path LIKE ?
-         )`,
-      )
-      .run(pathPrefix);
+    this.folders.deleteFacesByImagePathPrefix(pathPrefix);
   }
 
   markFacesUnscannedByPathPrefix(pathPrefix: string): void {
-    this.db.prepare('UPDATE images SET faces_scanned = 0 WHERE file_path LIKE ?').run(pathPrefix);
+    this.folders.markFacesUnscannedByPathPrefix(pathPrefix);
   }
 
   setImageHidden(imageId: number): void {
-    this.db
-      .prepare("UPDATE images SET hidden = 1, modified_at = datetime('now') WHERE id = ?")
-      .run(imageId);
+    this.folders.setImageHidden(imageId);
   }
 
   setImageMissingByPath(filePath: string): void {
-    this.db
-      .prepare("UPDATE images SET missing = 1, modified_at = datetime('now') WHERE file_path = ?")
-      .run(filePath);
+    this.folders.setImageMissingByPath(filePath);
   }
 
   updateImageMetadata(
@@ -1000,39 +695,7 @@ export class DatabaseManager {
       website_link?: string | null;
     },
   ): void {
-    const fields: string[] = [];
-    const values: Array<string | number | null> = [];
-
-    if (metadata.description !== undefined) {
-      fields.push('description = ?');
-      values.push(metadata.description);
-    }
-    if (metadata.favorite !== undefined) {
-      fields.push('favorite = ?');
-      values.push(metadata.favorite ? 1 : 0);
-    }
-    if (metadata.captured_at !== undefined) {
-      fields.push('captured_at = ?');
-      values.push(metadata.captured_at);
-    }
-    if (metadata.city !== undefined) {
-      fields.push('city = ?');
-      values.push(metadata.city);
-    }
-    if (metadata.country !== undefined) {
-      fields.push('country = ?');
-      values.push(metadata.country);
-    }
-    if (metadata.website_link !== undefined) {
-      fields.push('website_link = ?');
-      values.push(metadata.website_link);
-    }
-
-    if (fields.length === 0) return;
-
-    fields.push("modified_at = datetime('now')");
-    values.push(imageId);
-    this.db.prepare(`UPDATE images SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    this.tags.updateImageMetadata(imageId, metadata);
   }
 
   getLinkPreview(urlHash: string): LinkPreview | null {

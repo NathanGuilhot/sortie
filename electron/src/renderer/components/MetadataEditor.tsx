@@ -1,15 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Image, Face, TagSuggestion } from 'shared';
 import { PaletteRow } from './PaletteRow';
 import { AddToBoardButton } from './AddToBoardButton';
 import { CopyText } from './CopyText';
 import { LinkPreviewCard } from './LinkPreviewCard';
+import {
+  CopyImageButton,
+  MetadataDisclosureSection,
+  metadataSaveButtonLabel,
+} from './MetadataEditorPrimitives';
 import { useImageStore } from '../stores/imageStore';
 import { useBoardStore } from '../stores/boardStore';
 import { useFolderStore } from '../stores/folderStore';
 import { toast } from '../stores/toastStore';
 import {
-  ChevronDownIcon,
   XIcon,
   PhotoIcon,
   FolderIcon,
@@ -25,90 +29,9 @@ import {
   HeartIcon,
 } from './icons';
 
-function saveButtonLabel({
-  isSaving,
-  saveSuccess,
-  isDirty,
-}: {
-  isSaving: boolean;
-  saveSuccess: boolean;
-  isDirty: boolean;
-}): string {
-  if (isSaving) return 'Saving...';
-  if (saveSuccess) return 'Saved';
-  if (isDirty) return 'Save changes';
-  return 'No changes';
-}
-
 interface MetadataEditorProps {
   image: Image | null;
   onClose?: () => void;
-}
-
-function DisclosureSection({
-  title,
-  defaultOpen = false,
-  children,
-}: {
-  title: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="bg-gray-50/80 rounded-xl border border-gray-100 overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-medium text-gray-400 uppercase tracking-wider hover:text-gray-500 transition-colors"
-      >
-        {title}
-        <ChevronDownIcon
-          className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-      {open && <div className="px-4 pb-3">{children}</div>}
-    </div>
-  );
-}
-
-function CopyImageButton({
-  filePath,
-  label,
-  className,
-}: {
-  filePath: string;
-  label: string;
-  className?: string;
-}) {
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
-
-  const handleCopy = () => {
-    void window.sortieAPI.copyImageToClipboard(filePath).then((res) => {
-      if (!res.success) return;
-      clearTimeout(timerRef.current);
-      setCopied(true);
-      timerRef.current = setTimeout(() => setCopied(false), 1500);
-    });
-  };
-
-  return (
-    <span
-      className={`cursor-copy select-none ${className ?? ''}`}
-      title="Click to copy image"
-      onClick={handleCopy}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleCopy();
-        }
-      }}
-      role="button"
-      tabIndex={0}
-    >
-      {copied ? <span className="text-green-500">Copied</span> : label}
-    </span>
-  );
 }
 
 export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
@@ -542,7 +465,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
             {isSaving && (
               <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             )}
-            {saveButtonLabel({ isSaving, saveSuccess, isDirty })}
+            {metadataSaveButtonLabel({ isSaving, saveSuccess, isDirty })}
             {saveSuccess && <CheckIcon />}
           </span>
         </button>
@@ -551,7 +474,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
       {/* [E] Camera info — collapsible */}
       {hasCamera && (
         <div className="mb-3">
-          <DisclosureSection title="Camera">
+          <MetadataDisclosureSection title="Camera">
             <div className="space-y-1">
               {cameraName && (
                 <CopyText value={cameraName} className="text-sm font-medium text-gray-700 block">
@@ -564,13 +487,13 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
                 </CopyText>
               )}
             </div>
-          </DisclosureSection>
+          </MetadataDisclosureSection>
         </div>
       )}
 
       {/* [F] File info — collapsible */}
       <div className="mb-6">
-        <DisclosureSection title="File Info">
+        <MetadataDisclosureSection title="File Info">
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-400">Created</span>
@@ -620,7 +543,7 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
                   ? 'Failed \u2014 try again'
                   : 'Recompute embedding'}
           </button>
-        </DisclosureSection>
+        </MetadataDisclosureSection>
       </div>
 
       {/* [G] Danger zone */}

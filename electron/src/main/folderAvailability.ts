@@ -36,11 +36,15 @@ export class FolderAvailabilityMonitor {
     this.inFlight = true;
     const changes: FolderAvailabilityChange[] = [];
     try {
-      const folders = await this.dbService.getFolders();
+      const folders = await this.dbService.folders.getFolders();
       const targets = onlyPath ? folders.filter((f) => f.path === onlyPath) : folders;
       for (const folder of targets) {
         const { available, writable } = await this.probe(folder.path);
-        const result = await this.dbService.setFolderAvailability(folder.path, available, writable);
+        const result = await this.dbService.folders.setFolderAvailability(
+          folder.path,
+          available,
+          writable,
+        );
         if (result.changed) {
           const change: FolderAvailabilityChange = { path: folder.path, available, writable };
           changes.push(change);

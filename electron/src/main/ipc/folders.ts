@@ -8,8 +8,8 @@ export function registerFolderHandlers({
   availabilityMonitor,
 }: MainIpcContext): void {
   handleInvoke('addFolder', async (_event, { path }) => {
-    const overlap = await dbService.findOverlappingFolders(path);
-    const folderId = await dbService.addFolder(path);
+    const overlap = await dbService.folders.findOverlappingFolders(path);
+    const folderId = await dbService.folders.addFolder(path);
     await watcherService.watchFolder(path);
     void availabilityMonitor.checkNow(path);
     return { folderId, overlap };
@@ -17,21 +17,21 @@ export function registerFolderHandlers({
 
   handleInvoke('scanFolder', async (event, { path, opId }) => {
     return await withOperation(opId, (signal) =>
-      dbService.scanFolder(path, sendToRenderer(event.sender, IPC_EVENTS.scanProgress), signal),
+      dbService.folders.scanFolder(path, sendToRenderer(event.sender, IPC_EVENTS.scanProgress), signal),
     );
   });
 
   handleInvoke('getFolders', async () => {
-    return await dbService.getFolders();
+    return await dbService.folders.getFolders();
   });
 
   handleInvoke('getFoldersWithStats', async () => {
-    return await dbService.getFoldersWithStats();
+    return await dbService.folders.getFoldersWithStats();
   });
 
   handleInvoke('removeFolder', async (_event, { path }) => {
     watcherService.stopWatching(path);
-    await dbService.removeFolder(path);
+    await dbService.folders.removeFolder(path);
     return { success: true };
   });
 
@@ -46,6 +46,6 @@ export function registerFolderHandlers({
   });
 
   handleInvoke('setFolderFaceScanExclusion', async (_event, { path, excluded }) => {
-    return await dbService.setFolderFaceScanExclusion(path, excluded);
+    return await dbService.folders.setFolderFaceScanExclusion(path, excluded);
   });
 }
