@@ -1,13 +1,15 @@
+import { usePinterestImportStore } from '../stores/pinterestImportStore';
 import { usePinterestStore } from '../stores/pinterestStore';
 
 const CONFIRM_THRESHOLD = 100;
 
 export function BulkImportButton() {
-  const target = usePinterestStore((s) => s.target);
-  const boardPinCount = usePinterestStore((s) => s.boardPinCount);
-  const bulk = usePinterestStore((s) => s.bulkImport);
-  const startBulkImport = usePinterestStore((s) => s.startBulkImport);
-  const cancelBulkImport = usePinterestStore((s) => s.cancelBulkImport);
+  const hideAiGenerated = usePinterestStore((state) => state.hideAiGenerated);
+  const target = usePinterestImportStore((state) => state.target);
+  const boardPinCount = usePinterestImportStore((state) => state.boardPinCount);
+  const bulk = usePinterestImportStore((state) => state.bulkImport);
+  const startBulkImport = usePinterestImportStore((state) => state.startBulkImport);
+  const cancelBulkImport = usePinterestImportStore((state) => state.cancelBulkImport);
 
   if (!target || target.kind !== 'board') return null;
   if (!boardPinCount || boardPinCount <= 0) return null;
@@ -25,7 +27,7 @@ export function BulkImportButton() {
       );
       if (!ok) return;
     }
-    void startBulkImport();
+    void startBulkImport(hideAiGenerated);
   };
 
   if (isRunning || isCancelling) {

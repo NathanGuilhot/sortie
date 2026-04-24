@@ -1,5 +1,6 @@
 import { useState, memo } from 'react';
 import type { PinterestResult } from 'shared';
+import { usePinterestImportStore } from '../stores/pinterestImportStore';
 import { usePinterestStore } from '../stores/pinterestStore';
 import type { Position } from './masonry-layout';
 import { isGifUrl } from './gif-utils';
@@ -17,9 +18,9 @@ export const PinterestResultCard = memo(function PinterestResultCard({
   position,
   onPreview,
 }: PinterestResultCardProps) {
-  const importState = usePinterestStore((s) => s.imports[pin.pinId]);
-  const importPin = usePinterestStore((s) => s.importPin);
-  const hideAiGenerated = usePinterestStore((s) => s.hideAiGenerated);
+  const importState = usePinterestImportStore((state) => state.imports[pin.pinId]);
+  const importPin = usePinterestImportStore((state) => state.importPin);
+  const hideAiGenerated = usePinterestStore((state) => state.hideAiGenerated);
   const [loaded, setLoaded] = useState(false);
 
   const status = importState?.status ?? 'idle';

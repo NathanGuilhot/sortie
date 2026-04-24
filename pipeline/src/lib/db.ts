@@ -8,36 +8,33 @@ import {
   FolderWithStats,
   LinkPreview,
   PaletteColor,
-  Tag,
-  parseOptionalJson,
   normalizeVector,
   type AppSettingKey,
   type OcrStatus,
 } from 'shared';
-import { decodeEmbeddingRows, decodeEmbeddingValue, type EmbeddingRowValue } from './embedding';
+import {
+  DatabaseImageRepository,
+  type DatabaseImageMetadataUpdate,
+} from './db-images';
 import { extractExif } from './exif';
 import { DatabaseFolderRepository } from './db-folders';
 import { runDatabaseMigrations } from './db-migrations';
 import { DatabaseOcrRepository } from './db-ocr';
+import { DatabasePaletteRepository } from './db-palette';
 import { DatabasePeopleRepository, type VecMatchRow } from './db-people';
 import { setupDatabaseSchema } from './db-schema';
 import { DatabaseTagRepository, type DismissedDbRow, type TagDbRow } from './db-tags';
-
-interface EmbeddingDbRow extends EmbeddingRowValue {
-  rowid: number;
-}
-
-interface ImageDbRow extends Omit<Image, 'embedded' | 'palette' | 'tags'> {
-  palette_json: string | null;
-  embedded: number;
-}
+import { DatabaseVectorRepository } from './db-vectors';
 
 const IMAGE_DIMENSIONS_MIGRATION_KEY = 'migration:image-dimensions-fixed';
 
 export class DatabaseManager {
   private db: Database.Database;
   private vecLoaded = false;
+  private readonly images: DatabaseImageRepository;
   private readonly tags: DatabaseTagRepository;
+  private readonly vectors: DatabaseVectorRepository;
+  private readonly palettes: DatabasePaletteRepository;
   private readonly people: DatabasePeopleRepository;
   private readonly ocr: DatabaseOcrRepository;
   private readonly folders: DatabaseFolderRepository;
@@ -49,6 +46,9 @@ export class DatabaseManager {
     this.setupSchema();
     this.runMigrations();
     this.tags = new DatabaseTagRepository(this.db);
+    this.images = new DatabaseImageRepository(this.db, this.tags);
+    this.vectors = new DatabaseVectorRepository(this.db);
+    this.palettes = new DatabasePaletteRepository(this.db, this.vecLoaded);
     this.people = new DatabasePeopleRepository(this.db, this.vecLoaded);
     this.ocr = new DatabaseOcrRepository(this.db);
     this.folders = new DatabaseFolderRepository(this.db);
@@ -92,212 +92,35 @@ export class DatabaseManager {
     created: boolean;
     fileHashMatched: boolean;
   } {
-    const existing = this.db
-      .prepare('SELECT id, file_hash, file_size FROM images WHERE file_path = ?')
-      .get(image.file_path) as { id: number; file_hash: string | null; file_size: number | null } | undefined;
-
-    if (existing) {
-      const fileHashMatched =
-        image.file_hash != null &&
-        existing.file_hash === image.file_hash &&
-        existing.file_size === image.file_size;
-
-      this.db
-        .prepare(
-          `UPDATE images SET
-             file_name = ?,
-             file_size = ?,
-             mime_type = ?,
-             width = ?,
-             height = ?,
-             captured_at = ?,
-             latitude = ?,
-             longitude = ?,
-             file_hash = ?,
-             dhash = COALESCE(?, dhash),
-             camera_make = ?,
-             camera_model = ?,
-             aperture = ?,
-             iso = ?,
-             exposure_time = ?,
-             focal_length = ?,
-             missing = 0,
-             modified_at = datetime('now')
-           WHERE id = ?`,
-        )
-        .run(
-          image.file_name,
-          image.file_size,
-          image.mime_type,
-          image.width,
-          image.height,
-          image.captured_at,
-          image.latitude,
-          image.longitude,
-          image.file_hash ?? null,
-          image.dhash ?? null,
-          image.camera_make ?? null,
-          image.camera_model ?? null,
-          image.aperture ?? null,
-          image.iso ?? null,
-          image.exposure_time ?? null,
-          image.focal_length ?? null,
-          existing.id,
-        );
-      return { id: existing.id, created: false, fileHashMatched };
-    }
-
-    const result = this.db
-      .prepare(
-        `INSERT INTO images (
-           file_path, file_name, file_size, mime_type, width, height,
-           captured_at, latitude, longitude, city, country, description,
-           favorite, hidden, file_hash, dhash,
-           camera_make, camera_model, aperture, iso, exposure_time, focal_length
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        image.file_path,
-        image.file_name,
-        image.file_size,
-        image.mime_type,
-        image.width,
-        image.height,
-        image.captured_at,
-        image.latitude,
-        image.longitude,
-        image.city,
-        image.country,
-        image.description,
-        image.favorite ? 1 : 0,
-        image.hidden ? 1 : 0,
-        image.file_hash ?? null,
-        image.dhash ?? null,
-        image.camera_make ?? null,
-        image.camera_model ?? null,
-        image.aperture ?? null,
-        image.iso ?? null,
-        image.exposure_time ?? null,
-        image.focal_length ?? null,
-      );
-    return { id: result.lastInsertRowid as number, created: true, fileHashMatched: false };
+    return this.images.upsertImage(image);
   }
 
   insertEmbedding(rowid: number, embedding: number[]) {
-    // vec0 tables don't support REPLACE; delete then insert.
-    this.db.prepare('DELETE FROM vec_images WHERE rowid = ?').run(BigInt(rowid));
-    this.db
-      .prepare('INSERT INTO vec_images (rowid, embedding) VALUES (?, ?)')
-      .run(BigInt(rowid), new Float32Array(embedding));
+    this.vectors.insertEmbedding(rowid, embedding);
   }
 
   insertPalette(imageId: number, palette: PaletteColor[]): void {
-    const txn = this.db.transaction((pal: PaletteColor[]) => {
-      // Clear any previous palette for this image.
-      const oldIds = this.db
-        .prepare('SELECT id FROM palette_colors WHERE image_id = ?')
-        .all(imageId) as Array<{ id: number }>;
-      if (this.vecLoaded) {
-        const delVec = this.db.prepare('DELETE FROM vec_palette WHERE rowid = ?');
-        for (const { id } of oldIds) {
-          delVec.run(BigInt(id));
-        }
-      }
-      this.db.prepare('DELETE FROM palette_colors WHERE image_id = ?').run(imageId);
-
-      const insertMeta = this.db.prepare(
-        'INSERT INTO palette_colors (image_id, color_idx, weight) VALUES (?, ?, ?)',
-      );
-      const insertVec = this.vecLoaded
-        ? this.db.prepare('INSERT INTO vec_palette (rowid, lab) VALUES (?, ?)')
-        : null;
-
-      for (let i = 0; i < pal.length; i++) {
-        const color = pal[i];
-        const result = insertMeta.run(imageId, i, color.weight);
-        const rowid = result.lastInsertRowid as number;
-        if (insertVec) {
-          insertVec.run(BigInt(rowid), new Float32Array(color.lab));
-        }
-      }
-
-      this.db
-        .prepare('UPDATE images SET palette_json = ? WHERE id = ?')
-        .run(JSON.stringify(pal), imageId);
-    });
-    txn(palette);
+    this.palettes.insertPalette(imageId, palette);
   }
 
   getPalette(imageId: number): PaletteColor[] | null {
-    const row = this.db.prepare('SELECT palette_json FROM images WHERE id = ?').get(imageId) as
-      | { palette_json: string | null }
-      | undefined;
-    return parseOptionalJson<PaletteColor[]>(row?.palette_json);
+    return this.palettes.getPalette(imageId);
   }
 
   getImagesMissingPalette(): Array<{ id: number; file_path: string }> {
-    return this.db
-      .prepare(
-        `SELECT id, file_path FROM images
-         WHERE palette_json IS NULL AND hidden = 0 AND missing = 0`,
-      )
-      .all() as Array<{ id: number; file_path: string }>;
+    return this.palettes.getImagesMissingPalette();
   }
 
   getVisibleImageIds(): number[] {
-    const rows = this.db
-      .prepare('SELECT id FROM images WHERE hidden = 0 AND missing = 0')
-      .all() as Array<{ id: number }>;
-    return rows.map((row) => row.id);
+    return this.images.getVisibleImageIds();
   }
 
   getImagesByIds(ids: number[]): Image[] {
-    if (ids.length === 0) return [];
-
-    const placeholders = ids.map(() => '?').join(',');
-    const rows = this.db
-      .prepare(
-        `SELECT i.*, i.palette_json, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
-         FROM images i
-         WHERE i.id IN (${placeholders})`,
-      )
-      .all(...ids) as ImageDbRow[];
-    const byId = new Map(rows.map((row) => [row.id, row]));
-
-    const images: Image[] = [];
-    for (const id of ids) {
-      const row = byId.get(id);
-      if (!row) continue;
-      const { palette_json: paletteJson, embedded, ...rest } = row;
-
-      images.push({
-        ...rest,
-        embedded: !!embedded,
-        palette: parseOptionalJson<PaletteColor[]>(paletteJson),
-        tags: this.getImageTags(id) as Tag[],
-      });
-    }
-
-    return images;
+    return this.images.getImagesByIds(ids);
   }
 
   getImageById(imageId: number): Image | null {
-    const row = this.db
-      .prepare(
-        `SELECT i.*, i.palette_json, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
-         FROM images i
-         WHERE i.id = ?`,
-      )
-      .get(imageId) as ImageDbRow | undefined;
-    if (!row) return null;
-    const { palette_json: paletteJson, embedded, ...rest } = row;
-
-    return {
-      ...rest,
-      embedded: !!embedded,
-      palette: parseOptionalJson<PaletteColor[]>(paletteJson),
-      tags: this.getImageTags(imageId) as Tag[],
-    };
+    return this.images.getImageById(imageId);
   }
 
   /**
@@ -310,58 +133,7 @@ export class DatabaseManager {
     queryLabs: Array<[number, number, number]>,
     limit: number,
   ): Array<{ imageId: number; score: number }> {
-    if (!this.vecLoaded || queryLabs.length === 0) return [];
-
-    // Oversample per query to give the aggregator enough candidates.
-    const perQueryK = Math.max(200, limit * 10);
-
-    const perImageMin = new Map<number, number[]>();
-    const queryDist = this.db.prepare(`
-      SELECT v.rowid, v.distance, pc.image_id
-      FROM vec_palette v
-      JOIN palette_colors pc ON pc.id = v.rowid
-      JOIN images i ON i.id = pc.image_id
-      WHERE v.lab MATCH ? AND k = ? AND i.hidden = 0 AND i.missing = 0
-      ORDER BY v.distance
-    `);
-
-    for (let qi = 0; qi < queryLabs.length; qi++) {
-      const rows = queryDist.all(new Float32Array(queryLabs[qi]), perQueryK) as Array<{
-        rowid: number;
-        distance: number;
-        image_id: number;
-      }>;
-
-      const seen = new Set<number>();
-      for (const r of rows) {
-        if (seen.has(r.image_id)) continue;
-        seen.add(r.image_id);
-        let arr = perImageMin.get(r.image_id);
-        if (!arr) {
-          arr = new Array(queryLabs.length).fill(Infinity);
-          perImageMin.set(r.image_id, arr);
-        }
-        arr[qi] = r.distance;
-      }
-    }
-
-    const aggregated: Array<{ imageId: number; score: number }> = [];
-    for (const [imageId, dists] of perImageMin) {
-      // Only keep images that matched every requested color (otherwise
-      // searching for red + blue returns images with only red).
-      let score = 0;
-      let complete = true;
-      for (const d of dists) {
-        if (!Number.isFinite(d)) {
-          complete = false;
-          break;
-        }
-        score += d;
-      }
-      if (complete) aggregated.push({ imageId, score });
-    }
-    aggregated.sort((a, b) => a.score - b.score);
-    return aggregated.slice(0, limit);
+    return this.palettes.findImagesByColors(queryLabs, limit);
   }
 
   close() {
@@ -434,24 +206,11 @@ export class DatabaseManager {
   }
 
   getVisibleEmbeddings(): Array<{ rowid: number; embedding: number[] }> {
-    return decodeEmbeddingRows(
-      this.db
-        .prepare(
-          `SELECT v.rowid AS rowid, v.embedding AS embedding
-           FROM vec_images v
-           JOIN images img ON img.id = v.rowid
-           WHERE img.hidden = 0 AND img.missing = 0`,
-        )
-        .all() as EmbeddingDbRow[],
-    );
+    return this.vectors.getVisibleEmbeddings();
   }
 
   getEmbedding(imageId: number): number[] | null {
-    const row = this.db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(imageId) as
-      | { embedding: EmbeddingDbRow['embedding'] }
-      | undefined;
-    if (!row) return null;
-    return decodeEmbeddingValue(row.embedding);
+    return this.vectors.getEmbedding(imageId);
   }
 
   getImageTags(imageId: number): TagDbRow[] {
@@ -587,10 +346,7 @@ export class DatabaseManager {
   // --- OCR methods ---
 
   getImagePath(imageId: number): string | null {
-    const row = this.db
-      .prepare('SELECT file_path FROM images WHERE id = ?')
-      .get(imageId) as { file_path: string } | undefined;
-    return row?.file_path ?? null;
+    return this.images.getImagePath(imageId);
   }
 
   getOcrStatus(imageId: number): { status: OcrStatus; at: number | null } {
@@ -686,16 +442,9 @@ export class DatabaseManager {
 
   updateImageMetadata(
     imageId: number,
-    metadata: {
-      description?: string;
-      favorite?: boolean;
-      captured_at?: string | null;
-      city?: string | null;
-      country?: string | null;
-      website_link?: string | null;
-    },
+    metadata: DatabaseImageMetadataUpdate,
   ): void {
-    this.tags.updateImageMetadata(imageId, metadata);
+    this.images.updateImageMetadata(imageId, metadata);
   }
 
   getLinkPreview(urlHash: string): LinkPreview | null {
@@ -728,35 +477,19 @@ export class DatabaseManager {
   }
 
   getImagesMissingFileHash(): Array<{ id: number; file_path: string }> {
-    return this.db
-      .prepare('SELECT id, file_path FROM images WHERE hidden = 0 AND missing = 0 AND file_hash IS NULL')
-      .all() as Array<{ id: number; file_path: string }>;
+    return this.images.getImagesMissingFileHash();
   }
 
   updateImageFileHash(imageId: number, fileHash: string): void {
-    this.db.prepare('UPDATE images SET file_hash = ? WHERE id = ?').run(fileHash, imageId);
+    this.images.updateImageFileHash(imageId, fileHash);
   }
 
   getVisibleImagesForDuplicates(): Image[] {
-    return this.db
-      .prepare(
-        `SELECT id, file_path, file_name, file_size, mime_type, width, height,
-                created_at, modified_at, captured_at, latitude, longitude,
-                city, country, description, favorite, hidden, missing, file_hash
-         FROM images
-         WHERE hidden = 0 AND missing = 0`,
-      )
-      .all() as Image[];
+    return this.images.getVisibleImagesForDuplicates();
   }
 
   findNearestImageMatches(embedding: number[], limit: number): VecMatchRow[] {
-    return this.db
-      .prepare(
-        `SELECT rowid, distance FROM vec_images
-         WHERE embedding MATCH ? AND k = ?
-         ORDER BY distance`,
-      )
-      .all(new Float32Array(embedding), limit) as VecMatchRow[];
+    return this.vectors.findNearestImageMatches(embedding, limit);
   }
 
   getDismissedDuplicatePairs(): Array<{ image_id_1: number; image_id_2: number }> {
@@ -772,6 +505,6 @@ export class DatabaseManager {
   }
 
   deleteImageRecord(imageId: number): void {
-    this.db.prepare('DELETE FROM images WHERE id = ?').run(imageId);
+    this.images.deleteImageRecord(imageId);
   }
 }
