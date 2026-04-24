@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { DuplicateGroup, DuplicateScanProgress } from 'shared';
+import { getIpcErrorMessage, runIpcTask } from '../ipc';
 
 interface CleanupStore {
   duplicateGroups: DuplicateGroup[];
@@ -40,60 +41,62 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
       set({ scanProgress: { phase: 'hashing', ...progress } });
     });
 
-    try {
-      const hashResult = await window.sortieAPI.computeMissingHashes(opId);
-      unsubscribe();
+    await runIpcTask({
+      run: async () => {
+        const hashResult = await window.sortieAPI.computeMissingHashes(opId);
+        if (hashResult.cancelled) {
+          return null;
+        }
 
-      if (hashResult.cancelled) {
-        set({ scanning: false, scanProgress: null, currentOpId: null });
-        return;
-      }
+        set({ scanProgress: { phase: 'comparing', current: 0, total: 0 } });
+        return await window.sortieAPI.findDuplicateGroups();
+      },
+      onSuccess: (groups) => {
+        if (groups === null) {
+          set({ scanning: false, scanProgress: null, currentOpId: null });
+          return;
+        }
 
-      set({ scanProgress: { phase: 'comparing', current: 0, total: 0 } });
-      const groups = await window.sortieAPI.findDuplicateGroups();
-      set({
-        duplicateGroups: groups,
-        scanning: false,
-        scanProgress: { phase: 'done', current: 0, total: 0 },
-        currentOpId: null,
-      });
-    } catch (error: unknown) {
-      unsubscribe();
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message, scanning: false, scanProgress: null, currentOpId: null });
-    }
+        set({
+          duplicateGroups: groups,
+          scanning: false,
+          scanProgress: { phase: 'done', current: 0, total: 0 },
+          currentOpId: null,
+        });
+      },
+      onError: (message) => {
+        set({ error: message, scanning: false, scanProgress: null, currentOpId: null });
+      },
+      onFinally: unsubscribe,
+    });
   },
 
   cancelScan: async () => {
     const opId = get().currentOpId;
     if (!opId) return;
-    try {
-      await window.sortieAPI.cancelOperation(opId);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.cancelOperation(opId),
+      onError: (message) => set({ error: message }),
+    });
   },
 
   findDuplicates: async () => {
     set({ loading: true, error: null });
-    try {
-      const groups = await window.sortieAPI.findDuplicateGroups();
-      set({ duplicateGroups: groups, loading: false });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message, loading: false });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.findDuplicateGroups(),
+      onSuccess: (groups) => set({ duplicateGroups: groups, loading: false }),
+      onError: (message) => set({ error: message, loading: false }),
+    });
   },
 
   dismissPair: async (imageId1: number, imageId2: number) => {
-    try {
-      await window.sortieAPI.dismissDuplicatePair(imageId1, imageId2);
-      await get().findDuplicates();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.dismissDuplicatePair(imageId1, imageId2),
+      onSuccess: async () => {
+        await get().findDuplicates();
+      },
+      onError: (message) => set({ error: message }),
+    });
   },
 
   deleteImage: async (imageId: number) => {
@@ -107,17 +110,8 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
           }))
           .filter((g) => g.images.length >= 2),
       }));
-    } catch (error: unknown) {
-      throw new Error(cleanIpcErrorMessage(error), { cause: error });
+    } catch (error) {
+      throw new Error(getIpcErrorMessage(error), { cause: error });
     }
   },
 }));
-
-function cleanIpcErrorMessage(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error);
-  // Electron's ipcRenderer.invoke wraps thrown errors with a preamble like
-  // "Error invoking remote method 'delete-image': Error: <original>".
-  // Strip it so the UI shows just the underlying message.
-  const match = raw.match(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?(.*)$/s);
-  return match ? match[1] : raw;
-}

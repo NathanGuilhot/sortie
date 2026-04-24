@@ -75,11 +75,7 @@ async function resolveOrientation(buf: Buffer, filePath: string): Promise<number
   if (meta.orientation && meta.orientation !== 1) return meta.orientation;
 
   const t = tool();
-  const tags = (await t.read(filePath)) as {
-    Orientation?: number;
-    ImageWidth?: number;
-    ImageHeight?: number;
-  };
+  const tags = await t.read(filePath);
   const containerOrientation = typeof tags.Orientation === 'number' ? tags.Orientation : 1;
   if (containerOrientation === 1) return 1;
 

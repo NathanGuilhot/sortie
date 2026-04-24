@@ -1,50 +1,32 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type {
+  FolderAvailabilityChange,
   FaceScanProgress,
   EmbedderStatus,
-  PinterestResult,
-  PinterestSearchPage,
-  PinterestImportResult,
-  PinterestBulkImportProgress,
-  PinterestBulkImportSummary,
-  Query,
   OcrResult,
   OcrUpdatePayload,
+  PinterestBulkImportCancelResponse,
+  PinterestBulkImportProgress,
+  PinterestBulkImportSummary,
+  PinterestImportResponse,
+  PinterestLoadMoreResponse,
+  PinterestResult,
+  PinterestScrapeResponse,
+  PinterestTarget,
+  SortieAPI,
+  SortieProgress,
+  SuggestDefaultPhotoFolderResult,
 } from 'shared';
 
-type PinterestTarget =
-  | { kind: 'search'; query: string }
-  | { kind: 'board'; username: string; slug: string };
-
-type PinterestScrapeResponse =
-  | { ok: true; target: PinterestTarget; page: PinterestSearchPage }
-  | { ok: false; message: string };
-
-type PinterestLoadMoreResponse =
-  | { ok: true; page: PinterestSearchPage }
-  | { ok: false; message: string };
-
-type PinterestImportResponse =
-  | { ok: true; result: PinterestImportResult }
-  | { ok: false; message: string };
-
-type PinterestBulkImportStartResponse =
-  | { ok: true; jobId: string }
-  | { ok: false; message: string };
-
-type PinterestBulkImportCancelResponse = { ok: true } | { ok: false; message: string };
-
 function subscribe<T>(channel: string, cb: (value: T) => void): () => void {
-  const handler = (_event: unknown, value: T) => cb(value);
+  const handler = (_event: IpcRendererEvent, value: T) => cb(value);
   ipcRenderer.on(channel, handler);
   return () => {
     ipcRenderer.removeListener(channel, handler);
   };
 }
 
-type Progress = { current: number; total: number; currentFile: string };
-
-contextBridge.exposeInMainWorld('sortieAPI', {
+const sortieAPI: SortieAPI = {
   // Image operations
   getImages: (limit?: number, offset?: number) =>
     ipcRenderer.invoke('get-images', { limit, offset }),
@@ -53,7 +35,7 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   reshuffleImages: () => ipcRenderer.invoke('reshuffle-images'),
 
-  query: (query: Query) => ipcRenderer.invoke('query-images', query),
+  query: (query) => ipcRenderer.invoke('query-images', query),
 
   getEmbedderStatus: (): Promise<EmbedderStatus> => ipcRenderer.invoke('get-embedder-status'),
 
@@ -83,7 +65,7 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   hideImage: (imageId: number) => ipcRenderer.invoke('hide-image', { imageId }),
 
-  updateImageMetadata: (imageId: number, metadata: Record<string, unknown>) =>
+  updateImageMetadata: (imageId, metadata) =>
     ipcRenderer.invoke('update-image-metadata', { imageId, metadata }),
 
   getLinkPreview: (url: string) => ipcRenderer.invoke('get-link-preview', { url }),
@@ -118,8 +100,13 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   // Collections
   getCollections: () => ipcRenderer.invoke('get-collections'),
   createCollection: (name: string, description?: string) =>
-    ipcRenderer.invoke('create-collection', { name, description }),
-  organizeImages: () => ipcRenderer.invoke('organize-images'),
+    ipcRenderer
+      .invoke('create-collection', { name, description })
+      .then(({ collectionId }: { collectionId: number }) => collectionId),
+  organizeImages: () =>
+    ipcRenderer
+      .invoke('organize-images')
+      .then(({ collectionIds }: { collectionIds: number[] }) => collectionIds),
 
   // Watcher control
   watchFolder: (path: string) => ipcRenderer.invoke('watch-folder', { path }),
@@ -135,8 +122,8 @@ contextBridge.exposeInMainWorld('sortieAPI', {
   recomputePalette: (imageId: number) => ipcRenderer.invoke('recompute-palette', { imageId }),
   computeMissingPalettes: (opId: string) =>
     ipcRenderer.invoke('compute-missing-palettes', { opId }),
-  onPaletteProgress: (callback: (progress: Progress) => void) =>
-    subscribe<Progress>('palette-progress', callback),
+  onPaletteProgress: (callback: (progress: SortieProgress) => void) =>
+    subscribe<SortieProgress>('palette-progress', callback),
 
   // Cleanup / Duplicate detection
   computeMissingHashes: (opId: string) => ipcRenderer.invoke('compute-missing-hashes', { opId }),
@@ -148,11 +135,11 @@ contextBridge.exposeInMainWorld('sortieAPI', {
 
   deleteImage: (imageId: number) => ipcRenderer.invoke('delete-image', { imageId }),
 
-  onHashProgress: (callback: (progress: Progress) => void) =>
-    subscribe<Progress>('hash-progress', callback),
+  onHashProgress: (callback: (progress: SortieProgress) => void) =>
+    subscribe<SortieProgress>('hash-progress', callback),
 
-  onScanProgress: (callback: (progress: Progress) => void) =>
-    subscribe<Progress>('scan-progress', callback),
+  onScanProgress: (callback: (progress: SortieProgress) => void) =>
+    subscribe<SortieProgress>('scan-progress', callback),
 
   // File actions
   revealInFinder: (filePath: string) => ipcRenderer.invoke('reveal-in-finder', { filePath }),
@@ -200,20 +187,15 @@ contextBridge.exposeInMainWorld('sortieAPI', {
       ipcRenderer.invoke('settings:set', { key, value }),
   },
 
-  suggestDefaultPhotoFolder: (): Promise<{
-    path: string;
-    exists: boolean;
-    approxImageCount: number | null;
-    capped: boolean;
-  }> => ipcRenderer.invoke('suggest-default-photo-folder'),
+  suggestDefaultPhotoFolder: (): Promise<SuggestDefaultPhotoFolderResult> =>
+    ipcRenderer.invoke('suggest-default-photo-folder'),
 
   // Folder availability (external drives)
   recheckFolderAvailability: (folderPath?: string) =>
     ipcRenderer.invoke('recheck-folder-availability', { path: folderPath }),
 
-  onFolderAvailability: (
-    callback: (change: { path: string; available: boolean; writable: boolean }) => void,
-  ) => subscribe('folder-availability-changed', callback),
+  onFolderAvailability: (callback: (change: FolderAvailabilityChange) => void) =>
+    subscribe<FolderAvailabilityChange>('folder-availability-changed', callback),
 
   // App info
   app: {
@@ -249,7 +231,7 @@ contextBridge.exposeInMainWorld('sortieAPI', {
       username: string;
       slug: string;
       hideAiGenerated: boolean;
-    }): Promise<PinterestBulkImportStartResponse> =>
+    }) =>
       ipcRenderer.invoke('pinterest:bulk-import-board', args),
     cancelBulkImport: (jobId: string): Promise<PinterestBulkImportCancelResponse> =>
       ipcRenderer.invoke('pinterest:bulk-import-cancel', { jobId }),
@@ -260,4 +242,6 @@ contextBridge.exposeInMainWorld('sortieAPI', {
     revealImportFolder: () => ipcRenderer.invoke('pinterest:reveal-import-folder'),
     getImportFolder: (): Promise<string> => ipcRenderer.invoke('pinterest:get-import-folder'),
   },
-});
+};
+
+contextBridge.exposeInMainWorld('sortieAPI', sortieAPI);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Image, Face } from 'shared';
+import { Image, Face, TagSuggestion } from 'shared';
 import { PaletteRow } from './PaletteRow';
 import { AddToBoardButton } from './AddToBoardButton';
 import { CopyText } from './CopyText';
@@ -24,13 +24,6 @@ import {
   CheckIcon,
   HeartIcon,
 } from './icons';
-
-interface TagSuggestion {
-  tagId: number;
-  tagName: string;
-  confidence: number;
-  source: 'cluster' | 'similarity';
-}
 
 function saveButtonLabel({
   isSaving,

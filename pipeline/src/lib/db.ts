@@ -1,10 +1,12 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { Image, Face, Person, PaletteColor, FACE_EMBEDDING_DIM, normalizeVector } from 'shared';
+import { Image, Face, Person, PaletteColor, normalizeVector } from 'shared';
+import { decodeEmbeddingRows, decodeEmbeddingValue, type EmbeddingRowValue } from './embedding';
+import { runDatabaseMigrations } from './db-migrations';
+import { setupDatabaseSchema } from './db-schema';
 
-interface EmbeddingDbRow {
+interface EmbeddingDbRow extends EmbeddingRowValue {
   rowid: number;
-  embedding: Buffer | string | number[];
 }
 
 interface TagDbRow {
@@ -64,448 +66,11 @@ export class DatabaseManager {
   }
 
   private setupSchema() {
-    if (this.vecLoaded) {
-      this.db.exec(`SELECT vec_version()`);
-    }
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS images (
-        id INTEGER PRIMARY KEY,
-        file_path TEXT UNIQUE NOT NULL,
-        file_name TEXT NOT NULL,
-        file_size INTEGER,
-        mime_type TEXT,
-        width INTEGER,
-        height INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        modified_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        captured_at DATETIME,
-        latitude REAL,
-        longitude REAL,
-        city TEXT,
-        country TEXT,
-        description TEXT,
-        favorite BOOLEAN DEFAULT 0,
-        hidden BOOLEAN DEFAULT 0
-      )
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS tags (
-        id INTEGER PRIMARY KEY,
-        name TEXT UNIQUE NOT NULL,
-        category TEXT,
-        color TEXT DEFAULT '#6B7280',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS image_tags (
-        image_id INTEGER NOT NULL,
-        tag_id INTEGER NOT NULL,
-        source TEXT DEFAULT 'user',
-        confidence REAL,
-        position INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (image_id, tag_id),
-        FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
-        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-      )
-    `);
-
-    if (this.vecLoaded) {
-      this.db.exec(`
-        CREATE VIRTUAL TABLE IF NOT EXISTS vec_images USING vec0(
-          embedding float[512]
-        )
-      `);
-    }
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS folders (
-        id INTEGER PRIMARY KEY,
-        path TEXT UNIQUE NOT NULL,
-        watched BOOLEAN DEFAULT 1,
-        ignored BOOLEAN DEFAULT 0,
-        exclude_from_face_scan BOOLEAN DEFAULT 0,
-        last_scanned DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        available BOOLEAN DEFAULT 1,
-        writable BOOLEAN DEFAULT 1
-      )
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS collections (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        cluster_id INTEGER,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS collection_images (
-        collection_id INTEGER NOT NULL,
-        image_id INTEGER NOT NULL,
-        added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (collection_id, image_id),
-        FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
-        FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
-      )
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS dismissed_suggestions (
-        image_id INTEGER NOT NULL,
-        tag_id INTEGER NOT NULL,
-        dismissed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (image_id, tag_id),
-        FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
-        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-      )
-    `);
-
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_images_captured_at ON images(captured_at)
-    `);
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_images_location ON images(latitude, longitude)
-    `);
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_image_tags_image ON image_tags(image_id)
-    `);
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_image_tags_tag ON image_tags(tag_id)
-    `);
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_image ON dismissed_suggestions(image_id)
-    `);
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_dismissed_suggestions_tag ON dismissed_suggestions(tag_id)
-    `);
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_image_tags_source ON image_tags(source)
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS app_settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    setupDatabaseSchema(this.db, this.vecLoaded);
   }
 
   private runMigrations() {
-    const version = this.db.pragma('user_version', { simple: true }) as number;
-
-    if (version < 2) {
-      const columns = this.db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>;
-      const colNames = new Set(columns.map((c) => c.name));
-
-      if (!colNames.has('file_hash')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN file_hash TEXT');
-      }
-      if (!colNames.has('dhash')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN dhash TEXT');
-      }
-
-      this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_file_hash ON images(file_hash)');
-      this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_dhash ON images(dhash)');
-
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS dismissed_duplicates (
-          image_id_1 INTEGER NOT NULL,
-          image_id_2 INTEGER NOT NULL,
-          dismissed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (image_id_1, image_id_2),
-          FOREIGN KEY (image_id_1) REFERENCES images(id) ON DELETE CASCADE,
-          FOREIGN KEY (image_id_2) REFERENCES images(id) ON DELETE CASCADE
-        )
-      `);
-
-      this.db.pragma('user_version = 2');
-    }
-
-    if (version < 3) {
-      const columns = this.db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>;
-      const colNames = new Set(columns.map((c) => c.name));
-
-      if (!colNames.has('camera_make')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN camera_make TEXT');
-      }
-      if (!colNames.has('camera_model')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN camera_model TEXT');
-      }
-      if (!colNames.has('aperture')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN aperture REAL');
-      }
-      if (!colNames.has('iso')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN iso INTEGER');
-      }
-      if (!colNames.has('exposure_time')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN exposure_time TEXT');
-      }
-      if (!colNames.has('focal_length')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN focal_length REAL');
-      }
-
-      this.db.pragma('user_version = 3');
-    }
-
-    if (version < 4) {
-      const columns = this.db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>;
-      const colNames = new Set(columns.map((c) => c.name));
-
-      if (!colNames.has('faces_scanned')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN faces_scanned BOOLEAN DEFAULT 0');
-      }
-
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS persons (
-          id INTEGER PRIMARY KEY,
-          name TEXT,
-          thumbnail_face_id INTEGER,
-          face_count INTEGER DEFAULT 0,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS faces (
-          id INTEGER PRIMARY KEY,
-          image_id INTEGER NOT NULL,
-          person_id INTEGER,
-          bbox_x REAL NOT NULL,
-          bbox_y REAL NOT NULL,
-          bbox_w REAL NOT NULL,
-          bbox_h REAL NOT NULL,
-          confidence REAL NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
-          FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE SET NULL
-        )
-      `);
-
-      if (this.vecLoaded) {
-        this.db.exec(`
-          CREATE VIRTUAL TABLE IF NOT EXISTS vec_faces USING vec0(
-            embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
-          )
-        `);
-
-        this.db.exec(`
-          CREATE VIRTUAL TABLE IF NOT EXISTS vec_persons USING vec0(
-            embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
-          )
-        `);
-      }
-
-      this.db.exec('CREATE INDEX IF NOT EXISTS idx_faces_image ON faces(image_id)');
-      this.db.exec('CREATE INDEX IF NOT EXISTS idx_faces_person ON faces(person_id)');
-      this.db.exec('CREATE INDEX IF NOT EXISTS idx_persons_name ON persons(name)');
-
-      this.db.pragma('user_version = 5');
-    }
-
-    if (version >= 4 && version < 5 && this.vecLoaded) {
-      // Vec tables were created with default (L2) distance. Recreate with cosine
-      // and wipe all persons so clustering is re-run on next scan.
-      this.db.exec('DROP TABLE IF EXISTS vec_faces');
-      this.db.exec('DROP TABLE IF EXISTS vec_persons');
-      this.db.exec(`
-        CREATE VIRTUAL TABLE vec_faces USING vec0(
-          embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
-        )
-      `);
-      this.db.exec(`
-        CREATE VIRTUAL TABLE vec_persons USING vec0(
-          embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
-        )
-      `);
-      this.db.exec('DELETE FROM faces');
-      this.db.exec('DELETE FROM persons');
-      this.db.exec('UPDATE images SET faces_scanned = 0');
-      this.db.pragma('user_version = 5');
-    }
-
-    if (version < 6) {
-      const folderCols = this.db.prepare('PRAGMA table_info(folders)').all() as Array<{
-        name: string;
-      }>;
-      const folderColNames = new Set(folderCols.map((c) => c.name));
-      if (!folderColNames.has('available')) {
-        this.db.exec('ALTER TABLE folders ADD COLUMN available BOOLEAN DEFAULT 1');
-      }
-
-      const imageCols = this.db.prepare('PRAGMA table_info(images)').all() as Array<{
-        name: string;
-      }>;
-      const imageColNames = new Set(imageCols.map((c) => c.name));
-      if (!imageColNames.has('missing')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN missing BOOLEAN DEFAULT 0');
-      }
-      this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_missing ON images(missing)');
-
-      this.db.pragma('user_version = 6');
-    }
-
-    if (version < 7) {
-      const imageCols = this.db.prepare('PRAGMA table_info(images)').all() as Array<{
-        name: string;
-      }>;
-      const imageColNames = new Set(imageCols.map((c) => c.name));
-      if (!imageColNames.has('website_link')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN website_link TEXT');
-      }
-
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS link_previews (
-          url_hash TEXT PRIMARY KEY,
-          url TEXT NOT NULL,
-          title TEXT,
-          description TEXT,
-          site_name TEXT,
-          image_path TEXT,
-          fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          error TEXT
-        )
-      `);
-
-      this.db.pragma('user_version = 7');
-    }
-
-    if (version < 8) {
-      const folderCols = this.db.prepare('PRAGMA table_info(folders)').all() as Array<{
-        name: string;
-      }>;
-      const folderColNames = new Set(folderCols.map((c) => c.name));
-      if (!folderColNames.has('exclude_from_face_scan')) {
-        this.db.exec('ALTER TABLE folders ADD COLUMN exclude_from_face_scan BOOLEAN DEFAULT 0');
-      }
-      this.db.pragma('user_version = 8');
-    }
-
-    if (version < 9) {
-      const imageTagCols = this.db.prepare('PRAGMA table_info(image_tags)').all() as Array<{
-        name: string;
-      }>;
-      const imageTagColNames = new Set(imageTagCols.map((c) => c.name));
-      if (!imageTagColNames.has('position')) {
-        this.db.exec('ALTER TABLE image_tags ADD COLUMN position INTEGER');
-      }
-      this.db.exec(
-        'CREATE INDEX IF NOT EXISTS idx_image_tags_position ON image_tags(tag_id, position)',
-      );
-      this.db.pragma('user_version = 9');
-    }
-
-    if (version < 10) {
-      const folderCols = this.db.prepare('PRAGMA table_info(folders)').all() as Array<{
-        name: string;
-      }>;
-      const folderColNames = new Set(folderCols.map((c) => c.name));
-      if (!folderColNames.has('writable')) {
-        this.db.exec('ALTER TABLE folders ADD COLUMN writable BOOLEAN DEFAULT 1');
-      }
-      this.db.pragma('user_version = 10');
-    }
-
-    if (version < 11) {
-      const imageCols = this.db.prepare('PRAGMA table_info(images)').all() as Array<{
-        name: string;
-      }>;
-      const imageColNames = new Set(imageCols.map((c) => c.name));
-      if (!imageColNames.has('palette_json')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN palette_json TEXT');
-      }
-
-      // Regular table holds per-color metadata (image_id, slot, weight) and
-      // owns the autoincrement id used as the vec_palette rowid. Mirrors the
-      // faces + vec_faces split.
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS palette_colors (
-          id INTEGER PRIMARY KEY,
-          image_id INTEGER NOT NULL,
-          color_idx INTEGER NOT NULL,
-          weight REAL NOT NULL,
-          FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
-        )
-      `);
-      this.db.exec(
-        'CREATE INDEX IF NOT EXISTS idx_palette_colors_image ON palette_colors(image_id)',
-      );
-
-      if (this.vecLoaded) {
-        // Default L2 on Lab approximates Delta E 76; lightness magnitude matters here.
-        this.db.exec(`
-          CREATE VIRTUAL TABLE IF NOT EXISTS vec_palette USING vec0(
-            lab float[3]
-          )
-        `);
-      }
-
-      this.db.pragma('user_version = 11');
-    }
-
-    if (version < 12) {
-      // Palette space switched from CIELAB to OKLab. Stored vectors and query
-      // vectors must share a space or nearest-neighbor search is garbage, so
-      // wipe existing palette data — `getImagesMissingPalette` will surface
-      // these for recomputation.
-      if (this.vecLoaded) {
-        this.db.exec('DELETE FROM vec_palette');
-      }
-      this.db.exec('DELETE FROM palette_colors');
-      this.db.exec('UPDATE images SET palette_json = NULL');
-
-      this.db.pragma('user_version = 12');
-    }
-
-    if (version < 13) {
-      this.db.exec('DROP TABLE IF EXISTS metadata_changes');
-      this.db.pragma('user_version = 13');
-    }
-
-    if (version < 14) {
-      const imageCols = this.db.prepare('PRAGMA table_info(images)').all() as Array<{
-        name: string;
-      }>;
-      const imageColNames = new Set(imageCols.map((c) => c.name));
-      if (!imageColNames.has('ocr_status')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN ocr_status TEXT');
-      }
-      if (!imageColNames.has('ocr_at')) {
-        this.db.exec('ALTER TABLE images ADD COLUMN ocr_at INTEGER');
-      }
-
-      // block_index: ordering within an image (top-to-bottom, left-to-right).
-      // polygon_json: four corner points for rotated text. Plain bbox is the
-      //   axis-aligned enclosing rectangle for quick overlay/hit-testing.
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS image_ocr (
-          image_id INTEGER NOT NULL,
-          block_index INTEGER NOT NULL,
-          text TEXT NOT NULL,
-          bbox_x REAL NOT NULL,
-          bbox_y REAL NOT NULL,
-          bbox_w REAL NOT NULL,
-          bbox_h REAL NOT NULL,
-          polygon_json TEXT,
-          confidence REAL NOT NULL,
-          PRIMARY KEY (image_id, block_index),
-          FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE
-        )
-      `);
-      this.db.exec('CREATE INDEX IF NOT EXISTS idx_image_ocr_image ON image_ocr(image_id)');
-      this.db.exec('CREATE INDEX IF NOT EXISTS idx_images_ocr_status ON images(ocr_status)');
-
-      this.db.pragma('user_version = 14');
-    }
+    runDatabaseMigrations(this.db, this.vecLoaded);
   }
 
   upsertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): {
@@ -760,13 +325,13 @@ export class DatabaseManager {
   }
 
   getAllEmbeddings(): Array<{ rowid: number; embedding: number[] }> {
-    return this.decodeEmbeddingRows(
+    return decodeEmbeddingRows(
       this.db.prepare('SELECT rowid, embedding FROM vec_images').all() as EmbeddingDbRow[],
     );
   }
 
   getVisibleEmbeddings(): Array<{ rowid: number; embedding: number[] }> {
-    return this.decodeEmbeddingRows(
+    return decodeEmbeddingRows(
       this.db
         .prepare(
           `SELECT v.rowid AS rowid, v.embedding AS embedding
@@ -778,25 +343,12 @@ export class DatabaseManager {
     );
   }
 
-  private decodeEmbeddingRows(
-    rows: EmbeddingDbRow[],
-  ): Array<{ rowid: number; embedding: number[] }> {
-    return rows.map((row) => {
-      let embedding: number[];
-      if (Buffer.isBuffer(row.embedding)) {
-        const floatArray = new Float32Array(
-          row.embedding.buffer,
-          row.embedding.byteOffset,
-          row.embedding.byteLength / 4,
-        );
-        embedding = Array.from(floatArray);
-      } else if (typeof row.embedding === 'string') {
-        embedding = JSON.parse(row.embedding) as number[];
-      } else {
-        embedding = row.embedding;
-      }
-      return { rowid: row.rowid, embedding };
-    });
+  getEmbedding(imageId: number): number[] | null {
+    const row = this.db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(imageId) as
+      | { embedding: EmbeddingDbRow['embedding'] }
+      | undefined;
+    if (!row) return null;
+    return decodeEmbeddingValue(row.embedding);
   }
 
   getImageTags(imageId: number): TagDbRow[] {

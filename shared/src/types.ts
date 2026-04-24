@@ -111,6 +111,14 @@ export interface Board {
   preview_image_paths: string[];
 }
 
+export interface Collection {
+  id: number;
+  name: string;
+  description: string | null;
+  cluster_id: number | null;
+  created_at: string;
+}
+
 export interface EmbeddingRow {
   rowid: number;
   embedding: number[];
@@ -143,6 +151,13 @@ export interface DismissedSuggestion {
 export interface ImageSuggestion {
   imageId: number;
   confidence: number;
+}
+
+export interface TagSuggestion {
+  tagId: number;
+  tagName: string;
+  confidence: number;
+  source: 'cluster' | 'similarity';
 }
 
 export interface MetadataChange {

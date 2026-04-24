@@ -38,7 +38,9 @@ export function OcrOverlay({ imageId, imgRef, imageLoaded }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    setBlocks([]);
+    queueMicrotask(() => {
+      if (!cancelled) setBlocks([]);
+    });
 
     window.sortieAPI.ocr
       .ensure(imageId)

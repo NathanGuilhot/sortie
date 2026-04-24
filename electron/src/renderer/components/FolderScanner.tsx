@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FolderWithStats } from 'shared';
 import { CopyText } from './CopyText';
 import { ScreenShell, StatHeader, EmptyState, PrimaryButton } from './screen';
 import { toast } from '../stores/toastStore';
 import { useFolderStore } from '../stores/folderStore';
 import { useOnboardingStore } from '../stores/onboardingStore';
+import { showIpcError } from '../ipc';
 import {
   PlusIcon as PlusIconSvg,
   FolderPlusIcon as FolderPlusIconSvg,
@@ -39,7 +39,8 @@ function formatSize(bytes: number): string {
 
 export function FolderScanner() {
   const refreshFolderStore = useFolderStore((s) => s.load);
-  const [folders, setFolders] = useState<FolderWithStats[]>([]);
+  const folders = useFolderStore((s) => s.folderStats);
+  const refreshFolderStats = useFolderStore((s) => s.loadStats);
   const [loading, setLoading] = useState(true);
   const [scanningFolder, setScanningFolder] = useState<string | null>(null);
   const [scanOpId, setScanOpId] = useState<string | null>(null);
@@ -54,29 +55,17 @@ export function FolderScanner() {
   const loadFolders = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await window.sortieAPI.getFoldersWithStats();
-      setFolders(data);
+      await refreshFolderStats();
       void refreshFolderStore();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
+    } catch (error) {
+      showIpcError(error);
     } finally {
       setLoading(false);
     }
-  }, [refreshFolderStore]);
+  }, [refreshFolderStats, refreshFolderStore]);
 
   useEffect(() => {
     void loadFolders();
-    const unsubscribe = window.sortieAPI.onFolderAvailability((change) => {
-      setFolders((prev) =>
-        prev.map((f) =>
-          f.path === change.path
-            ? { ...f, available: change.available, writable: change.writable }
-            : f,
-        ),
-      );
-    });
-    return unsubscribe;
   }, [loadFolders]);
 
   const handleAddFolder = async () => {
@@ -107,9 +96,8 @@ export function FolderScanner() {
       setScanOpId(null);
       setScanProgress(null);
       await loadFolders();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
+    } catch (error) {
+      showIpcError(error);
       setScanningFolder(null);
       setScanOpId(null);
       setScanProgress(null);
@@ -127,9 +115,8 @@ export function FolderScanner() {
     try {
       await window.sortieAPI.scanFolder(path, opId);
       await loadFolders();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
+    } catch (error) {
+      showIpcError(error);
     } finally {
       unsubscribe();
       setScanningFolder(null);
@@ -142,9 +129,8 @@ export function FolderScanner() {
     if (!scanOpId) return;
     try {
       await window.sortieAPI.cancelOperation(scanOpId);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
+    } catch (error) {
+      showIpcError(error);
     }
   };
 
@@ -156,9 +142,8 @@ export function FolderScanner() {
         await window.sortieAPI.watchFolder(path);
       }
       await loadFolders();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
+    } catch (error) {
+      showIpcError(error);
     }
   };
 
@@ -172,9 +157,8 @@ export function FolderScanner() {
     try {
       await window.sortieAPI.setFolderFaceScanExclusion(path, !currentlyExcluded);
       await loadFolders();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
+    } catch (error) {
+      showIpcError(error);
     }
   };
 
@@ -187,9 +171,8 @@ export function FolderScanner() {
       await window.sortieAPI.removeFolder(folderPath);
       setRemovingFolder(null);
       await loadFolders();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
+    } catch (error) {
+      showIpcError(error);
       setRemovingFolder(null);
     }
   };
@@ -205,9 +188,8 @@ export function FolderScanner() {
       await loadFolders();
       // Reset wipes app_settings too — rehydrate so the takeover reappears.
       await useOnboardingStore.getState().load();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
+    } catch (error) {
+      showIpcError(error);
       setResettingDb(false);
     }
   };

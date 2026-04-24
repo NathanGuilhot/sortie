@@ -1,21 +1,14 @@
 import { DatabaseManager } from './db';
 import { SuggestionEngine } from './suggestions';
-
-export interface Collection {
-  id: number;
-  name: string;
-  description: string | null;
-  cluster_id: number | null;
-  created_at: string;
-}
+import { Collection } from 'shared';
 
 export class Organizer {
   private db: DatabaseManager;
   private suggestions: SuggestionEngine;
 
-  constructor(dbPath: string) {
-    this.db = new DatabaseManager(dbPath);
-    this.suggestions = new SuggestionEngine(dbPath);
+  constructor(db: DatabaseManager, suggestions: SuggestionEngine) {
+    this.db = db;
+    this.suggestions = suggestions;
   }
 
   async createCollectionsFromClusters(collectionNamePrefix = 'Cluster'): Promise<number[]> {

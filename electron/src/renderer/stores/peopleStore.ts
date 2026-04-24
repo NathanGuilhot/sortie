@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Person, Image, FaceScanProgress, FaceScanResult } from 'shared';
+import { runIpcTask } from '../ipc';
 
 interface PeopleStore {
   persons: Person[];
@@ -42,13 +43,11 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
 
   fetchPersons: async () => {
     set({ loading: true, error: null });
-    try {
-      const persons = await window.sortieAPI.getPersons();
-      set({ persons, loading: false });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message, loading: false });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.getPersons(),
+      onSuccess: (persons) => set({ persons, loading: false }),
+      onError: (message) => set({ error: message, loading: false }),
+    });
   },
 
   selectPerson: (person) => {
@@ -59,59 +58,56 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
   },
 
   fetchPersonImages: async (personId, limit = 100, offset = 0) => {
-    try {
-      const images = await window.sortieAPI.getPersonImages(personId, limit, offset);
-      set({ personImages: images });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.getPersonImages(personId, limit, offset),
+      onSuccess: (images) => set({ personImages: images }),
+      onError: (message) => set({ error: message }),
+    });
   },
 
   renamePerson: async (personId, name) => {
-    try {
-      await window.sortieAPI.renamePerson(personId, name);
-      set((state) => ({
-        persons: state.persons.map((p) => (p.id === personId ? { ...p, name } : p)),
-        selectedPerson:
-          state.selectedPerson?.id === personId
-            ? { ...state.selectedPerson, name }
-            : state.selectedPerson,
-      }));
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.renamePerson(personId, name),
+      onSuccess: () =>
+        set((state) => ({
+          persons: state.persons.map((p) => (p.id === personId ? { ...p, name } : p)),
+          selectedPerson:
+            state.selectedPerson?.id === personId
+              ? { ...state.selectedPerson, name }
+              : state.selectedPerson,
+        })),
+      onError: (message) => set({ error: message }),
+    });
   },
 
   mergePersons: async (keepPersonId, mergePersonId) => {
-    try {
-      await window.sortieAPI.mergePersons(keepPersonId, mergePersonId);
-      await get().fetchPersons();
-      const selected = get().selectedPerson;
-      if (selected?.id === mergePersonId) {
-        set({ selectedPerson: null, personImages: [] });
-      } else if (selected?.id === keepPersonId) {
-        await get().fetchPersonImages(keepPersonId);
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.mergePersons(keepPersonId, mergePersonId),
+      onSuccess: async () => {
+        await get().fetchPersons();
+        const selected = get().selectedPerson;
+        if (selected?.id === mergePersonId) {
+          set({ selectedPerson: null, personImages: [] });
+        } else if (selected?.id === keepPersonId) {
+          await get().fetchPersonImages(keepPersonId);
+        }
+      },
+      onError: (message) => set({ error: message }),
+    });
   },
 
   splitFace: async (faceId) => {
-    try {
-      await window.sortieAPI.splitFaceFromPerson(faceId);
-      await get().fetchPersons();
-      const selected = get().selectedPerson;
-      if (selected) {
-        await get().fetchPersonImages(selected.id);
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.splitFaceFromPerson(faceId),
+      onSuccess: async () => {
+        await get().fetchPersons();
+        const selected = get().selectedPerson;
+        if (selected) {
+          await get().fetchPersonImages(selected.id);
+        }
+      },
+      onError: (message) => set({ error: message }),
+    });
   },
 
   scanFaces: async () => {
@@ -137,50 +133,46 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
       });
     });
 
-    try {
-      const result = await window.sortieAPI.processFaces(opId);
-      unsubscribe();
-      set({ scanning: false, scanProgress: null, scanResult: result, currentOpId: null });
-      await get().fetchPersons();
-    } catch (error: unknown) {
-      unsubscribe();
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message, scanning: false, scanProgress: null, currentOpId: null });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.processFaces(opId),
+      onSuccess: async (result) => {
+        set({ scanning: false, scanProgress: null, scanResult: result, currentOpId: null });
+        await get().fetchPersons();
+      },
+      onError: (message) =>
+        set({ error: message, scanning: false, scanProgress: null, currentOpId: null }),
+      onFinally: unsubscribe,
+    });
   },
 
   cancelScan: async () => {
     const opId = get().currentOpId;
     if (!opId) return;
-    try {
-      await window.sortieAPI.cancelOperation(opId);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.cancelOperation(opId),
+      onError: (message) => set({ error: message }),
+    });
   },
 
   resetFaceData: async () => {
-    try {
-      await window.sortieAPI.resetFaceData();
-      set({ persons: [], selectedPerson: null, personImages: [], scanResult: null, error: null });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.resetFaceData(),
+      onSuccess: () =>
+        set({ persons: [], selectedPerson: null, personImages: [], scanResult: null, error: null }),
+      onError: (message) => set({ error: message }),
+    });
   },
 
   deletePerson: async (personId) => {
-    try {
-      await window.sortieAPI.deletePerson(personId);
-      set((state) => ({
-        persons: state.persons.filter((p) => p.id !== personId),
-        selectedPerson: state.selectedPerson?.id === personId ? null : state.selectedPerson,
-        personImages: state.selectedPerson?.id === personId ? [] : state.personImages,
-      }));
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      set({ error: message });
-    }
+    await runIpcTask({
+      run: () => window.sortieAPI.deletePerson(personId),
+      onSuccess: () =>
+        set((state) => ({
+          persons: state.persons.filter((p) => p.id !== personId),
+          selectedPerson: state.selectedPerson?.id === personId ? null : state.selectedPerson,
+          personImages: state.selectedPerson?.id === personId ? [] : state.personImages,
+        })),
+      onError: (message) => set({ error: message }),
+    });
   },
 }));

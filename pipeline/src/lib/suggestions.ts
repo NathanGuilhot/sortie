@@ -1,21 +1,14 @@
 import { DatabaseManager } from './db';
 import kmeans from 'kmeans-ts';
 import { LRUCache } from 'lru-cache';
-import { EmbeddingRow, ImageSuggestion, Tag, DismissedSuggestion } from 'shared';
-
-export interface TagSuggestion {
-  tagId: number;
-  tagName: string;
-  confidence: number;
-  source: 'cluster' | 'similarity';
-}
+import { EmbeddingRow, ImageSuggestion, Tag, DismissedSuggestion, TagSuggestion } from 'shared';
 
 export class SuggestionEngine {
   private db: DatabaseManager;
   private embeddingCache: LRUCache<number, number[]>;
 
-  constructor(dbPath: string) {
-    this.db = new DatabaseManager(dbPath);
+  constructor(db: DatabaseManager) {
+    this.db = db;
     this.embeddingCache = new LRUCache({ max: 1000 });
   }
 
@@ -30,24 +23,8 @@ export class SuggestionEngine {
   async getEmbedding(imageId: number): Promise<number[]> {
     const cached = this.embeddingCache.get(imageId);
     if (cached) return cached;
-    const db = this.db.getDatabase();
-    const row = db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(imageId) as
-      | { embedding: Buffer | string | number[] }
-      | undefined;
-    if (!row) return [];
-    let embedding: number[];
-    if (Buffer.isBuffer(row.embedding)) {
-      const floatArray = new Float32Array(
-        row.embedding.buffer,
-        row.embedding.byteOffset,
-        row.embedding.byteLength / 4,
-      );
-      embedding = Array.from(floatArray);
-    } else if (typeof row.embedding === 'string') {
-      embedding = JSON.parse(row.embedding) as number[];
-    } else {
-      embedding = row.embedding;
-    }
+    const embedding = this.db.getEmbedding(imageId);
+    if (!embedding) return [];
     this.embeddingCache.set(imageId, embedding);
     return embedding;
   }

@@ -1,13 +1,16 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef, RefObject } from 'react';
-import { Person, FolderWithStats, Query } from 'shared';
+import React, { useState, useCallback, useEffect, useRef, RefObject } from 'react';
+import { Person } from 'shared';
 import { useUIStore } from '../stores/uiStore';
 import { useImageStore } from '../stores/imageStore';
 import { useEmbedderStore } from '../stores/embedderStore';
 import { toast } from '../stores/toastStore';
+import { showIpcError } from '../ipc';
 import { TagInput } from './TagInput';
 import { PaletteSearchPicker } from './PaletteSearchPicker';
 import { buildFaceThumbUrl } from './faceThumb';
 import { SearchIcon, PersonIcon, XIcon, FilterIcon, HeartIcon } from './icons';
+import { useBuiltSearchQuery } from './searchBar/useBuiltSearchQuery';
+import { useSearchFilterData } from './searchBar/useSearchFilterData';
 
 interface SearchBarProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
@@ -15,59 +18,6 @@ interface SearchBarProps {
 }
 
 const SUGGESTIONS = ['landscape', 'portrait', 'sunset', 'beach', 'family', 'vacation'];
-
-function PersonFilterChip({
-  person,
-  selected,
-  onToggle,
-}: {
-  person: Person;
-  selected: boolean;
-  onToggle: () => void;
-}) {
-  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!person.thumbnail_face_id) return;
-    let cancelled = false;
-    window.sortieAPI
-      .getPersonImages(person.id, 1)
-      .then(async (images) => {
-        if (cancelled || images.length === 0) return;
-        const faces = await window.sortieAPI.getImageFaces(images[0].id);
-        const personFace = faces.find((f) => f.person_id === person.id);
-        if (!cancelled && personFace) setThumbUrl(buildFaceThumbUrl(personFace));
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        const message = error instanceof Error ? error.message : String(error);
-        toast.error(`Failed to load person thumbnail: ${message}`);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [person.id, person.thumbnail_face_id]);
-
-  const label = person.name || `Person ${person.id}`;
-
-  return (
-    <button
-      onClick={onToggle}
-      title={`${label} (${person.face_count})`}
-      className={`relative w-10 h-10 rounded-full overflow-hidden transition-all ${
-        selected ? 'ring-2 ring-ink ring-offset-2' : 'ring-1 ring-gray-200 hover:ring-gray-400'
-      }`}
-    >
-      {thumbUrl ? (
-        <img src={thumbUrl} alt={label} className="w-full h-full object-cover" />
-      ) : (
-        <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
-          <PersonIcon className="w-5 h-5" />
-        </div>
-      )}
-    </button>
-  );
-}
 
 export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   const {
@@ -93,8 +43,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   const activeImageQuery = useImageStore((s) => s.activeImageQuery);
   const embedderStatus = useEmbedderStore((s) => s.status);
 
-  const [persons, setPersons] = useState<Person[]>([]);
-  const [folders, setFolders] = useState<FolderWithStats[]>([]);
+  const { persons, folders } = useSearchFilterData();
 
   const [localQuery, setLocalQuery] = useState(searchQuery);
   const [isFocused, setIsFocused] = useState(false);
@@ -104,28 +53,6 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const dragCounterRef = useRef(0);
-
-  // Load persons list for the filter dropdown
-  useEffect(() => {
-    window.sortieAPI
-      .getPersons()
-      .then(setPersons)
-      .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
-        toast.error(`Failed to load people: ${message}`);
-      });
-  }, []);
-
-  // Load folders list for the filter dropdown
-  useEffect(() => {
-    window.sortieAPI
-      .getFoldersWithStats()
-      .then(setFolders)
-      .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
-        toast.error(`Failed to load folders: ${message}`);
-      });
-  }, []);
 
   const hasActiveFilters =
     tagFilters.length > 0 ||
@@ -147,36 +74,18 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     return () => clearTimeout(timer);
   }, [localQuery, setSearchQuery, searchQuery]);
 
-  // AND-compose every active filter into one Query.
-  const dateStart = dateRange.start ? dateRange.start.toISOString() : null;
-  const dateEnd = dateRange.end ? dateRange.end.toISOString() : null;
   const imageBytes = activeImageQuery?.bytes ?? null;
-
-  const builtQuery = useMemo<Query>(() => {
-    const q: Query = {};
-    const text = searchQuery.trim();
-    if (imageBytes) q.imageBytes = imageBytes;
-    else if (text) q.text = text;
-    if (personFilter !== null) q.personId = personFilter;
-    if (folderFilter !== null) q.folderId = folderFilter;
-    if (tagFilters.length > 0) q.tags = tagFilters;
-    if (paletteFilters.length > 0) q.palette = paletteFilters;
-    if (showFavoritesOnly) q.favorites = true;
-    if (showHidden) q.includeHidden = true;
-    if (dateStart || dateEnd) q.dateRange = { start: dateStart, end: dateEnd };
-    return q;
-  }, [
+  const builtQuery = useBuiltSearchQuery({
     searchQuery,
-    imageBytes,
     personFilter,
     folderFilter,
     tagFilters,
     paletteFilters,
     showFavoritesOnly,
     showHidden,
-    dateStart,
-    dateEnd,
-  ]);
+    dateRange,
+    imageBytes,
+  });
 
   useEffect(() => {
     void runQuery(builtQuery);
@@ -235,8 +144,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
         // The store owns previewUrl from here on and revokes it on clear.
         setActiveImageQuery({ bytes, previewUrl });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        toast.error(`Reverse image search failed: ${message}`);
+        showIpcError(error, 'Reverse image search failed');
       }
     },
     [embedderStatus, setActiveImageQuery, setSearchQuery],
@@ -587,5 +495,57 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
         </div>
       )}
     </div>
+  );
+}
+
+function PersonFilterChip({
+  person,
+  selected,
+  onToggle,
+}: {
+  person: Person;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!person.thumbnail_face_id) return;
+    let cancelled = false;
+    window.sortieAPI
+      .getPersonImages(person.id, 1)
+      .then(async (images) => {
+        if (cancelled || images.length === 0) return;
+        const faces = await window.sortieAPI.getImageFaces(images[0].id);
+        const personFace = faces.find((f) => f.person_id === person.id);
+        if (!cancelled && personFace) setThumbUrl(buildFaceThumbUrl(personFace));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        showIpcError(error, 'Failed to load person thumbnail');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [person.id, person.thumbnail_face_id]);
+
+  const label = person.name || `Person ${person.id}`;
+
+  return (
+    <button
+      onClick={onToggle}
+      title={`${label} (${person.face_count})`}
+      className={`relative w-10 h-10 rounded-full overflow-hidden transition-all ${
+        selected ? 'ring-2 ring-ink ring-offset-2' : 'ring-1 ring-gray-200 hover:ring-gray-400'
+      }`}
+    >
+      {thumbUrl ? (
+        <img src={thumbUrl} alt={label} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
+          <PersonIcon className="w-5 h-5" />
+        </div>
+      )}
+    </button>
   );
 }

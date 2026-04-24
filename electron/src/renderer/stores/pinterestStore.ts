@@ -4,11 +4,8 @@ import type {
   PinterestBulkImportProgress,
   PinterestBulkImportSummary,
   PinterestResult,
+  PinterestTarget,
 } from 'shared';
-
-type PinterestTarget =
-  | { kind: 'search'; query: string }
-  | { kind: 'board'; username: string; slug: string };
 
 type ImportStatus = 'idle' | 'pending' | 'imported' | 'error';
 

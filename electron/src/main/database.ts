@@ -3,8 +3,6 @@ import {
   ClipEmbedder,
   SuggestionEngine,
   Organizer,
-  TagSuggestion,
-  Collection,
   extractExif,
   computeFileHash,
   extractPalette,
@@ -14,7 +12,6 @@ import {
   loadImageInput,
   createOcrEngine,
   type OcrEngine,
-  type OcrBlock,
 } from 'pipeline';
 import {
   Image,
@@ -36,43 +33,24 @@ import {
   LinkPreview,
   OcrResult,
   OcrUpdatePayload,
-  PaletteColor,
-  SUPPORTED_IMAGE_EXTENSIONS,
+  TagSuggestion,
+  Collection,
+  OcrBlock,
+  DEFAULT_TAG_COLOR,
 } from 'shared';
 import { fetchLinkPreview, hashUrl } from './linkPreview';
 import {
   OVERLAP_EXCLUDE_CLAUSE,
   OVERLAP_EXCLUDE_AVAILABLE_CLAUSE,
 } from './folder-overlap-sql';
+import {
+  hydratePalette,
+  IMAGE_EXTENSIONS,
+  MIME_TYPES,
+  type ImageDbRow,
+} from './database-helpers';
 import path from 'path';
 import fs from 'fs/promises';
-
-const IMAGE_EXTENSIONS = new Set(SUPPORTED_IMAGE_EXTENSIONS);
-
-interface ImageDbRow extends Omit<Image, 'embedded' | 'palette'> {
-  embedded: number;
-  palette_json?: string | null;
-}
-
-function hydratePalette(row: ImageDbRow): PaletteColor[] | null {
-  if (!row.palette_json) return null;
-  try {
-    return JSON.parse(row.palette_json) as PaletteColor[];
-  } catch {
-    return null;
-  }
-}
-
-const MIME_TYPES: Record<string, string> = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.gif': 'image/gif',
-  '.bmp': 'image/bmp',
-  '.webp': 'image/webp',
-  '.tiff': 'image/tiff',
-  '.heic': 'image/heic',
-};
 
 export class DatabaseService {
   private db: DatabaseManager | null = null;
@@ -107,8 +85,8 @@ export class DatabaseService {
   ) {
     this.db = new DatabaseManager(dbPath);
     this.embedder = new ClipEmbedder(clipCacheDir);
-    this.suggestionEngine = new SuggestionEngine(dbPath);
-    this.organizer = new Organizer(dbPath);
+    this.suggestionEngine = new SuggestionEngine(this.db);
+    this.organizer = new Organizer(this.db, this.suggestionEngine);
     this.faceDetector = new FaceDetector(faceModelsPath, faceCacheDir);
     this.faceMatcher = new FaceMatcher(this.db);
     if (ocrModelsPath) {
@@ -223,7 +201,7 @@ export class DatabaseService {
     const serialized = this.ocrQueue.then(() => run).catch(() => undefined);
     this.ocrQueue = serialized as Promise<void>;
     this.ocrInFlight.set(imageId, run);
-    run.finally(() => this.ocrInFlight.delete(imageId));
+    void run.finally(() => this.ocrInFlight.delete(imageId));
     return run;
   }
 
@@ -1045,7 +1023,7 @@ export class DatabaseService {
     const trimmed = name.trim();
     if (!trimmed) throw new Error('Board name cannot be empty');
     const insert = db.prepare(
-      `INSERT INTO tags (name, category, color) VALUES (?, 'user', COALESCE(?, '#6B7280'))
+      `INSERT INTO tags (name, category, color) VALUES (?, 'user', COALESCE(?, '${DEFAULT_TAG_COLOR}'))
        ON CONFLICT(name) DO UPDATE SET category = COALESCE(tags.category, 'user')`,
     );
     insert.run(trimmed, color ?? null);
