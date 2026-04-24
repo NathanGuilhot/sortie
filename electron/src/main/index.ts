@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import sharp from 'sharp';
+import { IPC_EVENTS } from 'shared';
 import { isRawPath, loadImageInput, shutdownRawLoader } from 'pipeline';
 import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
@@ -112,12 +113,12 @@ async function initializeServices() {
   setupIpcHandlers(dbService, watcherService, availabilityMonitor, dbPath);
 
   dbService.onEmbedderStatus((status) => {
-    mainWindow?.webContents.send('embedder-status', status);
+    mainWindow?.webContents.send(IPC_EVENTS.embedderStatus, status);
   });
   void dbService.warmupEmbedder();
 
   dbService.onOcrUpdate((payload) => {
-    mainWindow?.webContents.send('ocr-updated', payload);
+    mainWindow?.webContents.send(IPC_EVENTS.ocrUpdated, payload);
   });
 
   // Pre-create the Pinterest import folder so it's listed in /folders even

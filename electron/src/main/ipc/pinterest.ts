@@ -1,7 +1,7 @@
 import { ipcMain, shell } from 'electron';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
-import type { PinterestResult, PinterestTarget } from 'shared';
+import { IPC_CHANNELS, IPC_EVENTS, type PinterestResult, type PinterestTarget } from 'shared';
 import { getImportFolder, importPin } from '../pinterest/import';
 import { bulkImportBoard } from '../pinterest/bulkImport';
 import {
@@ -30,7 +30,7 @@ export function registerPinterestHandlers({
   bulkImportJobs,
 }: MainIpcContext): void {
   ipcMain.handle(
-    'pinterest:scrape',
+    IPC_CHANNELS.pinterest.scrape,
     (_event, { input, target }: { input: string; target?: number }) =>
       pinterestResult(async () => {
         const parsed = parsePinterestInput(input);
@@ -40,7 +40,7 @@ export function registerPinterestHandlers({
   );
 
   ipcMain.handle(
-    'pinterest:load-more',
+    IPC_CHANNELS.pinterest.loadMore,
     (
       _event,
       {
@@ -58,12 +58,12 @@ export function registerPinterestHandlers({
       })),
   );
 
-  ipcMain.handle('pinterest:import-pin', (_event, { pin }: { pin: PinterestResult }) =>
+  ipcMain.handle(IPC_CHANNELS.pinterest.importPin, (_event, { pin }: { pin: PinterestResult }) =>
     pinterestResult(async () => ({ result: await importPin(pin, { dbService }) })),
   );
 
   ipcMain.handle(
-    'pinterest:bulk-import-board',
+    IPC_CHANNELS.pinterest.startBulkImport,
     async (
       event,
       {
@@ -88,13 +88,13 @@ export function registerPinterestHandlers({
             {
               dbService,
               signal: controller.signal,
-              onProgress: (progress) => send('pinterest:bulk-import-progress', progress),
+              onProgress: (progress) => send(IPC_EVENTS.pinterestBulkImportProgress, progress),
             },
           );
-          send('pinterest:bulk-import-complete', summary);
+          send(IPC_EVENTS.pinterestBulkImportComplete, summary);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          send('pinterest:bulk-import-complete', {
+          send(IPC_EVENTS.pinterestBulkImportComplete, {
             jobId,
             status: 'error' as const,
             total: 0,
@@ -112,19 +112,19 @@ export function registerPinterestHandlers({
     },
   );
 
-  ipcMain.handle('pinterest:bulk-import-cancel', async (_event, { jobId }: { jobId: string }) => {
+  ipcMain.handle(IPC_CHANNELS.pinterest.cancelBulkImport, async (_event, { jobId }: { jobId: string }) => {
     const controller = bulkImportJobs.get(jobId);
     if (!controller) return { ok: false as const, message: 'Job not found' };
     controller.abort();
     return { ok: true as const };
   });
 
-  ipcMain.handle('pinterest:reveal-import-folder', async () => {
+  ipcMain.handle(IPC_CHANNELS.pinterest.revealImportFolder, async () => {
     const dir = getImportFolder();
     fs.mkdirSync(dir, { recursive: true });
     await shell.openPath(dir);
     return { success: true };
   });
 
-  ipcMain.handle('pinterest:get-import-folder', () => getImportFolder());
+  ipcMain.handle(IPC_CHANNELS.pinterest.getImportFolder, () => getImportFolder());
 }

@@ -1,14 +1,15 @@
 import { ipcMain } from 'electron';
+import { IPC_CHANNELS, IPC_EVENTS } from 'shared';
 import type { MainIpcContext } from './context';
 import { sendToRenderer, withOperation } from './context';
 
 export function registerPeopleHandlers({ dbService }: MainIpcContext): void {
-  ipcMain.handle('get-persons', async () => {
+  ipcMain.handle(IPC_CHANNELS.getPersons, async () => {
     return await dbService.getPersons();
   });
 
   ipcMain.handle(
-    'get-person-images',
+    IPC_CHANNELS.getPersonImages,
     async (
       _event,
       { personId, limit, offset }: { personId: number; limit?: number; offset?: number },
@@ -18,7 +19,7 @@ export function registerPeopleHandlers({ dbService }: MainIpcContext): void {
   );
 
   ipcMain.handle(
-    'rename-person',
+    IPC_CHANNELS.renamePerson,
     async (_event, { personId, name }: { personId: number; name: string }) => {
       await dbService.renamePerson(personId, name);
       return { success: true };
@@ -26,7 +27,7 @@ export function registerPeopleHandlers({ dbService }: MainIpcContext): void {
   );
 
   ipcMain.handle(
-    'merge-persons',
+    IPC_CHANNELS.mergePersons,
     async (
       _event,
       { keepPersonId, mergePersonId }: { keepPersonId: number; mergePersonId: number },
@@ -36,33 +37,33 @@ export function registerPeopleHandlers({ dbService }: MainIpcContext): void {
     },
   );
 
-  ipcMain.handle('split-face-from-person', async (_event, { faceId }: { faceId: number }) => {
+  ipcMain.handle(IPC_CHANNELS.splitFaceFromPerson, async (_event, { faceId }: { faceId: number }) => {
     const newPersonId = await dbService.splitFaceFromPerson(faceId);
     return { newPersonId };
   });
 
-  ipcMain.handle('get-image-faces', async (_event, { imageId }: { imageId: number }) => {
+  ipcMain.handle(IPC_CHANNELS.getImageFaces, async (_event, { imageId }: { imageId: number }) => {
     return await dbService.getImageFaces(imageId);
   });
 
   ipcMain.handle(
-    'set-person-thumbnail',
+    IPC_CHANNELS.setPersonThumbnail,
     async (_event, { personId, faceId }: { personId: number; faceId: number }) => {
       await dbService.setPersonThumbnail(personId, faceId);
       return { success: true };
     },
   );
 
-  ipcMain.handle('process-faces', async (event, { opId }: { opId: string }) => {
+  ipcMain.handle(IPC_CHANNELS.processFaces, async (event, { opId }: { opId: string }) => {
     return await withOperation(opId, (signal) =>
       dbService.processExistingImagesForFaces(
-        sendToRenderer(event.sender, 'face-scan-progress'),
+        sendToRenderer(event.sender, IPC_EVENTS.faceScanProgress),
         signal,
       ),
     );
   });
 
-  ipcMain.handle('delete-person', async (_event, { personId }: { personId: number }) => {
+  ipcMain.handle(IPC_CHANNELS.deletePerson, async (_event, { personId }: { personId: number }) => {
     await dbService.deletePerson(personId);
     return { success: true };
   });

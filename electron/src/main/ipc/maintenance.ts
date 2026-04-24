@@ -1,6 +1,7 @@
 import { app, clipboard, ipcMain, nativeImage, shell } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import { IPC_CHANNELS, IPC_EVENTS } from 'shared';
 import type { MainIpcContext } from './context';
 import { sendToRenderer, withOperation } from './context';
 
@@ -22,13 +23,13 @@ export function registerMaintenanceHandlers({
   dbService,
   watcherService,
 }: MainIpcContext): void {
-  ipcMain.handle('reset-face-data', async () => {
+  ipcMain.handle(IPC_CHANNELS.resetFaceData, async () => {
     await dbService.resetFaceData();
     await wipeCacheDir('face-thumbs');
     return { success: true };
   });
 
-  ipcMain.handle('reset-database', async () => {
+  ipcMain.handle(IPC_CHANNELS.resetDatabase, async () => {
     watcherService.stopAll();
     await dbService.resetDatabase();
     await Promise.all([
@@ -40,30 +41,30 @@ export function registerMaintenanceHandlers({
     return { success: true };
   });
 
-  ipcMain.handle('compute-missing-hashes', async (event, { opId }: { opId: string }) => {
+  ipcMain.handle(IPC_CHANNELS.computeMissingHashes, async (event, { opId }: { opId: string }) => {
     return await withOperation(opId, (signal) =>
-      dbService.computeMissingHashes(sendToRenderer(event.sender, 'hash-progress'), signal),
+      dbService.computeMissingHashes(sendToRenderer(event.sender, IPC_EVENTS.hashProgress), signal),
     );
   });
 
-  ipcMain.handle('find-duplicate-groups', async () => {
+  ipcMain.handle(IPC_CHANNELS.findDuplicateGroups, async () => {
     return await dbService.findDuplicateGroups();
   });
 
   ipcMain.handle(
-    'dismiss-duplicate-pair',
+    IPC_CHANNELS.dismissDuplicatePair,
     async (_event, { imageId1, imageId2 }: { imageId1: number; imageId2: number }) => {
       await dbService.dismissDuplicatePair(imageId1, imageId2);
       return { success: true };
     },
   );
 
-  ipcMain.handle('reveal-in-finder', async (_event, { filePath }: { filePath: string }) => {
+  ipcMain.handle(IPC_CHANNELS.revealInFinder, async (_event, { filePath }: { filePath: string }) => {
     shell.showItemInFolder(filePath);
     return { success: true };
   });
 
-  ipcMain.handle('copy-image-to-clipboard', async (_event, { filePath }: { filePath: string }) => {
+  ipcMain.handle(IPC_CHANNELS.copyImageToClipboard, async (_event, { filePath }: { filePath: string }) => {
     const image = nativeImage.createFromPath(filePath);
     if (image.isEmpty()) return { success: false };
     clipboard.writeImage(image);

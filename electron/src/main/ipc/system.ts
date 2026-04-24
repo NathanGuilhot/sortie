@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import { SUPPORTED_IMAGE_EXTENSIONS } from 'shared';
+import { IPC_CHANNELS, SUPPORTED_IMAGE_EXTENSIONS, type AppSettingKey } from 'shared';
 import { cancelOperation } from '../operations';
 import type { MainIpcContext } from './context';
 
@@ -45,7 +45,7 @@ export function registerSystemHandlers({
   availabilityMonitor,
   dbPath,
 }: MainIpcContext): void {
-  ipcMain.handle('pick-folder', async (event) => {
+  ipcMain.handle(IPC_CHANNELS.pickFolder, async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     const result = window
       ? await dialog.showOpenDialog(window, { properties: ['openDirectory'] })
@@ -54,20 +54,23 @@ export function registerSystemHandlers({
     return result.filePaths[0];
   });
 
-  ipcMain.handle('cancel-operation', async (_event, { opId }: { opId: string }) => {
+  ipcMain.handle(IPC_CHANNELS.cancelOperation, async (_event, { opId }: { opId: string }) => {
     return { cancelled: cancelOperation(opId) };
   });
 
-  ipcMain.handle('settings:get', (_event, { key }: { key: string }) => {
+  ipcMain.handle(IPC_CHANNELS.settings.get, (_event, { key }: { key: AppSettingKey }) => {
     return dbService.getSetting(key);
   });
 
-  ipcMain.handle('settings:set', (_event, { key, value }: { key: string; value: string }) => {
+  ipcMain.handle(
+    IPC_CHANNELS.settings.set,
+    (_event, { key, value }: { key: AppSettingKey; value: string }) => {
     dbService.setSetting(key, value);
     return { success: true };
-  });
+    },
+  );
 
-  ipcMain.handle('suggest-default-photo-folder', async () => {
+  ipcMain.handle(IPC_CHANNELS.suggestDefaultPhotoFolder, async () => {
     const picturesPath = app.getPath('pictures');
     let exists = false;
     let approxImageCount: number | null = null;
@@ -92,22 +95,22 @@ export function registerSystemHandlers({
     return { path: picturesPath, exists, approxImageCount, capped };
   });
 
-  ipcMain.handle('recheck-folder-availability', async (_event, args?: { path?: string }) => {
+  ipcMain.handle(IPC_CHANNELS.recheckFolderAvailability, async (_event, args?: { path?: string }) => {
     const changes = await availabilityMonitor.checkNow(args?.path);
     return { changes };
   });
 
-  ipcMain.handle('get-database-path', async () => {
+  ipcMain.handle(IPC_CHANNELS.getDatabasePath, async () => {
     return dbPath;
   });
 
-  ipcMain.handle('app:getVersion', () => app.getVersion());
+  ipcMain.handle(IPC_CHANNELS.app.getVersion, () => app.getVersion());
 
-  ipcMain.handle('app:showAboutPanel', () => {
+  ipcMain.handle(IPC_CHANNELS.app.showAboutPanel, () => {
     app.showAboutPanel();
   });
 
-  ipcMain.handle('app:openExternal', async (_event, { url }: { url: string }) => {
+  ipcMain.handle(IPC_CHANNELS.app.openExternal, async (_event, { url }: { url: string }) => {
     if (!/^https?:\/\//i.test(url)) {
       throw new Error(`Refusing to open non-http(s) URL: ${url}`);
     }

@@ -184,11 +184,7 @@ export class FaceMatcher {
     const embedding = this.db.getFaceEmbedding(faceId);
     if (!embedding) throw new Error(`No embedding found for face ${faceId}`);
 
-    const faces = this.db
-      .getDatabase()
-      .prepare('SELECT person_id FROM faces WHERE id = ?')
-      .get(faceId) as { person_id: number | null } | undefined;
-    const oldPersonId = faces?.person_id;
+    const oldPersonId = this.db.getFacePersonId(faceId);
 
     const newPersonId = this.db.insertPerson(null);
     this.db.insertPersonEmbedding(newPersonId, embedding);

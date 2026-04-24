@@ -10,8 +10,6 @@ import {
   FaceDetector,
   FaceMatcher,
   loadImageInput,
-  createOcrEngine,
-  type OcrEngine,
 } from 'pipeline';
 import {
   Image,
@@ -31,6 +29,7 @@ import {
   BackfillExifResult,
   EmbedderStatus,
   LinkPreview,
+  type AppSettingKey,
   OcrResult,
   OcrUpdatePayload,
   TagSuggestion,
@@ -49,6 +48,7 @@ import {
   MIME_TYPES,
   type ImageDbRow,
 } from './database-helpers';
+import { DatabaseOcrService } from './database-ocr';
 import path from 'path';
 import fs from 'fs/promises';
 
@@ -68,13 +68,7 @@ export class DatabaseService {
   private shuffledIdCache = new Map<string, number[]>();
   private embedderStatus: EmbedderStatus = { state: 'idle' };
   private embedderStatusListeners = new Set<(status: EmbedderStatus) => void>();
-
-  private ocrEngine: OcrEngine | null = null;
-  private ocrReady = false;
-  private ocrInitPromise: Promise<void> | null = null;
-  private ocrQueue: Promise<void> = Promise.resolve();
-  private ocrInFlight = new Map<number, Promise<OcrBlock[]>>();
-  private ocrUpdateListeners = new Set<(payload: OcrUpdatePayload) => void>();
+  private ocr: DatabaseOcrService | null = null;
 
   initialize(
     dbPath: string,
@@ -89,9 +83,7 @@ export class DatabaseService {
     this.organizer = new Organizer(this.db, this.suggestionEngine);
     this.faceDetector = new FaceDetector(faceModelsPath, faceCacheDir);
     this.faceMatcher = new FaceMatcher(this.db);
-    if (ocrModelsPath) {
-      this.ocrEngine = createOcrEngine({ modelsPath: ocrModelsPath });
-    }
+    this.ocr = new DatabaseOcrService(this.db, ocrModelsPath);
   }
 
   async warmupEmbedder(): Promise<void> {
@@ -119,107 +111,25 @@ export class DatabaseService {
     };
   }
 
-  // --- OCR ---
-
-  private async ensureOcrReady(): Promise<void> {
-    if (!this.ocrEngine) throw new Error('OCR not available (models not found)');
-    if (this.ocrReady) return;
-    if (this.ocrInitPromise) return this.ocrInitPromise;
-    this.ocrInitPromise = this.ocrEngine.initialize().then(() => {
-      this.ocrReady = true;
-    });
-    try {
-      await this.ocrInitPromise;
-    } catch (err) {
-      this.ocrInitPromise = null;
-      throw err;
-    }
-  }
-
   isOcrAvailable(): boolean {
-    return !!this.ocrEngine;
+    return this.ocr?.isAvailable() ?? false;
   }
 
   getOcr(imageId: number): OcrResult {
     if (!this.db) throw new Error('Database not initialized');
-    const { status, at } = this.db.getOcrStatus(imageId);
-    if (status !== 'done') return { status, at, blocks: [] };
-    const rows = this.db.getImageOcr(imageId);
-    const blocks: OcrBlock[] = rows.map((r) => {
-      let polygon: OcrBlock['polygon'];
-      if (r.polygon_json) {
-        try {
-          polygon = JSON.parse(r.polygon_json) as OcrBlock['polygon'];
-        } catch {
-          polygon = undefined;
-        }
-      }
-      return {
-        text: r.text,
-        bbox: { x: r.bbox_x, y: r.bbox_y, width: r.bbox_w, height: r.bbox_h },
-        polygon,
-        confidence: r.confidence,
-      };
-    });
-    return { status, at, blocks };
+    if (!this.ocr) throw new Error('OCR service not initialized');
+    return this.ocr.get(imageId);
   }
 
   ensureOcr(imageId: number): Promise<OcrBlock[]> {
     if (!this.db) throw new Error('Database not initialized');
-    const cached = this.getOcr(imageId);
-    if (cached.status === 'done' || cached.status === 'empty') {
-      return Promise.resolve(cached.blocks);
-    }
-    const existing = this.ocrInFlight.get(imageId);
-    if (existing) return existing;
-
-    const run = (async () => {
-      const filePath = this.db!.getImagePath(imageId);
-      if (!filePath) throw new Error(`Image ${imageId} not found`);
-
-      await this.ensureOcrReady();
-      try {
-        const blocks = await this.ocrEngine!.extract(filePath);
-        this.db!.saveImageOcr(imageId, blocks);
-        this.notifyOcrUpdate({
-          imageId,
-          status: blocks.length === 0 ? 'empty' : 'done',
-          blocks,
-        });
-        return blocks;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error(`[ocr] failed for image ${imageId}:`, error);
-        this.db!.markOcrError(imageId, message);
-        this.notifyOcrUpdate({ imageId, status: `error:${message}`, blocks: [] });
-        throw error;
-      }
-    })();
-
-    // Serialize through a shared chain so we never run multiple OCR inferences
-    // at once — ONNX is CPU-heavy and would starve CLIP/face/palette workers.
-    const serialized = this.ocrQueue.then(() => run).catch(() => undefined);
-    this.ocrQueue = serialized as Promise<void>;
-    this.ocrInFlight.set(imageId, run);
-    void run.finally(() => this.ocrInFlight.delete(imageId));
-    return run;
+    if (!this.ocr) throw new Error('OCR service not initialized');
+    return this.ocr.ensure(imageId);
   }
 
   onOcrUpdate(listener: (payload: OcrUpdatePayload) => void): () => void {
-    this.ocrUpdateListeners.add(listener);
-    return () => {
-      this.ocrUpdateListeners.delete(listener);
-    };
-  }
-
-  private notifyOcrUpdate(payload: OcrUpdatePayload): void {
-    for (const listener of this.ocrUpdateListeners) {
-      try {
-        listener(payload);
-      } catch (err) {
-        console.error('[ocr] update listener error:', err);
-      }
-    }
+    if (!this.ocr) throw new Error('OCR service not initialized');
+    return this.ocr.onUpdate(listener);
   }
 
   private setEmbedderStatus(status: EmbedderStatus) {
@@ -1559,12 +1469,12 @@ export class DatabaseService {
     return this.db;
   }
 
-  getSetting(key: string): string | null {
+  getSetting(key: AppSettingKey): string | null {
     if (!this.db) throw new Error('Database not initialized');
     return this.db.getSetting(key);
   }
 
-  setSetting(key: string, value: string): void {
+  setSetting(key: AppSettingKey, value: string): void {
     if (!this.db) throw new Error('Database not initialized');
     this.db.setSetting(key, value);
   }

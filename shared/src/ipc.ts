@@ -1,4 +1,5 @@
 import type {
+  AppSettingKey,
   BackfillExifResult,
   Board,
   Collection,
@@ -23,7 +24,9 @@ import type {
   Query,
   ScanFolderResult,
   SearchResult,
+  Tag,
   TagSuggestion,
+  TagWithCount,
 } from './types';
 
 export interface SortieProgress {
@@ -95,25 +98,8 @@ export interface SortieAPI {
   getFolders: () => Promise<Folder[]>;
   getFoldersWithStats: () => Promise<FolderWithStats[]>;
   removeFolder: (path: string) => Promise<{ success: boolean }>;
-  getAllTags: () => Promise<
-    Array<{
-      id: number;
-      name: string;
-      category: string | null;
-      color: string;
-      created_at: string;
-    }>
-  >;
-  getTagsWithCounts: () => Promise<
-    Array<{
-      id: number;
-      name: string;
-      category: string | null;
-      color: string;
-      created_at: string;
-      usage_count: number;
-    }>
-  >;
+  getAllTags: () => Promise<Tag[]>;
+  getTagsWithCounts: () => Promise<TagWithCount[]>;
   updateImageTags: (imageId: number, tags: string[]) => Promise<{ success: boolean }>;
   hideImage: (imageId: number) => Promise<{ success: boolean }>;
   updateImageMetadata: (
@@ -177,8 +163,8 @@ export interface SortieAPI {
   getDatabasePath: () => Promise<string>;
   pickFolder: () => Promise<string | null>;
   settings: {
-    get: (key: string) => Promise<string | null>;
-    set: (key: string, value: string) => Promise<{ success: boolean }>;
+    get: (key: AppSettingKey) => Promise<string | null>;
+    set: (key: AppSettingKey, value: string) => Promise<{ success: boolean }>;
   };
   suggestDefaultPhotoFolder: () => Promise<SuggestDefaultPhotoFolderResult>;
   recheckFolderAvailability: (folderPath?: string) => Promise<{ changes: FolderAvailabilityChange[] }>;

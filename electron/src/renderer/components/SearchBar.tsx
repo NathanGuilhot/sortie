@@ -1,15 +1,12 @@
-import React, { useState, useCallback, useEffect, useRef, RefObject } from 'react';
-import { Person } from 'shared';
+import React, { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { type EmbedderStatus } from 'shared';
 import { useUIStore } from '../stores/uiStore';
 import { useImageStore } from '../stores/imageStore';
 import { useEmbedderStore } from '../stores/embedderStore';
-import { toast } from '../stores/toastStore';
-import { showIpcError } from '../ipc';
-import { TagInput } from './TagInput';
-import { PaletteSearchPicker } from './PaletteSearchPicker';
-import { buildFaceThumbUrl } from './faceThumb';
-import { SearchIcon, PersonIcon, XIcon, FilterIcon, HeartIcon } from './icons';
+import { SearchIcon, XIcon, FilterIcon } from './icons';
 import { useBuiltSearchQuery } from './searchBar/useBuiltSearchQuery';
+import { SearchBarAdvancedFilters } from './searchBar/SearchBarAdvancedFilters';
+import { useReverseImageSearch } from './searchBar/useReverseImageSearch';
 import { useSearchFilterData } from './searchBar/useSearchFilterData';
 
 interface SearchBarProps {
@@ -48,11 +45,9 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   const [localQuery, setLocalQuery] = useState(searchQuery);
   const [isFocused, setIsFocused] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [isDragActive, setIsDragActive] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const dragCounterRef = useRef(0);
 
   const hasActiveFilters =
     tagFilters.length > 0 ||
@@ -87,11 +82,34 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     imageBytes,
   });
 
+  const {
+    isDragActive,
+    handleDragEnter,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handlePaste,
+  } = useReverseImageSearch({
+    embedderReady: embedderStatus.state === 'ready',
+    embedderWarming: embedderStatus.state === 'warming',
+    setSearchQuery: (value) => {
+      setLocalQuery(value);
+      setSearchQuery(value);
+    },
+    setActiveImageQuery,
+  });
+
   useEffect(() => {
     void runQuery(builtQuery);
     scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [builtQuery]);
+
+  useEffect(() => {
+    if (activeImageQuery) {
+      setLocalQuery('');
+    }
+  }, [activeImageQuery]);
 
   // Click-outside dismissal
   useEffect(() => {
@@ -120,87 +138,10 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     inputRef?.current?.focus();
   }, [clearFilters, inputRef]);
 
-  const runImageSearch = useCallback(
-    async (file: File) => {
-      if (embedderStatus.state !== 'ready') {
-        toast.error(
-          embedderStatus.state === 'warming'
-            ? 'Search model is still warming up — try again in a moment.'
-            : 'Search unavailable.',
-        );
-        return;
-      }
-      const MAX = 25 * 1024 * 1024;
-      if (file.size > MAX) {
-        toast.error(`Image too large (${Math.round(file.size / 1024 / 1024)}MB, max 25MB)`);
-        return;
-      }
-      try {
-        const buffer = await file.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        const previewUrl = URL.createObjectURL(file);
-        setLocalQuery('');
-        setSearchQuery('');
-        // The store owns previewUrl from here on and revokes it on clear.
-        setActiveImageQuery({ bytes, previewUrl });
-      } catch (error) {
-        showIpcError(error, 'Reverse image search failed');
-      }
-    },
-    [embedderStatus, setActiveImageQuery, setSearchQuery],
-  );
-
   const handleClearImageQuery = useCallback(() => {
     clearImageQuery();
     inputRef?.current?.focus();
   }, [clearImageQuery, inputRef]);
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
-    e.preventDefault();
-    dragCounterRef.current += 1;
-    setIsDragActive(true);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
-    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
-    if (dragCounterRef.current === 0) setIsDragActive(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    dragCounterRef.current = 0;
-    setIsDragActive(false);
-    const file = e.dataTransfer.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    // Only preventDefault once we've decided to handle it — non-image drops
-    // fall through so we don't break any other drop targets that may appear.
-    e.preventDefault();
-    void runImageSearch(file);
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (let i = 0; i < items.length; i += 1) {
-      const item = items[i];
-      if (item.kind === 'file' && item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          e.preventDefault();
-          void runImageSearch(file);
-          return;
-        }
-      }
-    }
-    // No image in clipboard — let the normal text paste happen.
-  };
 
   const handleFocus = () => {
     clearTimeout(blurTimeoutRef.current);
@@ -228,14 +169,6 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     setIsFocused(false);
   };
 
-  const handleDateChange = (field: 'start' | 'end', value: string) => {
-    const newDate = value ? new Date(value) : null;
-    setDateRange({
-      ...dateRange,
-      [field]: newDate,
-    });
-  };
-
   const showSuggestions = isFocused && !localQuery;
   const showDropdown = showSuggestions || showAdvanced;
 
@@ -248,18 +181,11 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Input bar */}
       <div
-        className={`
-          flex items-center h-11 px-4 rounded-2xl border transition-all duration-200
-          ${
-            isDragActive
-              ? 'bg-white shadow-xl border-dashed border-ink ring-2 ring-ink/10'
-              : isFocused
-                ? 'bg-white shadow-xl border-gray-300'
-                : 'bg-white/95 shadow-lg shadow-black/5 border-gray-200/60'
-          }
-        `}
+        className={getSearchBarShellClassName({
+          isDragActive,
+          isFocused,
+        })}
       >
         {activeImageQuery ? (
           <img
@@ -275,13 +201,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
           ref={inputRef as React.RefObject<HTMLInputElement>}
           type="text"
           className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 placeholder-gray-400 ml-3"
-          placeholder={
-            isDragActive
-              ? 'Drop image to search similar…'
-              : activeImageQuery
-                ? 'Similar to image'
-                : 'Search photos...'
-          }
+          placeholder={getSearchPlaceholder({ activeImageQuery: !!activeImageQuery, isDragActive })}
           value={localQuery}
           onChange={(e) => setLocalQuery(e.target.value)}
           onFocus={handleFocus}
@@ -314,7 +234,6 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
           </button>
         )}
 
-        {/* Filter toggle */}
         {(isFocused || hasActiveFilters) && (
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
@@ -331,7 +250,6 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
           </button>
         )}
 
-        {/* Cmd+K hint */}
         {!isFocused && !localQuery && (
           <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] text-gray-400 bg-gray-100 rounded border border-gray-200 ml-2 shrink-0">
             <span className="text-[10px]">&#8984;K</span>
@@ -339,158 +257,34 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
         )}
       </div>
 
-      {/* Embedder status strip */}
-      {embedderStatus.state === 'warming' && (
-        <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/95 border border-gray-200/60 shadow text-xs text-gray-500 w-fit mx-auto">
-          <div className="animate-spin rounded-full h-3 w-3 border-2 border-gray-300 border-t-gray-500" />
-          <span>Loading search model…</span>
-        </div>
-      )}
-      {embedderStatus.state === 'error' && (
-        <div className="mt-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs text-red-700 w-fit mx-auto">
-          Search unavailable: {embedderStatus.message}
-        </div>
-      )}
+      <SearchStatusNotice embedderStatus={embedderStatus} />
 
-      {/* Dropdown panel */}
       {showDropdown && (
         <div className="mt-2 bg-white rounded-2xl border border-gray-200/60 shadow-xl shadow-black/5 animate-dropdown-in">
-          {/* Suggestion pills — only when focused and no query */}
           {isFocused && !localQuery && (
-            <div className="px-4 py-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-gray-400">Suggestions</span>
-              {SUGGESTIONS.map((term) => (
-                <button
-                  key={term}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => handleSuggestionClick(term)}
-                  className="px-2.5 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors"
-                >
-                  {term}
-                </button>
-              ))}
-            </div>
+            <SearchSuggestions onSelect={handleSuggestionClick} />
           )}
 
-          {/* Advanced filters */}
           {showAdvanced && (
-            <div
-              className={`px-4 py-3 space-y-3 ${isFocused && !localQuery ? 'border-t border-gray-100' : ''}`}
-            >
-              {/* Folder filter */}
-              {folders.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                    Filter by folder
-                  </label>
-                  <select
-                    value={folderFilter ?? ''}
-                    onChange={(e) =>
-                      setFolderFilter(e.target.value ? Number(e.target.value) : null)
-                    }
-                    className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors"
-                  >
-                    <option value="">All folders</option>
-                    {folders.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.folder_name} ({f.image_count})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Board filters */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  Filter by board
-                </label>
-                <TagInput
-                  selectedTags={tagFilters}
-                  onChange={setTagFilters}
-                  placeholder="Add boards..."
-                  suggestionCategories={['user', 'ai']}
-                />
-              </div>
-
-              {/* Person filter */}
-              {persons.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                    Filter by person
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {persons.map((p) => (
-                      <PersonFilterChip
-                        key={p.id}
-                        person={p}
-                        selected={personFilter === p.id}
-                        onToggle={() => setPersonFilter(personFilter === p.id ? null : p.id)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Color palette */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  Filter by color
-                </label>
-                <PaletteSearchPicker colors={paletteFilters} onChange={setPaletteFilters} />
-              </div>
-
-              {/* Date range */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Date range</label>
-                <div className="flex gap-2">
-                  <input
-                    type="date"
-                    className="flex-1 px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors"
-                    value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
-                    onChange={(e) => handleDateChange('start', e.target.value)}
-                  />
-                  <span className="text-gray-300 self-center text-xs">to</span>
-                  <input
-                    type="date"
-                    className="flex-1 px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors"
-                    value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
-                    onChange={(e) => handleDateChange('end', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Toggle filters */}
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                  className="flex items-center gap-1.5 cursor-pointer"
-                  title="Favorites only"
-                >
-                  <div
-                    className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${
-                      showFavoritesOnly ? 'bg-coral' : 'bg-gray-200 hover:bg-gray-300'
-                    }`}
-                  >
-                    <HeartIcon
-                      className={`w-[11px] h-[11px] ${showFavoritesOnly ? 'text-white' : 'text-gray-500'}`}
-                      filled={showFavoritesOnly}
-                      strokeWidth={showFavoritesOnly ? 0 : 2}
-                    />
-                  </div>
-                  <span className="text-xs text-gray-600">Favorites</span>
-                </button>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="h-3.5 w-3.5 text-ink rounded border-gray-300"
-                    checked={showHidden}
-                    onChange={(e) => setShowHidden(e.target.checked)}
-                  />
-                  <span className="text-xs text-gray-600">Hidden images</span>
-                </label>
-              </div>
-            </div>
+            <SearchBarAdvancedFilters
+              folders={folders}
+              folderFilter={folderFilter}
+              setFolderFilter={setFolderFilter}
+              tagFilters={tagFilters}
+              setTagFilters={setTagFilters}
+              persons={persons}
+              personFilter={personFilter}
+              setPersonFilter={setPersonFilter}
+              paletteFilters={paletteFilters}
+              setPaletteFilters={setPaletteFilters}
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+              showFavoritesOnly={showFavoritesOnly}
+              setShowFavoritesOnly={setShowFavoritesOnly}
+              showHidden={showHidden}
+              setShowHidden={setShowHidden}
+              showDivider={isFocused && !localQuery}
+            />
           )}
         </div>
       )}
@@ -498,54 +292,77 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
   );
 }
 
-function PersonFilterChip({
-  person,
-  selected,
-  onToggle,
+function SearchSuggestions({ onSelect }: { onSelect: (term: string) => void }) {
+  return (
+    <div className="px-4 py-3 flex flex-wrap items-center gap-2">
+      <span className="text-xs text-gray-400">Suggestions</span>
+      {SUGGESTIONS.map((term) => (
+        <button
+          key={term}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onSelect(term)}
+          className="px-2.5 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors"
+        >
+          {term}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SearchStatusNotice({
+  embedderStatus,
 }: {
-  person: Person;
-  selected: boolean;
-  onToggle: () => void;
+  embedderStatus: EmbedderStatus;
 }) {
-  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+  if (embedderStatus.state === 'warming') {
+    return (
+      <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/95 border border-gray-200/60 shadow text-xs text-gray-500 w-fit mx-auto">
+        <div className="animate-spin rounded-full h-3 w-3 border-2 border-gray-300 border-t-gray-500" />
+        <span>Loading search model…</span>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    if (!person.thumbnail_face_id) return;
-    let cancelled = false;
-    window.sortieAPI
-      .getPersonImages(person.id, 1)
-      .then(async (images) => {
-        if (cancelled || images.length === 0) return;
-        const faces = await window.sortieAPI.getImageFaces(images[0].id);
-        const personFace = faces.find((f) => f.person_id === person.id);
-        if (!cancelled && personFace) setThumbUrl(buildFaceThumbUrl(personFace));
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        showIpcError(error, 'Failed to load person thumbnail');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [person.id, person.thumbnail_face_id]);
-
-  const label = person.name || `Person ${person.id}`;
+  if (embedderStatus.state !== 'error') {
+    return null;
+  }
 
   return (
-    <button
-      onClick={onToggle}
-      title={`${label} (${person.face_count})`}
-      className={`relative w-10 h-10 rounded-full overflow-hidden transition-all ${
-        selected ? 'ring-2 ring-ink ring-offset-2' : 'ring-1 ring-gray-200 hover:ring-gray-400'
-      }`}
-    >
-      {thumbUrl ? (
-        <img src={thumbUrl} alt={label} className="w-full h-full object-cover" />
-      ) : (
-        <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
-          <PersonIcon className="w-5 h-5" />
-        </div>
-      )}
-    </button>
+    <div className="mt-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs text-red-700 w-fit mx-auto">
+      Search unavailable: {embedderStatus.message}
+    </div>
   );
+}
+
+function getSearchBarShellClassName({
+  isDragActive,
+  isFocused,
+}: {
+  isDragActive: boolean;
+  isFocused: boolean;
+}): string {
+  if (isDragActive) {
+    return 'flex items-center h-11 px-4 rounded-2xl border transition-all duration-200 bg-white shadow-xl border-dashed border-ink ring-2 ring-ink/10';
+  }
+
+  if (isFocused) {
+    return 'flex items-center h-11 px-4 rounded-2xl border transition-all duration-200 bg-white shadow-xl border-gray-300';
+  }
+
+  return (
+    'flex items-center h-11 px-4 rounded-2xl border transition-all duration-200 bg-white/95 shadow-lg shadow-black/5 border-gray-200/60'
+  );
+}
+
+function getSearchPlaceholder({
+  activeImageQuery,
+  isDragActive,
+}: {
+  activeImageQuery: boolean;
+  isDragActive: boolean;
+}): string {
+  if (isDragActive) return 'Drop image to search similar…';
+  if (activeImageQuery) return 'Similar to image';
+  return 'Search photos...';
 }

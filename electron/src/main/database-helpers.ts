@@ -1,4 +1,4 @@
-import { Image, PaletteColor, SUPPORTED_IMAGE_EXTENSIONS } from 'shared';
+import { Image, PaletteColor, SUPPORTED_IMAGE_EXTENSIONS, parseOptionalJson } from 'shared';
 
 export const IMAGE_EXTENSIONS = new Set(SUPPORTED_IMAGE_EXTENSIONS);
 
@@ -9,12 +9,7 @@ export interface ImageDbRow extends Omit<Image, 'embedded' | 'palette'> {
 }
 
 export function hydratePalette(row: ImageDbRow): PaletteColor[] | null {
-  if (!row.palette_json) return null;
-  try {
-    return JSON.parse(row.palette_json) as PaletteColor[];
-  } catch {
-    return null;
-  }
+  return parseOptionalJson<PaletteColor[]>(row.palette_json);
 }
 
 export const MIME_TYPES: Record<string, string> = {

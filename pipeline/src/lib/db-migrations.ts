@@ -1,20 +1,31 @@
 import type Database from 'better-sqlite3';
 import { FACE_EMBEDDING_DIM } from 'shared';
 
+function getColumnNames(db: Database.Database, table: string): Set<string> {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return new Set(columns.map((column) => column.name));
+}
+
+function addColumnIfMissing(
+  db: Database.Database,
+  table: string,
+  columnNames: Set<string>,
+  column: string,
+  definition: string,
+): void {
+  if (columnNames.has(column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  columnNames.add(column);
+}
+
 // Migrations `user_version` : inchrémental, idempotent par version.
 export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean): void {
   const version = db.pragma('user_version', { simple: true }) as number;
 
   if (version < 2) {
-    const columns = db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>;
-    const colNames = new Set(columns.map((c) => c.name));
-
-    if (!colNames.has('file_hash')) {
-      db.exec('ALTER TABLE images ADD COLUMN file_hash TEXT');
-    }
-    if (!colNames.has('dhash')) {
-      db.exec('ALTER TABLE images ADD COLUMN dhash TEXT');
-    }
+    const imageColumns = getColumnNames(db, 'images');
+    addColumnIfMissing(db, 'images', imageColumns, 'file_hash', 'TEXT');
+    addColumnIfMissing(db, 'images', imageColumns, 'dhash', 'TEXT');
 
     db.exec('CREATE INDEX IF NOT EXISTS idx_images_file_hash ON images(file_hash)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_images_dhash ON images(dhash)');
@@ -34,38 +45,20 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
   }
 
   if (version < 3) {
-    const columns = db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>;
-    const colNames = new Set(columns.map((c) => c.name));
-
-    if (!colNames.has('camera_make')) {
-      db.exec('ALTER TABLE images ADD COLUMN camera_make TEXT');
-    }
-    if (!colNames.has('camera_model')) {
-      db.exec('ALTER TABLE images ADD COLUMN camera_model TEXT');
-    }
-    if (!colNames.has('aperture')) {
-      db.exec('ALTER TABLE images ADD COLUMN aperture REAL');
-    }
-    if (!colNames.has('iso')) {
-      db.exec('ALTER TABLE images ADD COLUMN iso INTEGER');
-    }
-    if (!colNames.has('exposure_time')) {
-      db.exec('ALTER TABLE images ADD COLUMN exposure_time TEXT');
-    }
-    if (!colNames.has('focal_length')) {
-      db.exec('ALTER TABLE images ADD COLUMN focal_length REAL');
-    }
+    const imageColumns = getColumnNames(db, 'images');
+    addColumnIfMissing(db, 'images', imageColumns, 'camera_make', 'TEXT');
+    addColumnIfMissing(db, 'images', imageColumns, 'camera_model', 'TEXT');
+    addColumnIfMissing(db, 'images', imageColumns, 'aperture', 'REAL');
+    addColumnIfMissing(db, 'images', imageColumns, 'iso', 'INTEGER');
+    addColumnIfMissing(db, 'images', imageColumns, 'exposure_time', 'TEXT');
+    addColumnIfMissing(db, 'images', imageColumns, 'focal_length', 'REAL');
 
     db.pragma('user_version = 3');
   }
 
   if (version < 4) {
-    const columns = db.prepare('PRAGMA table_info(images)').all() as Array<{ name: string }>;
-    const colNames = new Set(columns.map((c) => c.name));
-
-    if (!colNames.has('faces_scanned')) {
-      db.exec('ALTER TABLE images ADD COLUMN faces_scanned BOOLEAN DEFAULT 0');
-    }
+    const imageColumns = getColumnNames(db, 'images');
+    addColumnIfMissing(db, 'images', imageColumns, 'faces_scanned', 'BOOLEAN DEFAULT 0');
 
     db.exec(`
         CREATE TABLE IF NOT EXISTS persons (
@@ -137,34 +130,19 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
   }
 
   if (version < 6) {
-    const folderCols = db.prepare('PRAGMA table_info(folders)').all() as Array<{
-      name: string;
-    }>;
-    const folderColNames = new Set(folderCols.map((c) => c.name));
-    if (!folderColNames.has('available')) {
-      db.exec('ALTER TABLE folders ADD COLUMN available BOOLEAN DEFAULT 1');
-    }
+    const folderColumns = getColumnNames(db, 'folders');
+    addColumnIfMissing(db, 'folders', folderColumns, 'available', 'BOOLEAN DEFAULT 1');
 
-    const imageCols = db.prepare('PRAGMA table_info(images)').all() as Array<{
-      name: string;
-    }>;
-    const imageColNames = new Set(imageCols.map((c) => c.name));
-    if (!imageColNames.has('missing')) {
-      db.exec('ALTER TABLE images ADD COLUMN missing BOOLEAN DEFAULT 0');
-    }
+    const imageColumns = getColumnNames(db, 'images');
+    addColumnIfMissing(db, 'images', imageColumns, 'missing', 'BOOLEAN DEFAULT 0');
     db.exec('CREATE INDEX IF NOT EXISTS idx_images_missing ON images(missing)');
 
     db.pragma('user_version = 6');
   }
 
   if (version < 7) {
-    const imageCols = db.prepare('PRAGMA table_info(images)').all() as Array<{
-      name: string;
-    }>;
-    const imageColNames = new Set(imageCols.map((c) => c.name));
-    if (!imageColNames.has('website_link')) {
-      db.exec('ALTER TABLE images ADD COLUMN website_link TEXT');
-    }
+    const imageColumns = getColumnNames(db, 'images');
+    addColumnIfMissing(db, 'images', imageColumns, 'website_link', 'TEXT');
 
     db.exec(`
         CREATE TABLE IF NOT EXISTS link_previews (
@@ -183,24 +161,20 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
   }
 
   if (version < 8) {
-    const folderCols = db.prepare('PRAGMA table_info(folders)').all() as Array<{
-      name: string;
-    }>;
-    const folderColNames = new Set(folderCols.map((c) => c.name));
-    if (!folderColNames.has('exclude_from_face_scan')) {
-      db.exec('ALTER TABLE folders ADD COLUMN exclude_from_face_scan BOOLEAN DEFAULT 0');
-    }
+    const folderColumns = getColumnNames(db, 'folders');
+    addColumnIfMissing(
+      db,
+      'folders',
+      folderColumns,
+      'exclude_from_face_scan',
+      'BOOLEAN DEFAULT 0',
+    );
     db.pragma('user_version = 8');
   }
 
   if (version < 9) {
-    const imageTagCols = db.prepare('PRAGMA table_info(image_tags)').all() as Array<{
-      name: string;
-    }>;
-    const imageTagColNames = new Set(imageTagCols.map((c) => c.name));
-    if (!imageTagColNames.has('position')) {
-      db.exec('ALTER TABLE image_tags ADD COLUMN position INTEGER');
-    }
+    const imageTagColumns = getColumnNames(db, 'image_tags');
+    addColumnIfMissing(db, 'image_tags', imageTagColumns, 'position', 'INTEGER');
     db.exec(
       'CREATE INDEX IF NOT EXISTS idx_image_tags_position ON image_tags(tag_id, position)',
     );
@@ -208,24 +182,14 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
   }
 
   if (version < 10) {
-    const folderCols = db.prepare('PRAGMA table_info(folders)').all() as Array<{
-      name: string;
-    }>;
-    const folderColNames = new Set(folderCols.map((c) => c.name));
-    if (!folderColNames.has('writable')) {
-      db.exec('ALTER TABLE folders ADD COLUMN writable BOOLEAN DEFAULT 1');
-    }
+    const folderColumns = getColumnNames(db, 'folders');
+    addColumnIfMissing(db, 'folders', folderColumns, 'writable', 'BOOLEAN DEFAULT 1');
     db.pragma('user_version = 10');
   }
 
   if (version < 11) {
-    const imageCols = db.prepare('PRAGMA table_info(images)').all() as Array<{
-      name: string;
-    }>;
-    const imageColNames = new Set(imageCols.map((c) => c.name));
-    if (!imageColNames.has('palette_json')) {
-      db.exec('ALTER TABLE images ADD COLUMN palette_json TEXT');
-    }
+    const imageColumns = getColumnNames(db, 'images');
+    addColumnIfMissing(db, 'images', imageColumns, 'palette_json', 'TEXT');
 
     // Regular table holds per-color metadata (image_id, slot, weight) and
     // owns the autoincrement id used as the vec_palette rowid. Mirrors the
@@ -273,16 +237,9 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
   }
 
   if (version < 14) {
-    const imageCols = db.prepare('PRAGMA table_info(images)').all() as Array<{
-      name: string;
-    }>;
-    const imageColNames = new Set(imageCols.map((c) => c.name));
-    if (!imageColNames.has('ocr_status')) {
-      db.exec('ALTER TABLE images ADD COLUMN ocr_status TEXT');
-    }
-    if (!imageColNames.has('ocr_at')) {
-      db.exec('ALTER TABLE images ADD COLUMN ocr_at INTEGER');
-    }
+    const imageColumns = getColumnNames(db, 'images');
+    addColumnIfMissing(db, 'images', imageColumns, 'ocr_status', 'TEXT');
+    addColumnIfMissing(db, 'images', imageColumns, 'ocr_at', 'INTEGER');
 
     // block_index: ordering within an image (top-to-bottom, left-to-right).
     // polygon_json: four corner points for rotated text. Plain bbox is the

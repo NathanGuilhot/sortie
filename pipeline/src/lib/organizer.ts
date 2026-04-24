@@ -22,7 +22,6 @@ export class Organizer {
     const k = Math.max(...assignments) + 1;
 
     const createdIds: number[] = [];
-    const db = this.db.getDatabase();
 
     for (let c = 0; c < k; c++) {
       const clusterImageIds = imageIds.filter((_, idx) => assignments[idx] === c);
@@ -30,37 +29,18 @@ export class Organizer {
 
       const name = `${collectionNamePrefix} ${c + 1}`;
       const description = `Automatically created from cluster ${c + 1} containing ${clusterImageIds.length} images`;
-
-      const insert = db.prepare(`
-        INSERT INTO collections (name, description, cluster_id)
-        VALUES (?, ?, ?)
-      `);
-      const result = insert.run(name, description, c);
-      const collectionId = result.lastInsertRowid as number;
+      const collectionId = this.db.createCollection(name, description, c);
       createdIds.push(collectionId);
-
-      const insertImage = db.prepare(`
-        INSERT OR IGNORE INTO collection_images (collection_id, image_id)
-        VALUES (?, ?)
-      `);
-      for (const imageId of clusterImageIds) {
-        insertImage.run(collectionId, imageId);
-      }
+      this.db.addImagesToCollection(collectionId, clusterImageIds);
     }
     return createdIds;
   }
 
   getAllCollections(): Collection[] {
-    const db = this.db.getDatabase();
-    return db.prepare('SELECT * FROM collections ORDER BY created_at DESC').all() as Collection[];
+    return this.db.getCollections();
   }
 
   createCollection(name: string, description?: string): number {
-    const db = this.db.getDatabase();
-    const stmt = db.prepare(
-      'INSERT INTO collections (name, description, cluster_id) VALUES (?, ?, NULL)',
-    );
-    const result = stmt.run(name, description || null);
-    return result.lastInsertRowid as number;
+    return this.db.createCollection(name, description || null, null);
   }
 }

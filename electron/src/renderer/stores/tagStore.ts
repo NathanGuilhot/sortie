@@ -21,15 +21,7 @@ export const useTagStore = create<TagStore>((set) => ({
   fetchTags: async () => {
     set({ loading: true, error: null });
     try {
-      const allTags = await window.sortieAPI.getTagsWithCounts();
-      const tags: TagWithCount[] = allTags.map((t) => ({
-        id: t.id,
-        name: t.name,
-        category: (t.category || 'user') as TagWithCount['category'],
-        color: t.color,
-        created_at: t.created_at,
-        usage_count: t.usage_count,
-      }));
+      const tags = await window.sortieAPI.getTagsWithCounts();
       set({ tags, loading: false });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

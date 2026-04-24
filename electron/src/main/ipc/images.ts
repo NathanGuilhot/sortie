@@ -1,26 +1,26 @@
 import { ipcMain } from 'electron';
-import type { Query, SortieImageMetadataUpdate } from 'shared';
+import { IPC_CHANNELS, IPC_EVENTS, type Query, type SortieImageMetadataUpdate } from 'shared';
 import type { MainIpcContext } from './context';
 import { sendToRenderer, withOperation } from './context';
 
 export function registerImageHandlers({ dbService }: MainIpcContext): void {
   ipcMain.handle(
-    'get-images',
+    IPC_CHANNELS.getImages,
     async (_event, { limit, offset }: { limit?: number; offset?: number } = {}) => {
       return await dbService.getImages(limit, offset);
     },
   );
 
-  ipcMain.handle('get-image', async (_event, { id }: { id: number }) => {
+  ipcMain.handle(IPC_CHANNELS.getImage, async (_event, { id }: { id: number }) => {
     return await dbService.getImage(id);
   });
 
-  ipcMain.handle('reshuffle-images', () => {
+  ipcMain.handle(IPC_CHANNELS.reshuffleImages, () => {
     dbService.reshuffle();
     return { success: true };
   });
 
-  ipcMain.handle('query-images', async (_event, query: Query) => {
+  ipcMain.handle(IPC_CHANNELS.queryImages, async (_event, query: Query) => {
     if (query.imageBytes) {
       const maxQueryBytes = 25 * 1024 * 1024;
       if (query.imageBytes.byteLength > maxQueryBytes) {
@@ -32,50 +32,50 @@ export function registerImageHandlers({ dbService }: MainIpcContext): void {
     return await dbService.queryImages(query);
   });
 
-  ipcMain.handle('get-embedder-status', () => dbService.getEmbedderStatus());
+  ipcMain.handle(IPC_CHANNELS.getEmbedderStatus, () => dbService.getEmbedderStatus());
 
   ipcMain.handle(
-    'find-similar-images',
+    IPC_CHANNELS.findSimilarImages,
     async (_event, { imageId, limit }: { imageId: number; limit?: number }) => {
       return await dbService.findSimilarImages(imageId, limit);
     },
   );
 
-  ipcMain.handle('get-all-tags', async () => {
+  ipcMain.handle(IPC_CHANNELS.getAllTags, async () => {
     return await dbService.getAllTags();
   });
 
-  ipcMain.handle('get-tags-with-counts', async () => {
+  ipcMain.handle(IPC_CHANNELS.getTagsWithCounts, async () => {
     return await dbService.getTagsWithCounts();
   });
 
   ipcMain.handle(
-    'update-image-tags',
+    IPC_CHANNELS.updateImageTags,
     async (_event, { imageId, tags }: { imageId: number; tags: string[] }) => {
       await dbService.updateImageTags(imageId, tags);
       return { success: true };
     },
   );
 
-  ipcMain.handle('get-suggestions', async (_event, { imageId }: { imageId: number }) => {
+  ipcMain.handle(IPC_CHANNELS.getSuggestions, async (_event, { imageId }: { imageId: number }) => {
     return await dbService.getSuggestions(imageId);
   });
 
   ipcMain.handle(
-    'dismiss-suggestion',
+    IPC_CHANNELS.dismissSuggestion,
     async (_event, { imageId, tagId }: { imageId: number; tagId: number }) => {
       await dbService.dismissSuggestion(imageId, tagId);
       return { success: true };
     },
   );
 
-  ipcMain.handle('hide-image', async (_event, { imageId }: { imageId: number }) => {
+  ipcMain.handle(IPC_CHANNELS.hideImage, async (_event, { imageId }: { imageId: number }) => {
     await dbService.hideImage(imageId);
     return { success: true };
   });
 
   ipcMain.handle(
-    'update-image-metadata',
+    IPC_CHANNELS.updateImageMetadata,
     async (
       _event,
       { imageId, metadata }: { imageId: number; metadata: SortieImageMetadataUpdate },
@@ -85,36 +85,36 @@ export function registerImageHandlers({ dbService }: MainIpcContext): void {
     },
   );
 
-  ipcMain.handle('get-link-preview', async (_event, { url }: { url: string }) => {
+  ipcMain.handle(IPC_CHANNELS.getLinkPreview, async (_event, { url }: { url: string }) => {
     return await dbService.getLinkPreview(url);
   });
 
-  ipcMain.handle('fetch-link-preview', async (_event, { url }: { url: string }) => {
+  ipcMain.handle(IPC_CHANNELS.fetchLinkPreview, async (_event, { url }: { url: string }) => {
     return await dbService.fetchAndCacheLinkPreview(url);
   });
 
-  ipcMain.handle('recompute-embedding', async (_event, { imageId }: { imageId: number }) => {
+  ipcMain.handle(IPC_CHANNELS.recomputeEmbedding, async (_event, { imageId }: { imageId: number }) => {
     await dbService.recomputeEmbedding(imageId);
     return { success: true };
   });
 
-  ipcMain.handle('recompute-palette', async (_event, { imageId }: { imageId: number }) => {
+  ipcMain.handle(IPC_CHANNELS.recomputePalette, async (_event, { imageId }: { imageId: number }) => {
     await dbService.recomputePalette(imageId);
     return { success: true };
   });
 
-  ipcMain.handle('compute-missing-palettes', async (event, { opId }: { opId: string }) => {
+  ipcMain.handle(IPC_CHANNELS.computeMissingPalettes, async (event, { opId }: { opId: string }) => {
     return await withOperation(opId, (signal) =>
-      dbService.computeMissingPalettes(sendToRenderer(event.sender, 'palette-progress'), signal),
+      dbService.computeMissingPalettes(sendToRenderer(event.sender, IPC_EVENTS.paletteProgress), signal),
     );
   });
 
-  ipcMain.handle('delete-image', async (_event, { imageId }: { imageId: number }) => {
+  ipcMain.handle(IPC_CHANNELS.deleteImage, async (_event, { imageId }: { imageId: number }) => {
     await dbService.deleteImage(imageId);
     return { success: true };
   });
 
-  ipcMain.handle('backfill-exif', async (_event, { opId }: { opId: string }) => {
+  ipcMain.handle(IPC_CHANNELS.backfillExif, async (_event, { opId }: { opId: string }) => {
     return await withOperation(opId, (signal) => dbService.backfillExifData(signal));
   });
 }

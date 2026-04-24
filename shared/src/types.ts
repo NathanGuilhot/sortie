@@ -38,15 +38,17 @@ export interface OcrBlock {
   confidence: number;
 }
 
+export type OcrStatus = 'done' | 'empty' | `error:${string}` | null;
+
 export interface OcrResult {
-  status: string | null;
+  status: OcrStatus;
   at: number | null;
   blocks: OcrBlock[];
 }
 
 export interface OcrUpdatePayload {
   imageId: number;
-  status: string;
+  status: Exclude<OcrStatus, null>;
   blocks: OcrBlock[];
 }
 
@@ -244,6 +246,11 @@ export interface HashScanResult extends CancellableResult {
 export interface BackfillExifResult extends CancellableResult {
   filled: number;
 }
+
+export type AppSettingKey =
+  | 'onboarding.completed'
+  | 'onboarding.hints.search'
+  | 'onboarding.hints.web';
 
 export type EmbedderStatus =
   | { state: 'idle' }

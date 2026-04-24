@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Image, Query, SearchResult } from 'shared';
+import { Image, Query, SearchResult, type SortieImageMetadataUpdate } from 'shared';
 import { runIpcTask } from '../ipc';
 
 interface ActiveImageQuery {
@@ -35,14 +35,7 @@ interface ImageStore {
   deleteImage: (imageId: number) => Promise<void>;
   updateImageMetadata: (
     imageId: number,
-    metadata: {
-      description?: string;
-      favorite?: boolean;
-      captured_at?: string | null;
-      city?: string | null;
-      country?: string | null;
-      website_link?: string | null;
-    },
+    metadata: SortieImageMetadataUpdate,
   ) => Promise<void>;
 }
 

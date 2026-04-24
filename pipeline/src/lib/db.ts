@@ -1,6 +1,16 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { Image, Face, Person, PaletteColor, normalizeVector } from 'shared';
+import {
+  Collection,
+  Image,
+  Face,
+  Person,
+  PaletteColor,
+  parseOptionalJson,
+  normalizeVector,
+  type AppSettingKey,
+  type OcrStatus,
+} from 'shared';
 import { decodeEmbeddingRows, decodeEmbeddingValue, type EmbeddingRowValue } from './embedding';
 import { runDatabaseMigrations } from './db-migrations';
 import { setupDatabaseSchema } from './db-schema';
@@ -218,12 +228,7 @@ export class DatabaseManager {
     const row = this.db.prepare('SELECT palette_json FROM images WHERE id = ?').get(imageId) as
       | { palette_json: string | null }
       | undefined;
-    if (!row?.palette_json) return null;
-    try {
-      return JSON.parse(row.palette_json) as PaletteColor[];
-    } catch {
-      return null;
-    }
+    return parseOptionalJson<PaletteColor[]>(row?.palette_json);
   }
 
   getImagesMissingPalette(): Array<{ id: number; file_path: string }> {
@@ -307,14 +312,14 @@ export class DatabaseManager {
     return this.db;
   }
 
-  getSetting(key: string): string | null {
+  getSetting(key: AppSettingKey): string | null {
     const row = this.db.prepare('SELECT value FROM app_settings WHERE key = ?').get(key) as
       | { value: string }
       | undefined;
     return row?.value ?? null;
   }
 
-  setSetting(key: string, value: string): void {
+  setSetting(key: AppSettingKey, value: string): void {
     this.db
       .prepare(
         `INSERT INTO app_settings (key, value, updated_at)
@@ -416,6 +421,31 @@ export class DatabaseManager {
       .all() as Array<TagDbRow & { usage_count: number }>;
   }
 
+  createCollection(name: string, description: string | null, clusterId: number | null): number {
+    const result = this.db
+      .prepare('INSERT INTO collections (name, description, cluster_id) VALUES (?, ?, ?)')
+      .run(name, description, clusterId);
+    return result.lastInsertRowid as number;
+  }
+
+  addImagesToCollection(collectionId: number, imageIds: number[]): void {
+    const insertImage = this.db.prepare(
+      'INSERT OR IGNORE INTO collection_images (collection_id, image_id) VALUES (?, ?)',
+    );
+    const txn = this.db.transaction((ids: number[]) => {
+      for (const imageId of ids) {
+        insertImage.run(collectionId, imageId);
+      }
+    });
+    txn(imageIds);
+  }
+
+  getCollections(): Collection[] {
+    return this.db
+      .prepare('SELECT * FROM collections ORDER BY created_at DESC')
+      .all() as Collection[];
+  }
+
   // --- Face / Person methods ---
 
   insertFace(face: {
@@ -454,16 +484,7 @@ export class DatabaseManager {
       .prepare('SELECT embedding FROM vec_faces WHERE rowid = ?')
       .get(BigInt(faceId)) as { embedding: Buffer | number[] } | undefined;
     if (!row) return null;
-    if (Buffer.isBuffer(row.embedding)) {
-      return Array.from(
-        new Float32Array(
-          row.embedding.buffer,
-          row.embedding.byteOffset,
-          row.embedding.byteLength / 4,
-        ),
-      );
-    }
-    return row.embedding;
+    return decodeEmbeddingValue(row.embedding);
   }
 
   insertPerson(name?: string | null): number {
@@ -530,6 +551,13 @@ export class DatabaseManager {
     this.db.prepare('UPDATE faces SET person_id = ? WHERE id = ?').run(personId, faceId);
   }
 
+  getFacePersonId(faceId: number): number | null {
+    const row = this.db.prepare('SELECT person_id FROM faces WHERE id = ?').get(faceId) as
+      | { person_id: number | null }
+      | undefined;
+    return row?.person_id ?? null;
+  }
+
   updatePersonName(personId: number, name: string): void {
     this.db
       .prepare("UPDATE persons SET name = ?, updated_at = datetime('now') WHERE id = ?")
@@ -593,10 +621,10 @@ export class DatabaseManager {
     return row?.file_path ?? null;
   }
 
-  getOcrStatus(imageId: number): { status: string | null; at: number | null } {
+  getOcrStatus(imageId: number): { status: OcrStatus; at: number | null } {
     const row = this.db
       .prepare('SELECT ocr_status AS status, ocr_at AS at FROM images WHERE id = ?')
-      .get(imageId) as { status: string | null; at: number | null } | undefined;
+      .get(imageId) as { status: OcrStatus; at: number | null } | undefined;
     return row ?? { status: null, at: null };
   }
 

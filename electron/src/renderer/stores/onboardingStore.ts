@@ -1,10 +1,11 @@
 import { create } from 'zustand';
+import { APP_SETTING_KEYS } from 'shared';
 
 type HintState = 'pending' | 'seen' | 'dismissed';
 
-const KEY_COMPLETED = 'onboarding.completed';
-const KEY_HINT_SEARCH = 'onboarding.hints.search';
-const KEY_HINT_WEB = 'onboarding.hints.web';
+const KEY_COMPLETED = APP_SETTING_KEYS.onboardingCompleted;
+const KEY_HINT_SEARCH = APP_SETTING_KEYS.onboardingHintSearch;
+const KEY_HINT_WEB = APP_SETTING_KEYS.onboardingHintWeb;
 
 interface OnboardingStore {
   loaded: boolean;

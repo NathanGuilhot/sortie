@@ -3,6 +3,12 @@ export const CLIP_INPUT_SIZE = 224;
 
 export const DEFAULT_TAG_COLOR = '#6B7280';
 
+export const APP_SETTING_KEYS = {
+  onboardingCompleted: 'onboarding.completed',
+  onboardingHintSearch: 'onboarding.hints.search',
+  onboardingHintWeb: 'onboarding.hints.web',
+} as const;
+
 export const FACE_DETECTION_MAX_DIM = 1024;
 export const FACE_EMBEDDING_DIM = 128;
 // Cosine distance on unit-norm FaceNet descriptors: 0 = identical, 2 = opposite.
