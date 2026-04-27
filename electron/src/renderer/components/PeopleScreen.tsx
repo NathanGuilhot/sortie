@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { usePeopleStore } from '../stores/peopleStore';
-import type { Person } from 'shared';
 import {
   ScreenShell,
   StatHeader,
@@ -9,7 +8,7 @@ import {
   PrimaryButton,
   CancelButton,
 } from './screen';
-import { SearchIcon, PeopleIcon as PeopleIconSvg, PersonIcon, ChevronLeftIcon, XIcon } from './icons';
+import { SearchIcon, PeopleIcon as PeopleIconSvg, XIcon } from './icons';
 import { PeoplePersonCard } from './PeoplePersonCard';
 import { PeoplePersonDetail } from './PeoplePersonDetail';
 

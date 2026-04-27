@@ -3,7 +3,6 @@ import {
   invoke,
   invokeNone,
   invokeWithImageId,
-  invokeWithOpId,
   invokeWithUrl,
   subscribe,
 } from '../helpers';

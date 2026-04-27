@@ -26,12 +26,12 @@ interface MetadataEditorFormSectionProps {
   savedWebsiteLink: string | null;
   suggestions: TagSuggestion[];
   websiteLink: string;
-  onAcceptSuggestion(suggestion: TagSuggestion): void | Promise<void>;
-  onChangeDate(value: string): void;
-  onChangeDescription(value: string): void;
-  onChangeLocation(value: string): void;
-  onChangeWebsiteLink(value: string): void;
-  onDismissSuggestion(suggestion: TagSuggestion): void;
+  onAcceptSuggestion: (suggestion: TagSuggestion) => void | Promise<void>;
+  onChangeDate: (value: string) => void;
+  onChangeDescription: (value: string) => void;
+  onChangeLocation: (value: string) => void;
+  onChangeWebsiteLink: (value: string) => void;
+  onDismissSuggestion: (suggestion: TagSuggestion) => void;
 }
 
 export function MetadataEditorFormSection({

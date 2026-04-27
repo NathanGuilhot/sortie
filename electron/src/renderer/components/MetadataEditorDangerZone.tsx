@@ -1,9 +1,9 @@
 interface MetadataEditorDangerZoneProps {
   canDeleteFile: boolean;
   deleteMode: 'image' | 'file' | null;
-  onCancel(): void;
-  onDeleteFile(): void | Promise<void>;
-  onRemoveFromLibrary(): void | Promise<void>;
+  onCancel: () => void;
+  onDeleteFile: () => void | Promise<void>;
+  onRemoveFromLibrary: () => void | Promise<void>;
 }
 
 export function MetadataEditorDangerZone({

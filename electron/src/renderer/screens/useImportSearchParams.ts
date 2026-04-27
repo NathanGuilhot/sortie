@@ -4,8 +4,8 @@ import { useSearchParams } from 'react-router-dom';
 interface UseImportSearchParamsArgs {
   inputRef: RefObject<HTMLInputElement>;
   resultsLength: number;
-  search(input: string): Promise<void>;
-  reset(): void;
+  search: (input: string) => Promise<void>;
+  reset: () => void;
   storedQuery: string;
 }
 
@@ -30,6 +30,7 @@ export function useImportSearchParams({
     }
 
     lastDeeplinkedQuery.current = initialQuery;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInput(initialQuery);
     void search(initialQuery);
   }, [initialQuery, resultsLength, search, storedQuery]);

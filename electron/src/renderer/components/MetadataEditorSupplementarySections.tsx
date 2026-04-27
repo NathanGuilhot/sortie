@@ -1,10 +1,14 @@
 import type { Image } from 'shared';
 import { CopyText } from './CopyText';
-import {
-  MetadataDisclosureSection,
-  metadataSaveButtonLabel,
-} from './MetadataEditorPrimitives';
+import { MetadataDisclosureSection } from './MetadataEditorPrimitives';
 import { CheckIcon } from './icons';
+
+function saveButtonLabel(isSaving: boolean, saveSuccess: boolean, isDirty: boolean): string {
+  if (isSaving) return 'Saving...';
+  if (saveSuccess) return 'Saved';
+  if (isDirty) return 'Save changes';
+  return 'No changes';
+}
 
 interface MetadataEditorSupplementarySectionsProps {
   cameraName: string;
@@ -15,8 +19,8 @@ interface MetadataEditorSupplementarySectionsProps {
   isDirty: boolean;
   isSaving: boolean;
   saveSuccess: boolean;
-  onRecomputeEmbedding(): void | Promise<void>;
-  onSave(): void | Promise<void>;
+  onRecomputeEmbedding: () => void | Promise<void>;
+  onSave: () => void | Promise<void>;
 }
 
 export function MetadataEditorSupplementarySections({
@@ -49,7 +53,7 @@ export function MetadataEditorSupplementarySections({
             {isSaving && (
               <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             )}
-            {metadataSaveButtonLabel({ isSaving, saveSuccess, isDirty })}
+            {saveButtonLabel(isSaving, saveSuccess, isDirty)}
             {saveSuccess && <CheckIcon />}
           </span>
         </button>

@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 
 interface PinterestStore {
   hideAiGenerated: boolean;
-  setHideAiGenerated(hide: boolean): void;
+  setHideAiGenerated: (hide: boolean) => void;
 }
 
 export const usePinterestStore = create<PinterestStore>()(

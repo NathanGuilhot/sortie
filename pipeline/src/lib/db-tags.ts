@@ -1,5 +1,4 @@
 import type Database from 'better-sqlite3';
-import type { Tag } from 'shared';
 
 export interface TagDbRow {
   id: number;

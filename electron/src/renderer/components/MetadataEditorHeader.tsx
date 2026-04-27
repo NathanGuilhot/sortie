@@ -3,7 +3,7 @@ import { HeartIcon, XIcon } from './icons';
 interface MetadataEditorHeaderProps {
   isFavorite: boolean;
   onClose?: () => void;
-  onToggleFavorite(): void;
+  onToggleFavorite: () => void;
 }
 
 export function MetadataEditorHeader({

@@ -71,6 +71,8 @@ electron/   Main process, IPC, React renderer, packaging
 docs/       Release guide
 ```
 
+This project was developped with the help of AI tools, reviewed and tested by me
+
 ## License
 
 MIT © Nathan Guilhot

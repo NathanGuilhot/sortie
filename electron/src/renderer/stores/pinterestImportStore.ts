@@ -48,14 +48,14 @@ interface PinterestImportStore {
   error: string | null;
   imports: Record<string, ImportState>;
   bulkImport: BulkImportState;
-  reset(): void;
-  search(input: string): Promise<void>;
-  loadMore(): Promise<void>;
-  importPin(pin: PinterestResult): Promise<void>;
-  startBulkImport(hideAiGenerated: boolean): Promise<void>;
-  cancelBulkImport(): Promise<void>;
-  applyBulkProgress(progress: PinterestBulkImportProgress): void;
-  applyBulkComplete(summary: PinterestBulkImportSummary): void;
+  reset: () => void;
+  search: (input: string) => Promise<void>;
+  loadMore: () => Promise<void>;
+  importPin: (pin: PinterestResult) => Promise<void>;
+  startBulkImport: (hideAiGenerated: boolean) => Promise<void>;
+  cancelBulkImport: () => Promise<void>;
+  applyBulkProgress: (progress: PinterestBulkImportProgress) => void;
+  applyBulkComplete: (summary: PinterestBulkImportSummary) => void;
 }
 
 export const usePinterestImportStore = create<PinterestImportStore>()((set, get) => ({

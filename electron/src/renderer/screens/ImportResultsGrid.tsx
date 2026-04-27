@@ -20,14 +20,14 @@ interface ImportResultsGridProps {
   loadingMore: boolean;
   previewImage: Image | null;
   results: PinterestResult[];
-  setPreviewImage(image: Image | null): void;
+  setPreviewImage: (image: Image | null) => void;
   showAllHidden: boolean;
   showEmpty: boolean;
   showWelcome: boolean;
   target: PinterestTarget | null;
   targetLabel: string;
   visibleResults: PinterestResult[];
-  onPreview(imageId: number): void;
+  onPreview: (imageId: number) => void;
 }
 
 export function ImportResultsGrid({

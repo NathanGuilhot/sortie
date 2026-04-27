@@ -8,7 +8,6 @@ import {
   FolderWithStats,
   LinkPreview,
   PaletteColor,
-  normalizeVector,
   type AppSettingKey,
   type OcrStatus,
 } from 'shared';

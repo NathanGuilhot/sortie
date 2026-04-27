@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CopyText } from './CopyText';
 import { ScreenShell, StatHeader, EmptyState, PrimaryButton } from './screen';
 import { toast } from '../stores/toastStore';
 import { useFolderStore } from '../stores/folderStore';

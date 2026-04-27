@@ -1,11 +1,5 @@
 import type { BoardInvokeArgsByKey, BoardInvokeResultByKey, BoardsApi } from './ipc/boards';
 import { boardInvokeChannels } from './ipc/boards';
-import type {
-  FolderAvailabilityChange,
-  SortieImageMetadataUpdate,
-  SortieProgress,
-  SuggestDefaultPhotoFolderResult,
-} from './ipc/common';
 import type { FolderApi, FolderInvokeArgsByKey, FolderInvokeResultByKey } from './ipc/folders';
 import { folderInvokeChannels } from './ipc/folders';
 import type { ImageApi, ImageInvokeArgsByKey, ImageInvokeResultByKey } from './ipc/images';
@@ -22,14 +16,8 @@ import type { PeopleApi, PeopleInvokeArgsByKey, PeopleInvokeResultByKey } from '
 import { peopleInvokeChannels } from './ipc/people';
 import type {
   PinterestApi,
-  PinterestBulkImportCancelResponse,
-  PinterestBulkImportStartResponse,
-  PinterestImportResponse,
   PinterestInvokeArgsByKey,
   PinterestInvokeResultByKey,
-  PinterestLoadMoreResponse,
-  PinterestScrapeResponse,
-  PinterestTarget,
 } from './ipc/pinterest';
 import { pinterestInvokeChannels } from './ipc/pinterest';
 import type { SystemApi, SystemInvokeArgsByKey, SystemInvokeResultByKey } from './ipc/system';

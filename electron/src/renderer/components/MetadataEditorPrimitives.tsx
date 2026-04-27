@@ -1,21 +1,6 @@
 import { useRef, useState } from 'react';
 import { ChevronDownIcon } from './icons';
 
-export function metadataSaveButtonLabel({
-  isSaving,
-  saveSuccess,
-  isDirty,
-}: {
-  isSaving: boolean;
-  saveSuccess: boolean;
-  isDirty: boolean;
-}): string {
-  if (isSaving) return 'Saving...';
-  if (saveSuccess) return 'Saved';
-  if (isDirty) return 'Save changes';
-  return 'No changes';
-}
-
 export function MetadataDisclosureSection({
   title,
   defaultOpen = false,
