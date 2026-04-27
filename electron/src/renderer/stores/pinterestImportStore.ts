@@ -48,7 +48,6 @@ interface PinterestImportStore {
   error: string | null;
   imports: Record<string, ImportState>;
   bulkImport: BulkImportState;
-  setQuery(query: string): void;
   reset(): void;
   search(input: string): Promise<void>;
   loadMore(): Promise<void>;
@@ -71,8 +70,6 @@ export const usePinterestImportStore = create<PinterestImportStore>()((set, get)
   error: null,
   imports: {},
   bulkImport: INITIAL_BULK,
-
-  setQuery: (query) => set({ query }),
 
   reset: () =>
     set({

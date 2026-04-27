@@ -6,7 +6,7 @@ import { useUIStore } from '../stores/uiStore';
 import { toast } from '../stores/toastStore';
 import { ImportSearchBar } from './ImportSearchBar';
 import { ImportResultsGrid } from './ImportResultsGrid';
-import { useImportMasonry } from './useImportMasonry';
+import { useMasonryLayout } from '../components/useMasonryLayout';
 import { useImportSearchParams } from './useImportSearchParams';
 import '../stores/pinterest-events';
 
@@ -36,7 +36,6 @@ export function ImportScreen() {
   const [previewImage, setPreviewImage] = useState<Image | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const { input, setInput, handleClear, handleSubmit } = useImportSearchParams({
@@ -46,7 +45,23 @@ export function ImportScreen() {
     reset,
     storedQuery,
   });
-  const { columns, layout } = useImportMasonry({ gridRef, visibleResults });
+  const layoutItems = useMemo(
+    () =>
+      visibleResults.map((result) => ({
+        id: result.pinId,
+        width: result.width,
+        height: result.height,
+      })),
+    [visibleResults],
+  );
+  const { containerRef: gridRef, columns, layout } = useMasonryLayout({
+    items: layoutItems,
+    scrollContainerRef: scrollRef,
+    padding: 0,
+    minColWidth: 200,
+    maxColumns: 6,
+    resumeOnAppend: true,
+  });
   const hasActiveFilters = hideAiGenerated;
 
   useEffect(() => {

@@ -43,7 +43,6 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
     setWebsiteLink('');
     setDescription('');
     setIsFavorite(false);
-    setSuggestions([]);
   }, [image]);
 
   useEffect(() => {
@@ -53,32 +52,18 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
   useEffect(() => {
     if (!image) {
       setSuggestions([]);
-      return;
-    }
-
-    let cancelled = false;
-    void window.sortieAPI.getSuggestions(image.id).then((results: TagSuggestion[]) => {
-      if (!cancelled) {
-        setSuggestions(results);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [image]);
-
-  useEffect(() => {
-    if (!image) {
       setFaces([]);
       return;
     }
 
     let cancelled = false;
-    void window.sortieAPI.getImageFaces(image.id).then((results: Face[]) => {
-      if (!cancelled) {
-        setFaces(results);
-      }
+    void Promise.all([
+      window.sortieAPI.getSuggestions(image.id),
+      window.sortieAPI.getImageFaces(image.id),
+    ]).then(([nextSuggestions, nextFaces]: [TagSuggestion[], Face[]]) => {
+      if (cancelled) return;
+      setSuggestions(nextSuggestions);
+      setFaces(nextFaces);
     });
 
     return () => {

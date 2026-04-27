@@ -5,7 +5,6 @@ import electron from 'electron';
 
 const nativeOrRuntimeExternals = [
   'electron',
-  'shared',
   'pipeline',
   'better-sqlite3',
   'canvas',
@@ -29,6 +28,7 @@ export default defineConfig({
       alias: {
         '@shared': path.resolve(__dirname, '../shared/src'),
         '@pipeline': path.resolve(__dirname, '../pipeline/src'),
+        shared: path.resolve(__dirname, '../shared/src'),
       },
     },
     build: {
@@ -41,6 +41,12 @@ export default defineConfig({
     },
   },
   preload: {
+    resolve: {
+      alias: {
+        '@shared': path.resolve(__dirname, '../shared/src'),
+        shared: path.resolve(__dirname, '../shared/src'),
+      },
+    },
     build: {
       target: 'node18',
       outDir: 'dist/preload',
@@ -68,6 +74,7 @@ export default defineConfig({
       alias: {
         '@shared': path.resolve(__dirname, '../shared/src'),
         '@pipeline': path.resolve(__dirname, '../pipeline/src'),
+        shared: path.resolve(__dirname, '../shared/src'),
       },
     },
   },

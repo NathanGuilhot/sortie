@@ -1,16 +1,6 @@
-import { Image, PaletteColor, SUPPORTED_IMAGE_EXTENSIONS, parseOptionalJson } from 'shared';
+import { SUPPORTED_IMAGE_EXTENSIONS } from 'shared';
 
 export const IMAGE_EXTENSIONS = new Set(SUPPORTED_IMAGE_EXTENSIONS);
-
-// Ligne SQLite images : champs `embedded` (0/1) et palette JSON.
-export interface ImageDbRow extends Omit<Image, 'embedded' | 'palette'> {
-  embedded: number;
-  palette_json?: string | null;
-}
-
-export function hydratePalette(row: ImageDbRow): PaletteColor[] | null {
-  return parseOptionalJson<PaletteColor[]>(row.palette_json);
-}
 
 export const MIME_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',

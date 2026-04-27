@@ -9,7 +9,7 @@ import {
 } from 'pipeline';
 import type { Folder, Image, LinkPreview, Tag } from 'shared';
 import { fetchLinkPreview, hashUrl } from '../linkPreview';
-import { IMAGE_EXTENSIONS, MIME_TYPES } from '../database-helpers';
+import { MIME_TYPES } from '../database-helpers';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -248,9 +248,5 @@ export class DatabaseImagesService {
 
     this.invalidateImageCache();
     return imageId;
-  }
-
-  isImagePathSupported(filePath: string): boolean {
-    return IMAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
   }
 }

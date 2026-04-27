@@ -3,6 +3,7 @@ import { useCleanupStore } from '../stores/cleanupStore';
 import { useFolderStore } from '../stores/folderStore';
 import { CopyText } from './CopyText';
 import { DuplicateGroup, Image } from 'shared';
+import { formatSize } from './folderScannerUtils';
 import {
   ScreenShell,
   StatHeader,
@@ -15,13 +16,6 @@ import { SearchIcon, LockIcon, ClipboardIcon, CheckIcon } from './icons';
 
 const duplicateIconNode = <ClipboardIcon className="w-8 h-8" strokeWidth={1.5} />;
 const checkIconNode = <CheckIcon className="w-8 h-8" />;
-
-function formatSize(bytes: number): string {
-  if (!bytes) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i > 1 ? 1 : 0)} ${units[i]}`;
-}
 
 function formatExt(mimeType: string | null): string {
   if (!mimeType) return '?';
@@ -53,7 +47,6 @@ function DuplicateGroupCard({
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span

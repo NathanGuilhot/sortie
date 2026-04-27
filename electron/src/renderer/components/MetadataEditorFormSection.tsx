@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Face, Image, TagSuggestion } from 'shared';
 import { AddToBoardButton } from './AddToBoardButton';
 import { LinkPreviewCard } from './LinkPreviewCard';
@@ -12,6 +13,9 @@ import {
   PlusIcon,
   XIcon,
 } from './icons';
+
+const FIELD_INPUT_CLASSES =
+  'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors text-gray-900 placeholder-gray-400';
 
 interface MetadataEditorFormSectionProps {
   image: Image;
@@ -46,25 +50,17 @@ export function MetadataEditorFormSection({
   onChangeWebsiteLink,
   onDismissSuggestion,
 }: MetadataEditorFormSectionProps) {
-  const inputClasses =
-    'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors text-gray-900 placeholder-gray-400';
-
   return (
     <div className="space-y-4 mb-6">
-      <div>
-        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
-          <FolderOpenIcon className="w-3.5 h-3.5" strokeWidth={2} />
-          Boards
-        </label>
+      <MetadataField
+        icon={<FolderOpenIcon className="w-3.5 h-3.5" strokeWidth={2} />}
+        label="Boards"
+      >
         <AddToBoardButton imageId={image.id} imageTags={image.tags || []} />
-      </div>
+      </MetadataField>
 
       {suggestions.length > 0 && (
-        <div>
-          <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
-            <BulbIcon className="w-3.5 h-3.5" />
-            Suggested
-          </label>
+        <MetadataField icon={<BulbIcon className="w-3.5 h-3.5" />} label="Suggested">
           <div className="flex flex-wrap gap-1.5">
             {suggestions.map((suggestion) => (
               <span
@@ -90,15 +86,14 @@ export function MetadataEditorFormSection({
               </span>
             ))}
           </div>
-        </div>
+        </MetadataField>
       )}
 
       {faces.length > 0 && (
-        <div>
-          <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
-            <PersonIcon className="w-3.5 h-3.5" strokeWidth={2} />
-            Faces ({faces.length})
-          </label>
+        <MetadataField
+          icon={<PersonIcon className="w-3.5 h-3.5" strokeWidth={2} />}
+          label={`Faces (${faces.length})`}
+        >
           <div className="flex flex-wrap gap-2">
             {faces.map((face) => {
               const params = new URLSearchParams({
@@ -126,45 +121,33 @@ export function MetadataEditorFormSection({
               );
             })}
           </div>
-        </div>
+        </MetadataField>
       )}
 
-      <div>
-        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
-          <CalendarIcon className="w-3.5 h-3.5" />
-          Capture Date
-        </label>
+      <MetadataField icon={<CalendarIcon className="w-3.5 h-3.5" />} label="Capture Date">
         <input
           type="date"
-          className={inputClasses}
+          className={FIELD_INPUT_CLASSES}
           value={date}
           onChange={(event) => onChangeDate(event.target.value)}
         />
-      </div>
+      </MetadataField>
 
-      <div>
-        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
-          <MapPinIcon className="w-3.5 h-3.5" />
-          Location
-        </label>
+      <MetadataField icon={<MapPinIcon className="w-3.5 h-3.5" />} label="Location">
         <input
           type="text"
-          className={inputClasses}
+          className={FIELD_INPUT_CLASSES}
           placeholder="City, Country"
           value={location}
           onChange={(event) => onChangeLocation(event.target.value)}
         />
-      </div>
+      </MetadataField>
 
-      <div>
-        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
-          <LinkIcon className="w-3.5 h-3.5" />
-          Website Link
-        </label>
+      <MetadataField icon={<LinkIcon className="w-3.5 h-3.5" />} label="Website Link">
         <input
           type="text"
           inputMode="url"
-          className={inputClasses}
+          className={FIELD_INPUT_CLASSES}
           placeholder="https://example.com"
           value={websiteLink}
           onChange={(event) => onChangeWebsiteLink(event.target.value)}
@@ -172,20 +155,34 @@ export function MetadataEditorFormSection({
         {image.website_link && savedWebsiteLink === image.website_link && (
           <LinkPreviewCard url={image.website_link} />
         )}
-      </div>
+      </MetadataField>
 
-      <div>
-        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
-          <DocumentIcon className="w-3.5 h-3.5" />
-          Description
-        </label>
+      <MetadataField icon={<DocumentIcon className="w-3.5 h-3.5" />} label="Description">
         <textarea
-          className={`${inputClasses} resize-none h-24`}
+          className={`${FIELD_INPUT_CLASSES} resize-none h-24`}
           placeholder="Describe this image..."
           value={description}
           onChange={(event) => onChangeDescription(event.target.value)}
         />
-      </div>
+      </MetadataField>
+    </div>
+  );
+}
+
+interface MetadataFieldProps {
+  icon: ReactNode;
+  label: ReactNode;
+  children: ReactNode;
+}
+
+function MetadataField({ icon, label, children }: MetadataFieldProps) {
+  return (
+    <div>
+      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1.5">
+        {icon}
+        {label}
+      </label>
+      {children}
     </div>
   );
 }

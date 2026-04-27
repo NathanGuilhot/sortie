@@ -1,6 +1,5 @@
 import { type ClipEmbedder, type DatabaseManager, hexToOklab } from 'pipeline';
-import type { Query, SearchResult, Tag } from 'shared';
-import { hydratePalette, type ImageDbRow } from '../database-helpers';
+import type { Query, SearchResult } from 'shared';
 
 type SqlBinding = string | number | bigint | Uint8Array | null;
 
@@ -128,6 +127,16 @@ export class DatabaseSearchService {
     return Math.min(desired, cap);
   }
 
+  private hydrateScoredResults(matches: Array<{ imageId: number; distance: number }>): SearchResult[] {
+    if (matches.length === 0) return [];
+
+    const distanceMap = new Map(matches.map((match) => [match.imageId, match.distance]));
+    return this.deps.fetchImagesByIdsInOrder(matches.map((match) => match.imageId)).map((image) => ({
+      ...image,
+      distance: distanceMap.get(image.id),
+    }));
+  }
+
   private embeddingQuery(
     embedding: number[],
     setIds: number[] | null,
@@ -162,31 +171,12 @@ export class DatabaseSearchService {
       kept.push(match);
     }
 
-    const page = kept.slice(offset, offset + limit);
-    const imageIds = page.map((match) => match.rowid);
-    if (imageIds.length === 0) return [];
-
-    const placeholders = imageIds.map(() => '?').join(',');
-    const imageStatement = db.getDatabase().prepare(`SELECT * FROM images WHERE id IN (${placeholders})`);
-    const rows = imageStatement.all(...imageIds) as ImageDbRow[];
-    const byId = new Map(rows.map((row) => [row.id, row]));
-    const distanceMap = new Map(page.map((match) => [match.rowid, match.distance]));
-    const results: SearchResult[] = [];
-
-    for (const imageId of imageIds) {
-      const row = byId.get(imageId);
-      if (!row) continue;
-
-      results.push({
-        ...row,
-        embedded: true,
-        palette: hydratePalette(row),
-        distance: distanceMap.get(imageId),
-        tags: db.getImageTags(imageId) as Tag[],
-      });
-    }
-
-    return results;
+    return this.hydrateScoredResults(
+      kept.slice(offset, offset + limit).map((match) => ({
+        imageId: match.rowid,
+        distance: match.distance,
+      })),
+    );
   }
 
   private paletteQuery(
@@ -214,32 +204,12 @@ export class DatabaseSearchService {
       kept.push(match);
     }
 
-    const page = kept.slice(offset, offset + limit);
-    if (page.length === 0) return [];
-
-    const placeholders = page.map(() => '?').join(',');
-    const imageStatement = db.getDatabase().prepare(
-      `SELECT i.*, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
-       FROM images i WHERE i.id IN (${placeholders})`,
-    );
-    const rows = imageStatement.all(...page.map((match) => match.imageId)) as ImageDbRow[];
-    const byId = new Map(rows.map((row) => [row.id, row]));
-    const results: SearchResult[] = [];
-
-    for (const match of page) {
-      const row = byId.get(match.imageId);
-      if (!row) continue;
-
-      results.push({
-        ...row,
-        embedded: !!row.embedded,
-        palette: hydratePalette(row),
+    return this.hydrateScoredResults(
+      kept.slice(offset, offset + limit).map((match) => ({
+        imageId: match.imageId,
         distance: match.score,
-        tags: db.getImageTags(row.id) as Tag[],
-      });
-    }
-
-    return results;
+      })),
+    );
   }
 
   async findSimilarImages(imageId: number, limit: number = 20): Promise<SearchResult[]> {
@@ -250,14 +220,12 @@ export class DatabaseSearchService {
     const matches = db
       .findNearestImageMatches(embedding, limit + 1)
       .filter((match) => match.rowid !== imageId);
-    const imageIds = matches.map((match) => match.rowid);
-    if (imageIds.length === 0) return [];
-
-    const distanceMap = new Map(matches.map((match) => [match.rowid, match.distance]));
-    const results = db.getImagesByIds(imageIds).map((image) => ({
-      ...image,
-      distance: distanceMap.get(image.id),
-    }));
+    const results = this.hydrateScoredResults(
+      matches.map((match) => ({
+        imageId: match.rowid,
+        distance: match.distance,
+      })),
+    );
 
     results.sort((left, right) => (left.distance ?? Infinity) - (right.distance ?? Infinity));
     return results;
