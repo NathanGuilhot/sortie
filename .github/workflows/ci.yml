@@ -30,6 +30,8 @@ jobs:
             librsvg2-dev
 
       - run: yarn install --frozen-lockfile
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
 
       - run: yarn lint
 
