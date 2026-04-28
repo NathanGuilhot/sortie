@@ -62,7 +62,13 @@ export class DatabasePeopleService {
   }
 
   async splitFaceFromPerson(faceId: number): Promise<number> {
-    return this.deps.getFaceMatcher().splitFaceFromPerson(faceId);
+    const oldPersonId = this.deps.requireDb().getFacePersonId(faceId);
+    const newPersonId = this.deps.getFaceMatcher().splitFaceFromPerson(faceId);
+    if (oldPersonId !== null) {
+      this.deps.deleteShuffledIds(`person:${oldPersonId}`, true);
+    }
+    this.deps.deleteShuffledIds(`person:${newPersonId}`, true);
+    return newPersonId;
   }
 
   async getImageFaces(imageId: number): Promise<Face[]> {
@@ -75,5 +81,6 @@ export class DatabasePeopleService {
 
   async deletePerson(personId: number): Promise<void> {
     this.deps.requireDb().deletePerson(personId);
+    this.deps.deleteShuffledIds(`person:${personId}`, true);
   }
 }

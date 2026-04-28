@@ -25,8 +25,6 @@ import { setupDatabaseSchema } from './db-schema';
 import { DatabaseTagRepository, type DismissedDbRow, type TagDbRow } from './db-tags';
 import { DatabaseVectorRepository } from './db-vectors';
 
-const IMAGE_DIMENSIONS_MIGRATION_KEY = 'migration:image-dimensions-fixed';
-
 export class DatabaseManager {
   private db: Database.Database;
   private vecLoaded = false;
@@ -161,32 +159,24 @@ export class DatabaseManager {
   }
 
   async runStartupMaintenance(): Promise<{ fixedImageDimensions: number }> {
-    const alreadyRan = this.db
-      .prepare('SELECT value FROM app_settings WHERE key = ?')
-      .get(IMAGE_DIMENSIONS_MIGRATION_KEY) as { value: string } | undefined;
-    if (alreadyRan?.value === '1') {
-      return { fixedImageDimensions: 0 };
-    }
-
+    // Idempotent backfill: only inspect rows that are still missing dimensions.
+    // Once all rows have dimensions the SELECT returns nothing and this is a
+    // no-op, so no global "done" flag is needed. A failed extraction (e.g.
+    // file on an unmounted volume) is silently skipped so the row is retried
+    // next launch — never overwrite valid dims with null.
     const rows = this.db
-      .prepare('SELECT id, file_path, width, height FROM images')
-      .all() as Array<{
-      id: number;
-      file_path: string;
-      width: number | null;
-      height: number | null;
-    }>;
+      .prepare(
+        'SELECT id, file_path FROM images WHERE width IS NULL OR height IS NULL',
+      )
+      .all() as Array<{ id: number; file_path: string }>;
 
     let fixed = 0;
+    const update = this.db.prepare('UPDATE images SET width = ?, height = ? WHERE id = ?');
     for (const row of rows) {
       try {
         const exif = await extractExif(row.file_path);
-        if (exif.width !== row.width || exif.height !== row.height) {
-          this.db.prepare('UPDATE images SET width = ?, height = ? WHERE id = ?').run(
-            exif.width,
-            exif.height,
-            row.id,
-          );
+        if (exif.width != null && exif.height != null) {
+          update.run(exif.width, exif.height, row.id);
           fixed += 1;
         }
       } catch (error) {
@@ -194,13 +184,6 @@ export class DatabaseManager {
       }
     }
 
-    this.db
-      .prepare(
-        `INSERT INTO app_settings (key, value, updated_at)
-         VALUES (?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`,
-      )
-      .run(IMAGE_DIMENSIONS_MIGRATION_KEY, '1');
     return { fixedImageDimensions: fixed };
   }
 

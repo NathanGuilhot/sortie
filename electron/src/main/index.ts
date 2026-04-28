@@ -58,6 +58,17 @@ function createWindow() {
   });
 
   if (process.env.NODE_ENV === 'development') {
+    // Chromium's DevTools probes Autofill protocol commands that Electron's
+    // bundled Chromium build doesn't implement, producing noisy console errors
+    // every devtools open. Drop those two specific messages.
+    mainWindow.webContents.on('console-message', (event, _level, message) => {
+      if (
+        message.includes("'Autofill.enable' wasn't found") ||
+        message.includes("'Autofill.setAddresses' wasn't found")
+      ) {
+        event.preventDefault();
+      }
+    });
     void mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
