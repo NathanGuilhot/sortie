@@ -130,7 +130,9 @@ export function ImportResultsGrid({
                 );
               })}
             </div>
-            {loadingMore && <div className="mt-4 text-center text-xs text-gray-400">Loading more…</div>}
+            {loadingMore && (
+              <div className="mt-4 text-center text-xs text-gray-400">Loading more…</div>
+            )}
             {isEnd && visibleResults.length > 0 && (
               <div className="mt-4 text-center text-xs text-gray-300">— end of results —</div>
             )}

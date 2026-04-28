@@ -6,10 +6,7 @@ export interface PeopleApi {
   getPersonImages: (personId: number, limit?: number, offset?: number) => Promise<Image[]>;
   getPersonThumbnails: (personIds: number[]) => Promise<Face[]>;
   renamePerson: (personId: number, name: string) => Promise<{ success: boolean }>;
-  mergePersons: (
-    keepPersonId: number,
-    mergePersonId: number,
-  ) => Promise<{ success: boolean }>;
+  mergePersons: (keepPersonId: number, mergePersonId: number) => Promise<{ success: boolean }>;
   splitFaceFromPerson: (faceId: number) => Promise<{ newPersonId: number }>;
   getImageFaces: (imageId: number) => Promise<Face[]>;
   setPersonThumbnail: (personId: number, faceId: number) => Promise<{ success: boolean }>;

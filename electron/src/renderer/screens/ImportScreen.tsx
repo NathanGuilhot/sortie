@@ -54,7 +54,11 @@ export function ImportScreen() {
       })),
     [visibleResults],
   );
-  const { containerRef: gridRef, columns, layout } = useMasonryLayout({
+  const {
+    containerRef: gridRef,
+    columns,
+    layout,
+  } = useMasonryLayout({
     items: layoutItems,
     scrollContainerRef: scrollRef,
     padding: 0,
@@ -109,7 +113,15 @@ export function ImportScreen() {
     if (results.length === 0) return;
     if (visibleResults.length >= 8) return;
     void loadMore();
-  }, [hideAiGenerated, isEnd, loadMore, loading, loadingMore, results.length, visibleResults.length]);
+  }, [
+    hideAiGenerated,
+    isEnd,
+    loadMore,
+    loading,
+    loadingMore,
+    results.length,
+    visibleResults.length,
+  ]);
 
   const handleFocus = () => {
     clearTimeout(blurTimeoutRef.current);

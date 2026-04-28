@@ -18,7 +18,9 @@ export function decodeEmbeddingValue(value: EmbeddingValue): number[] {
   return value;
 }
 
-export function decodeEmbeddingRows(rows: EmbeddingRowValue[]): Array<{ rowid: number; embedding: number[] }> {
+export function decodeEmbeddingRows(
+  rows: EmbeddingRowValue[],
+): Array<{ rowid: number; embedding: number[] }> {
   return rows.map((row) => ({
     rowid: row.rowid,
     embedding: decodeEmbeddingValue(row.embedding),

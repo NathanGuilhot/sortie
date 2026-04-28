@@ -11,10 +11,7 @@ import {
   type AppSettingKey,
   type OcrStatus,
 } from 'shared';
-import {
-  DatabaseImageRepository,
-  type DatabaseImageMetadataUpdate,
-} from './db-images';
+import { DatabaseImageRepository, type DatabaseImageMetadataUpdate } from './db-images';
 import { extractExif } from './exif';
 import { DatabaseFolderRepository } from './db-folders';
 import { runDatabaseMigrations } from './db-migrations';
@@ -165,9 +162,7 @@ export class DatabaseManager {
     // file on an unmounted volume) is silently skipped so the row is retried
     // next launch — never overwrite valid dims with null.
     const rows = this.db
-      .prepare(
-        'SELECT id, file_path FROM images WHERE width IS NULL OR height IS NULL',
-      )
+      .prepare('SELECT id, file_path FROM images WHERE width IS NULL OR height IS NULL')
       .all() as Array<{ id: number; file_path: string }>;
 
     let fixed = 0;
@@ -380,9 +375,7 @@ export class DatabaseManager {
     return this.folders.findFolderForPath(filePath);
   }
 
-  getFolderAvailabilityState(
-    folderPath: string,
-  ): { available: boolean; writable: boolean } | null {
+  getFolderAvailabilityState(folderPath: string): { available: boolean; writable: boolean } | null {
     return this.folders.getFolderAvailabilityState(folderPath);
   }
 
@@ -422,10 +415,7 @@ export class DatabaseManager {
     this.folders.setImageMissingByPath(filePath);
   }
 
-  updateImageMetadata(
-    imageId: number,
-    metadata: DatabaseImageMetadataUpdate,
-  ): void {
+  updateImageMetadata(imageId: number, metadata: DatabaseImageMetadataUpdate): void {
     this.images.updateImageMetadata(imageId, metadata);
   }
 

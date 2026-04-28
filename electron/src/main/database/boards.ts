@@ -65,7 +65,9 @@ export class DatabaseBoardsService {
         try {
           const parsed: unknown = JSON.parse(preview_paths_json);
           if (Array.isArray(parsed)) {
-            preview_image_paths = parsed.filter((value): value is string => typeof value === 'string');
+            preview_image_paths = parsed.filter(
+              (value): value is string => typeof value === 'string',
+            );
           }
         } catch {
           preview_image_paths = [];
@@ -113,7 +115,9 @@ export class DatabaseBoardsService {
   }
 
   async getBoardImageSuggestions(tagId: number): Promise<Image[]> {
-    const suggestions = await this.deps.getSuggestionEngine().generateImageSuggestionsForBoard(tagId, 20);
+    const suggestions = await this.deps
+      .getSuggestionEngine()
+      .generateImageSuggestionsForBoard(tagId, 20);
     if (suggestions.length === 0) return [];
     return this.deps.fetchImagesByIdsInOrder(suggestions.map((suggestion) => suggestion.imageId));
   }

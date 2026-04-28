@@ -29,7 +29,9 @@ export class DatabaseImageRepository {
   } {
     const existing = this.db
       .prepare('SELECT id, file_hash, file_size FROM images WHERE file_path = ?')
-      .get(image.file_path) as { id: number; file_hash: string | null; file_size: number | null } | undefined;
+      .get(image.file_path) as
+      | { id: number; file_hash: string | null; file_size: number | null }
+      | undefined;
 
     if (existing) {
       const fileHashMatched =
@@ -177,15 +179,17 @@ export class DatabaseImageRepository {
   }
 
   getImagePath(imageId: number): string | null {
-    const row = this.db
-      .prepare('SELECT file_path FROM images WHERE id = ?')
-      .get(imageId) as { file_path: string } | undefined;
+    const row = this.db.prepare('SELECT file_path FROM images WHERE id = ?').get(imageId) as
+      | { file_path: string }
+      | undefined;
     return row?.file_path ?? null;
   }
 
   getImagesMissingFileHash(): Array<{ id: number; file_path: string }> {
     return this.db
-      .prepare('SELECT id, file_path FROM images WHERE hidden = 0 AND missing = 0 AND file_hash IS NULL')
+      .prepare(
+        'SELECT id, file_path FROM images WHERE hidden = 0 AND missing = 0 AND file_hash IS NULL',
+      )
       .all() as Array<{ id: number; file_path: string }>;
   }
 

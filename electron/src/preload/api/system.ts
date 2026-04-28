@@ -18,7 +18,8 @@ export function createSystemApi(): Pick<
       getVersion: () => invokeNone('appGetVersion'),
       openExternal: (url: string) => invokeWithUrl('appOpenExternal', url),
       showAboutPanel: () => invokeNone('appShowAboutPanel'),
-      onShowAbout: (callback: () => void) => subscribe<void>(IPC_EVENTS.showAbout, () => callback()),
+      onShowAbout: (callback: () => void) =>
+        subscribe<void>(IPC_EVENTS.showAbout, () => callback()),
     },
   };
 }

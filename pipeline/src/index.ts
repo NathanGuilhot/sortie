@@ -10,10 +10,5 @@ export { FaceMatcher } from './lib/face-matcher';
 export { FaceScanService } from './lib/face-scan';
 export { extractPalette, hexToOklab } from './lib/palette';
 export { isRawPath, loadImageInput, shutdownRawLoader } from './lib/raw';
-export {
-  createOcrEngine,
-  type OcrEngine,
-  type OcrEngineOptions,
-  type OcrBlock,
-} from './lib/ocr';
+export { createOcrEngine, type OcrEngine, type OcrEngineOptions, type OcrBlock } from './lib/ocr';
 export type { TagSuggestion } from 'shared';

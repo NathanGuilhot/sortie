@@ -39,7 +39,8 @@ export type {
 } from './ipc/pinterest';
 
 export interface SortieAPI
-  extends ImageApi,
+  extends
+    ImageApi,
     BoardsApi,
     FolderApi,
     MaintenanceApi,

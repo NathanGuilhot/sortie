@@ -130,13 +130,9 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
 
       {showDropdown && (
         <div className="mt-2 bg-white rounded-2xl border border-gray-200/60 shadow-xl shadow-black/5 animate-dropdown-in">
-          {isFocused && !localQuery && (
-            <SearchSuggestions onSelect={handleSuggestionClick} />
-          )}
+          {isFocused && !localQuery && <SearchSuggestions onSelect={handleSuggestionClick} />}
 
-          {showAdvanced && (
-            <SearchBarAdvancedFilters showDivider={isFocused && !localQuery} />
-          )}
+          {showAdvanced && <SearchBarAdvancedFilters showDivider={isFocused && !localQuery} />}
         </div>
       )}
     </div>
@@ -161,11 +157,7 @@ function SearchSuggestions({ onSelect }: { onSelect: (term: string) => void }) {
   );
 }
 
-function SearchStatusNotice({
-  embedderStatus,
-}: {
-  embedderStatus: EmbedderStatus;
-}) {
+function SearchStatusNotice({ embedderStatus }: { embedderStatus: EmbedderStatus }) {
   if (embedderStatus.state === 'warming') {
     return (
       <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/95 border border-gray-200/60 shadow text-xs text-gray-500 w-fit mx-auto">
@@ -201,9 +193,7 @@ function getSearchBarShellClassName({
     return 'flex items-center h-11 px-4 rounded-2xl border transition-all duration-200 bg-white shadow-xl border-gray-300';
   }
 
-  return (
-    'flex items-center h-11 px-4 rounded-2xl border transition-all duration-200 bg-white/95 shadow-lg shadow-black/5 border-gray-200/60'
-  );
+  return 'flex items-center h-11 px-4 rounded-2xl border transition-all duration-200 bg-white/95 shadow-lg shadow-black/5 border-gray-200/60';
 }
 
 function getSearchPlaceholder({

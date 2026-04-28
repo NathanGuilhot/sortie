@@ -5,10 +5,7 @@ import { useFolderStore } from '../stores/folderStore';
 import { useOnboardingStore } from '../stores/onboardingStore';
 import { showIpcError } from '../ipc';
 import { FolderScannerCard } from './FolderScannerCard';
-import {
-  PlusIcon as PlusIconSvg,
-  FolderPlusIcon as FolderPlusIconSvg,
-} from './icons';
+import { PlusIcon as PlusIconSvg, FolderPlusIcon as FolderPlusIconSvg } from './icons';
 import { formatSize } from './folderScannerUtils';
 
 const PlusIcon = <PlusIconSvg />;

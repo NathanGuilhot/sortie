@@ -8,11 +8,7 @@ import { buildFaceThumbUrl } from '../faceThumb';
 import { HeartIcon, PersonIcon } from '../icons';
 import { useSearchFilterData } from './useSearchFilterData';
 
-export function SearchBarAdvancedFilters({
-  showDivider,
-}: {
-  showDivider: boolean;
-}) {
+export function SearchBarAdvancedFilters({ showDivider }: { showDivider: boolean }) {
   const {
     dateRange,
     folderFilter,
@@ -78,7 +74,9 @@ export function SearchBarAdvancedFilters({
           <label className="block text-xs font-medium text-gray-500 mb-1.5">Filter by folder</label>
           <select
             value={folderFilter ?? ''}
-            onChange={(event) => setFolderFilter(event.target.value ? Number(event.target.value) : null)}
+            onChange={(event) =>
+              setFolderFilter(event.target.value ? Number(event.target.value) : null)
+            }
             className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors"
           >
             <option value="">All folders</option>

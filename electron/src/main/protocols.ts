@@ -11,7 +11,10 @@ const RAW_PREVIEW_CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024;
 export function registerSortieSchemes(): void {
   protocol.registerSchemesAsPrivileged([
     { scheme: 'sortie-file', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
-    { scheme: 'sortie-thumb', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
+    {
+      scheme: 'sortie-thumb',
+      privileges: { bypassCSP: true, supportFetchAPI: true, stream: true },
+    },
     { scheme: 'sortie-face', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
     {
       scheme: 'sortie-preview',

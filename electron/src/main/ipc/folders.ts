@@ -17,7 +17,11 @@ export function registerFolderHandlers({
 
   handleInvoke('scanFolder', async (event, { path, opId }) => {
     return await withOperation(opId, (signal) =>
-      dbService.folders.scanFolder(path, sendToRenderer(event.sender, IPC_EVENTS.scanProgress), signal),
+      dbService.folders.scanFolder(
+        path,
+        sendToRenderer(event.sender, IPC_EVENTS.scanProgress),
+        signal,
+      ),
     );
   });
 

@@ -40,8 +40,7 @@ export class DatabaseSearchService {
       return this.paletteQuery(query.palette!, setIds, limit, offset);
     }
 
-    const ids =
-      setIds ?? this.deps.getOrBuildShuffledIds('default', () => db.getVisibleImageIds());
+    const ids = setIds ?? this.deps.getOrBuildShuffledIds('default', () => db.getVisibleImageIds());
     return this.deps.fetchImagesByIdsInOrder(ids.slice(offset, offset + limit)) as SearchResult[];
   }
 
@@ -127,14 +126,18 @@ export class DatabaseSearchService {
     return Math.min(desired, cap);
   }
 
-  private hydrateScoredResults(matches: Array<{ imageId: number; distance: number }>): SearchResult[] {
+  private hydrateScoredResults(
+    matches: Array<{ imageId: number; distance: number }>,
+  ): SearchResult[] {
     if (matches.length === 0) return [];
 
     const distanceMap = new Map(matches.map((match) => [match.imageId, match.distance]));
-    return this.deps.fetchImagesByIdsInOrder(matches.map((match) => match.imageId)).map((image) => ({
-      ...image,
-      distance: distanceMap.get(image.id),
-    }));
+    return this.deps
+      .fetchImagesByIdsInOrder(matches.map((match) => match.imageId))
+      .map((image) => ({
+        ...image,
+        distance: distanceMap.get(image.id),
+      }));
   }
 
   private embeddingQuery(

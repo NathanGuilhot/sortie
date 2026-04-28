@@ -19,7 +19,8 @@ export function hungarian(costMatrix: number[][]): number[] {
 
       for (let candidateColumn = 1; candidateColumn <= size; candidateColumn++) {
         if (used[candidateColumn]) continue;
-        const cost = costMatrix[currentRow - 1][candidateColumn - 1] - u[currentRow] - v[candidateColumn];
+        const cost =
+          costMatrix[currentRow - 1][candidateColumn - 1] - u[currentRow] - v[candidateColumn];
         if (cost < minValue[candidateColumn]) {
           minValue[candidateColumn] = cost;
           way[candidateColumn] = column;

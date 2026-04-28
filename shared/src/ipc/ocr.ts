@@ -4,7 +4,9 @@ import { IPC_CHANNELS } from '../ipc-channels';
 export interface OcrApi {
   ocr: {
     get: (imageId: number) => Promise<OcrResult>;
-    ensure: (imageId: number) => Promise<{ available: false } | { available: true; state: OcrResult }>;
+    ensure: (
+      imageId: number,
+    ) => Promise<{ available: false } | { available: true; state: OcrResult }>;
     onUpdated: (callback: (payload: OcrUpdatePayload) => void) => () => void;
   };
 }

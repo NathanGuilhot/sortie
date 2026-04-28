@@ -18,10 +18,7 @@ async function wipeCacheDir(dirPath: string): Promise<void> {
   }
 }
 
-export function registerMaintenanceHandlers({
-  dbService,
-  watcherService,
-}: MainIpcContext): void {
+export function registerMaintenanceHandlers({ dbService, watcherService }: MainIpcContext): void {
   const userDataPaths = getSortieUserDataPaths(app.getPath('userData'));
 
   handleInvoke('resetFaceData', async () => {

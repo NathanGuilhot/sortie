@@ -7,11 +7,7 @@ type StrokeIconProps = IconProps & {
   children: React.ReactNode;
 };
 
-function StrokeIcon({
-  className = 'w-4 h-4',
-  strokeWidth = 2,
-  children,
-}: StrokeIconProps) {
+function StrokeIcon({ className = 'w-4 h-4', strokeWidth = 2, children }: StrokeIconProps) {
   return (
     <svg
       className={className}
@@ -294,14 +290,7 @@ export function ClipboardIcon(props: IconProps) {
 export function SpinnerIcon({ className = 'w-4 h-4' }: IconProps) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24">
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path
         className="opacity-75"
         fill="currentColor"

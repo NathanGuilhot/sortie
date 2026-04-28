@@ -1,5 +1,10 @@
 import { ipcRenderer, type IpcRendererEvent } from 'electron';
-import { IPC_INVOKE_CHANNELS, type InvokeArgsByKey, type InvokeKey, type InvokeResultByKey } from 'shared';
+import {
+  IPC_INVOKE_CHANNELS,
+  type InvokeArgsByKey,
+  type InvokeKey,
+  type InvokeResultByKey,
+} from 'shared';
 
 export function subscribe<T>(channel: string, cb: (value: T) => void): () => void {
   const handler = (_event: IpcRendererEvent, value: T) => cb(value);

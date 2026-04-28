@@ -122,11 +122,7 @@ export function OcrOverlay({ imageId, imgRef, imageLoaded }: Props) {
   );
 }
 
-function renderBlock(
-  block: OcrBlock,
-  index: number,
-  rect: { width: number; height: number },
-) {
+function renderBlock(block: OcrBlock, index: number, rect: { width: number; height: number }) {
   // Prefer the polygon if present — rotated text needs it. Fall back to the
   // axis-aligned bbox (covers the PaddleOCR "no polygon" case).
   const poly = block.polygon;

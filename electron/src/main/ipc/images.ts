@@ -86,7 +86,10 @@ export function registerImageHandlers({ dbService }: MainIpcContext): void {
 
   handleInvoke('computeMissingPalettes', async (event, { opId }) => {
     return await withOperation(opId, (signal) =>
-      dbService.computeMissingPalettes(sendToRenderer(event.sender, IPC_EVENTS.paletteProgress), signal),
+      dbService.computeMissingPalettes(
+        sendToRenderer(event.sender, IPC_EVENTS.paletteProgress),
+        signal,
+      ),
     );
   });
 

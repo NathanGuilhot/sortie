@@ -70,7 +70,8 @@ export class DatabaseService {
       if (!this.embedder) throw new Error('Embedder not initialized');
       return this.embedder;
     },
-    getOrBuildShuffledIds: (cacheKey, loadIds) => this.images.getOrBuildShuffledIds(cacheKey, loadIds),
+    getOrBuildShuffledIds: (cacheKey, loadIds) =>
+      this.images.getOrBuildShuffledIds(cacheKey, loadIds),
     fetchImagesByIdsInOrder: (ids) => this.images.fetchImagesByIdsInOrder(ids),
   });
   readonly boards = new DatabaseBoardsService({
@@ -89,9 +90,11 @@ export class DatabaseService {
   });
   readonly people = new DatabasePeopleService({
     requireDb: () => this.requireDb(),
-    getOrBuildShuffledIds: (cacheKey, loadIds) => this.images.getOrBuildShuffledIds(cacheKey, loadIds),
+    getOrBuildShuffledIds: (cacheKey, loadIds) =>
+      this.images.getOrBuildShuffledIds(cacheKey, loadIds),
     fetchImagesByIdsInOrder: (ids) => this.images.fetchImagesByIdsInOrder(ids),
-    deleteShuffledIds: (prefixOrKey, exact = false) => this.images.deleteShuffledIds(prefixOrKey, exact),
+    deleteShuffledIds: (prefixOrKey, exact = false) =>
+      this.images.deleteShuffledIds(prefixOrKey, exact),
     getFaceMatcher: () => {
       if (!this.faceMatcher) throw new Error('FaceMatcher not initialized');
       return this.faceMatcher;
@@ -112,7 +115,8 @@ export class DatabaseService {
       if (!this.embedder) throw new Error('Embedder not initialized');
       return this.embedder;
     },
-    createFileDeletionError: (filePath, code, cause) => new FileDeletionError(filePath, code, cause),
+    createFileDeletionError: (filePath, code, cause) =>
+      new FileDeletionError(filePath, code, cause),
   });
 
   initialize(

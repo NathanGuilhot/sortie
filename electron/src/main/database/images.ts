@@ -106,7 +106,9 @@ export class DatabaseImagesService {
     const transaction = db.transaction(() => {
       db.prepare(`DELETE FROM image_tags WHERE image_id = ? AND source = 'user'`).run(imageId);
 
-      const insertTag = db.prepare(`INSERT OR IGNORE INTO tags (name, category) VALUES (?, 'user')`);
+      const insertTag = db.prepare(
+        `INSERT OR IGNORE INTO tags (name, category) VALUES (?, 'user')`,
+      );
       const getTagId = db.prepare(`SELECT id FROM tags WHERE name = ?`);
       const nextPosition = db.prepare(
         `SELECT COALESCE(MAX(position), -1) + 1 AS next FROM image_tags WHERE tag_id = ?`,

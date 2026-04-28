@@ -13,7 +13,9 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
   const { hideImage, deleteImage, updateImageMetadata, addToBoard, setSelectedImage } =
     useImageStore();
   const fetchBoards = useBoardStore((state) => state.fetchBoards);
-  const canDeleteFile = useFolderStore((state) => (image ? state.isWritable(image.file_path) : false));
+  const canDeleteFile = useFolderStore((state) =>
+    image ? state.isWritable(image.file_path) : false,
+  );
   const [date, setDate] = useState('');
   const [location, setLocation] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
@@ -72,8 +74,12 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
   }, [image]);
 
   const savedWebsiteLink = useMemo(() => normalizeWebsiteLink(websiteLink), [websiteLink]);
-  const originalDate = image?.captured_at ? new Date(image.captured_at).toISOString().split('T')[0] : '';
-  const originalLocation = image ? [image.city, image.country].filter(Boolean).join(', ') || '' : '';
+  const originalDate = image?.captured_at
+    ? new Date(image.captured_at).toISOString().split('T')[0]
+    : '';
+  const originalLocation = image
+    ? [image.city, image.country].filter(Boolean).join(', ') || ''
+    : '';
   const originalDescription = image?.description || '';
   const originalWebsiteLink = image?.website_link || '';
   const isDirty =
@@ -92,9 +98,7 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
       image.exposure_time ||
       image.focal_length
     );
-  const cameraName = image
-    ? [image.camera_make, image.camera_model].filter(Boolean).join(' ')
-    : '';
+  const cameraName = image ? [image.camera_make, image.camera_model].filter(Boolean).join(' ') : '';
   const cameraSettings = image
     ? [
         image.aperture ? `f/${image.aperture}` : null,

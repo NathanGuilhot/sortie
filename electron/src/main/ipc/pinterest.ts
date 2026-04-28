@@ -26,10 +26,7 @@ async function pinterestResult<T extends object>(
   }
 }
 
-export function registerPinterestHandlers({
-  dbService,
-  bulkImportJobs,
-}: MainIpcContext): void {
+export function registerPinterestHandlers({ dbService, bulkImportJobs }: MainIpcContext): void {
   handleInvoke('pinterestScrape', (_event, { input, target }) =>
     pinterestResult(async () => {
       const parsed = parsePinterestInput(input);
@@ -49,44 +46,44 @@ export function registerPinterestHandlers({
   );
 
   handleInvoke('pinterestStartBulkImport', async (event, { username, slug, hideAiGenerated }) => {
-      const jobId = randomUUID();
-      const controller = new AbortController();
-      bulkImportJobs.set(jobId, controller);
+    const jobId = randomUUID();
+    const controller = new AbortController();
+    bulkImportJobs.set(jobId, controller);
 
-      const sender = event.sender;
-      const send = <T>(channel: string, payload: T) => {
-        if (!sender.isDestroyed()) sender.send(channel, payload);
-      };
+    const sender = event.sender;
+    const send = <T>(channel: string, payload: T) => {
+      if (!sender.isDestroyed()) sender.send(channel, payload);
+    };
 
-      void (async () => {
-        try {
-          const summary = await bulkImportBoard(
-            { jobId, username, slug, hideAiGenerated },
-            {
-              dbService,
-              signal: controller.signal,
-              onProgress: (progress) => send(IPC_EVENTS.pinterestBulkImportProgress, progress),
-            },
-          );
-          send(IPC_EVENTS.pinterestBulkImportComplete, summary);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          send(IPC_EVENTS.pinterestBulkImportComplete, {
-            jobId,
-            status: 'error' as const,
-            total: 0,
-            imported: 0,
-            skipped: 0,
-            failed: 0,
-            error: message,
-          });
-        } finally {
-          bulkImportJobs.delete(jobId);
-        }
-      })();
+    void (async () => {
+      try {
+        const summary = await bulkImportBoard(
+          { jobId, username, slug, hideAiGenerated },
+          {
+            dbService,
+            signal: controller.signal,
+            onProgress: (progress) => send(IPC_EVENTS.pinterestBulkImportProgress, progress),
+          },
+        );
+        send(IPC_EVENTS.pinterestBulkImportComplete, summary);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        send(IPC_EVENTS.pinterestBulkImportComplete, {
+          jobId,
+          status: 'error' as const,
+          total: 0,
+          imported: 0,
+          skipped: 0,
+          failed: 0,
+          error: message,
+        });
+      } finally {
+        bulkImportJobs.delete(jobId);
+      }
+    })();
 
-      return { ok: true as const, jobId };
-    });
+    return { ok: true as const, jobId };
+  });
 
   handleInvoke('pinterestCancelBulkImport', async (_event, { jobId }) => {
     const controller = bulkImportJobs.get(jobId);

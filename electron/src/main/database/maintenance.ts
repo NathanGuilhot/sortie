@@ -8,7 +8,11 @@ interface DatabaseMaintenanceDeps {
   requireDb(): DatabaseManager;
   invalidateImageCache(): void;
   getEmbedder(): ClipEmbedder;
-  createFileDeletionError(filePath: string, code: string | undefined, cause: Error): FileDeletionError;
+  createFileDeletionError(
+    filePath: string,
+    code: string | undefined,
+    cause: Error,
+  ): FileDeletionError;
 }
 
 export class DatabaseMaintenanceService {
@@ -194,7 +198,8 @@ export class DatabaseMaintenanceService {
     const imagesById = new Map(images.map((image) => [image.id, image]));
 
     const dismissed = db.getDismissedDuplicatePairs();
-    const pairKey = (left: number, right: number) => `${Math.min(left, right)}_${Math.max(left, right)}`;
+    const pairKey = (left: number, right: number) =>
+      `${Math.min(left, right)}_${Math.max(left, right)}`;
     const dismissedSet = new Set(
       dismissed.map((pair) => pairKey(pair.image_id_1, pair.image_id_2)),
     );
@@ -256,7 +261,9 @@ export class DatabaseMaintenanceService {
       }
     }
 
-    groups.sort((left, right) => right.images.length - left.images.length || left.groupId - right.groupId);
+    groups.sort(
+      (left, right) => right.images.length - left.images.length || left.groupId - right.groupId,
+    );
     return groups;
   }
 

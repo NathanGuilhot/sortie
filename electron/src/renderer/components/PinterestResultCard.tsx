@@ -61,13 +61,7 @@ export const PinterestResultCard = memo(function PinterestResultCard({
           handleClick();
         }
       }}
-      title={
-        isImported
-          ? 'Click to preview'
-          : isPending
-            ? 'Importing…'
-            : 'Click to add to library'
-      }
+      title={isImported ? 'Click to preview' : isPending ? 'Importing…' : 'Click to add to library'}
     >
       <div className="relative w-full h-full rounded-lg overflow-hidden bg-gray-100 shadow-sm transition-shadow group-hover:shadow-md">
         <img

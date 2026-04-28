@@ -262,11 +262,7 @@ export const usePinterestImportStore = create<PinterestImportStore>()((set, get)
       if (state.bulkImport.jobId && summary.jobId !== state.bulkImport.jobId) return state;
 
       const status: BulkStatus =
-        summary.status === 'done'
-          ? 'done'
-          : summary.status === 'cancelled'
-            ? 'cancelled'
-            : 'error';
+        summary.status === 'done' ? 'done' : summary.status === 'cancelled' ? 'cancelled' : 'error';
 
       return {
         bulkImport: {

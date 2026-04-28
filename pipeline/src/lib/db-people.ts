@@ -156,7 +156,9 @@ export class DatabasePeopleRepository {
 
   updatePersonThumbnail(personId: number, faceId: number): void {
     this.db
-      .prepare("UPDATE persons SET thumbnail_face_id = ?, updated_at = datetime('now') WHERE id = ?")
+      .prepare(
+        "UPDATE persons SET thumbnail_face_id = ?, updated_at = datetime('now') WHERE id = ?",
+      )
       .run(faceId, personId);
   }
 

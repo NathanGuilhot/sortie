@@ -11,11 +11,7 @@ interface PeoplePersonDetailProps {
   onStartMerge: () => void;
 }
 
-export function PeoplePersonDetail({
-  person,
-  onClose,
-  onStartMerge,
-}: PeoplePersonDetailProps) {
+export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePersonDetailProps) {
   const { personImages, renamePerson, deletePerson, fetchPersonImages } = usePeopleStore();
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(person.name || '');

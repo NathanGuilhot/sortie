@@ -1,10 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
 import type { Database as DB } from 'better-sqlite3';
-import {
-  OVERLAP_EXCLUDE_CLAUSE,
-  OVERLAP_EXCLUDE_AVAILABLE_CLAUSE,
-} from '../folder-overlap-sql';
+import { OVERLAP_EXCLUDE_CLAUSE, OVERLAP_EXCLUDE_AVAILABLE_CLAUSE } from '../folder-overlap-sql';
 
 // Regression tests for the NOT EXISTS clauses that scope folder removal and
 // availability flips so overlapping folder registrations don't collateral-

@@ -67,15 +67,12 @@ export function useReverseImageSearch({
     [embedderReady, embedderWarming, setActiveImageQuery, setSearchQuery],
   );
 
-  const handleDragEnter = useCallback(
-    (event: DragEvent) => {
-      if (!hasFiles(Array.from(event.dataTransfer.types))) return;
-      event.preventDefault();
-      dragCounterRef.current += 1;
-      setIsDragActive(true);
-    },
-    [],
-  );
+  const handleDragEnter = useCallback((event: DragEvent) => {
+    if (!hasFiles(Array.from(event.dataTransfer.types))) return;
+    event.preventDefault();
+    dragCounterRef.current += 1;
+    setIsDragActive(true);
+  }, []);
 
   const handleDragOver = useCallback((event: DragEvent) => {
     if (!hasFiles(Array.from(event.dataTransfer.types))) return;

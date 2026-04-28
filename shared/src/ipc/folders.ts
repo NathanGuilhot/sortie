@@ -1,9 +1,6 @@
 import type { Folder, FolderWithStats, ScanFolderResult } from '../types';
 import { IPC_CHANNELS } from '../ipc-channels';
-import type {
-  FolderAvailabilityChange,
-  SuggestDefaultPhotoFolderResult,
-} from './common';
+import type { FolderAvailabilityChange, SuggestDefaultPhotoFolderResult } from './common';
 
 export interface FolderApi {
   addFolder: (path: string) => Promise<{
@@ -16,10 +13,7 @@ export interface FolderApi {
   removeFolder: (path: string) => Promise<{ success: boolean }>;
   watchFolder: (path: string) => Promise<{ watching: boolean }>;
   unwatchFolder: (path: string) => Promise<{ watching: boolean }>;
-  setFolderFaceScanExclusion: (
-    path: string,
-    excluded: boolean,
-  ) => Promise<{ changed: boolean }>;
+  setFolderFaceScanExclusion: (path: string, excluded: boolean) => Promise<{ changed: boolean }>;
   suggestDefaultPhotoFolder: () => Promise<SuggestDefaultPhotoFolderResult>;
   recheckFolderAvailability: (
     folderPath?: string,

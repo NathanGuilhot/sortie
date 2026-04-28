@@ -83,9 +83,9 @@ describe('DatabaseManager.upsertImage', () => {
     expect(tagCount).toBe(1);
 
     const collectionCount = (
-      db
-        .prepare('SELECT COUNT(*) as c FROM collection_images WHERE image_id=?')
-        .get(id) as { c: number }
+      db.prepare('SELECT COUNT(*) as c FROM collection_images WHERE image_id=?').get(id) as {
+        c: number;
+      }
     ).c;
     expect(collectionCount).toBe(1);
   });

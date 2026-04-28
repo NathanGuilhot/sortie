@@ -47,9 +47,6 @@ export const useOnboardingStore = create<OnboardingStore>((set, get) => ({
   markHint: async (hint, state) => {
     if (get().hints[hint] === state) return;
     set((s) => ({ hints: { ...s.hints, [hint]: state } }));
-    await window.sortieAPI.settings.set(
-      hint === 'search' ? KEY_HINT_SEARCH : KEY_HINT_WEB,
-      state,
-    );
+    await window.sortieAPI.settings.set(hint === 'search' ? KEY_HINT_SEARCH : KEY_HINT_WEB, state);
   },
 }));

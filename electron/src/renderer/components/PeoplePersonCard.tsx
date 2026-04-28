@@ -55,7 +55,11 @@ export function PeoplePersonCard({
     >
       <div className="w-20 h-20 rounded-full bg-gray-200 overflow-hidden mb-3 flex-shrink-0">
         {thumbUrl ? (
-          <img src={thumbUrl} alt={person.name || 'Unknown'} className="w-full h-full object-cover" />
+          <img
+            src={thumbUrl}
+            alt={person.name || 'Unknown'}
+            className="w-full h-full object-cover"
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             <PersonIcon className="w-10 h-10" />

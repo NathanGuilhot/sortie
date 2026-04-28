@@ -47,9 +47,7 @@ export class DatabaseFolderRepository {
     );
   }
 
-  getFolderAvailabilityState(
-    folderPath: string,
-  ): { available: boolean; writable: boolean } | null {
+  getFolderAvailabilityState(folderPath: string): { available: boolean; writable: boolean } | null {
     const row = this.db
       .prepare('SELECT available, writable FROM folders WHERE path = ?')
       .get(folderPath) as { available: number; writable: number } | undefined;

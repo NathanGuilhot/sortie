@@ -49,10 +49,7 @@ async function readDisplayDimensions(
 // `input`, if supplied, is a preloaded RAW preview buffer reused by the caller
 // for the sharp-side dimension read — exifr still needs the original path to
 // read camera metadata from the RAW container itself.
-export async function extractExif(
-  imagePath: string,
-  input?: string | Buffer,
-): Promise<ExifData> {
+export async function extractExif(imagePath: string, input?: string | Buffer): Promise<ExifData> {
   const dimSource: string | Buffer = input ?? imagePath;
   try {
     /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */

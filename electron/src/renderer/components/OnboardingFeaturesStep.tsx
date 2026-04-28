@@ -6,7 +6,11 @@ const FEATURES = [
   { label: 'Organise by boards', tone: 'bg-mint/40 text-ink', Icon: BoardsIcon },
   { label: 'Get more from the web', tone: 'bg-black/60 text-white', Icon: BookIcon },
   { label: 'Private and local', tone: 'bg-coral/40 text-ink', Icon: LockIcon },
-  { label: '... and much more!', tone: 'bg-cream text-ink', Icon: () => <span className="text-xs">✧</span> },
+  {
+    label: '... and much more!',
+    tone: 'bg-cream text-ink',
+    Icon: () => <span className="text-xs">✧</span>,
+  },
 ];
 
 export function OnboardingFeaturesStep({ onGetStarted }: { onGetStarted: () => void }) {

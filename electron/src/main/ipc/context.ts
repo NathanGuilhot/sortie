@@ -1,5 +1,10 @@
 import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron';
-import { IPC_INVOKE_CHANNELS, type InvokeArgsByKey, type InvokeKey, type InvokeResultByKey } from 'shared';
+import {
+  IPC_INVOKE_CHANNELS,
+  type InvokeArgsByKey,
+  type InvokeKey,
+  type InvokeResultByKey,
+} from 'shared';
 import { clearOperation, registerOperation } from '../operations';
 import type { DatabaseService } from '../database';
 import type { FolderAvailabilityMonitor } from '../folderAvailability';

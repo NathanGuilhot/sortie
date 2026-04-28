@@ -21,7 +21,8 @@ export function createPinterestApi(): Pick<SortieAPI, 'pinterest'> {
         target: PinterestTarget,
         bookmarks: string[],
         desired?: number,
-      ): Promise<PinterestLoadMoreResponse> => invoke('pinterestLoadMore', { target, bookmarks, desired }),
+      ): Promise<PinterestLoadMoreResponse> =>
+        invoke('pinterestLoadMore', { target, bookmarks, desired }),
       importPin: (pin: PinterestResult): Promise<PinterestImportResponse> =>
         invoke('pinterestImportPin', { pin }),
       startBulkImport: (args: { username: string; slug: string; hideAiGenerated: boolean }) =>

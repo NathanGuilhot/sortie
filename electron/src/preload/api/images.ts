@@ -1,11 +1,5 @@
 import { IPC_EVENTS, type EmbedderStatus, type SortieAPI } from 'shared';
-import {
-  invoke,
-  invokeNone,
-  invokeWithImageId,
-  invokeWithUrl,
-  subscribe,
-} from '../helpers';
+import { invoke, invokeNone, invokeWithImageId, invokeWithUrl, subscribe } from '../helpers';
 
 export function createImageApi(): Pick<
   SortieAPI,
@@ -43,7 +37,8 @@ export function createImageApi(): Pick<
     updateImageTags: (imageId: number, tags: string[]) =>
       invoke('updateImageTags', { imageId, tags }),
     hideImage: (imageId: number) => invokeWithImageId('hideImage', imageId),
-    updateImageMetadata: (imageId, metadata) => invoke('updateImageMetadata', { imageId, metadata }),
+    updateImageMetadata: (imageId, metadata) =>
+      invoke('updateImageMetadata', { imageId, metadata }),
     getLinkPreview: (url: string) => invokeWithUrl('getLinkPreview', url),
     fetchLinkPreview: (url: string) => invokeWithUrl('fetchLinkPreview', url),
     getSuggestions: (imageId: number) => invokeWithImageId('getSuggestions', imageId),

@@ -2,10 +2,7 @@ import type { DatabaseManager } from 'pipeline';
 import type { Folder, FolderWithStats, ScanFolderResult } from 'shared';
 import path from 'path';
 import fs from 'fs/promises';
-import {
-  OVERLAP_EXCLUDE_AVAILABLE_CLAUSE,
-  OVERLAP_EXCLUDE_CLAUSE,
-} from '../folder-overlap-sql';
+import { OVERLAP_EXCLUDE_AVAILABLE_CLAUSE, OVERLAP_EXCLUDE_CLAUSE } from '../folder-overlap-sql';
 import { IMAGE_EXTENSIONS } from '../database-helpers';
 
 interface DatabaseFoldersDeps {
@@ -52,7 +49,9 @@ export class DatabaseFoldersService {
     return row.id;
   }
 
-  async findOverlappingFolders(folderPath: string): Promise<{ parents: string[]; children: string[] }> {
+  async findOverlappingFolders(
+    folderPath: string,
+  ): Promise<{ parents: string[]; children: string[] }> {
     const db = this.deps.requireDb().getDatabase();
     const normalized = path.resolve(folderPath);
     const rows = db

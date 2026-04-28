@@ -162,22 +162,14 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
 
   if (version < 8) {
     const folderColumns = getColumnNames(db, 'folders');
-    addColumnIfMissing(
-      db,
-      'folders',
-      folderColumns,
-      'exclude_from_face_scan',
-      'BOOLEAN DEFAULT 0',
-    );
+    addColumnIfMissing(db, 'folders', folderColumns, 'exclude_from_face_scan', 'BOOLEAN DEFAULT 0');
     db.pragma('user_version = 8');
   }
 
   if (version < 9) {
     const imageTagColumns = getColumnNames(db, 'image_tags');
     addColumnIfMissing(db, 'image_tags', imageTagColumns, 'position', 'INTEGER');
-    db.exec(
-      'CREATE INDEX IF NOT EXISTS idx_image_tags_position ON image_tags(tag_id, position)',
-    );
+    db.exec('CREATE INDEX IF NOT EXISTS idx_image_tags_position ON image_tags(tag_id, position)');
     db.pragma('user_version = 9');
   }
 

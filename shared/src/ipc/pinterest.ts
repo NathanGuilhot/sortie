@@ -27,9 +27,7 @@ export type PinterestBulkImportStartResponse =
   | { ok: true; jobId: string }
   | { ok: false; message: string };
 
-export type PinterestBulkImportCancelResponse =
-  | { ok: true }
-  | { ok: false; message: string };
+export type PinterestBulkImportCancelResponse = { ok: true } | { ok: false; message: string };
 
 export interface PinterestApi {
   pinterest: {
