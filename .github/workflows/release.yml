@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   generate-icons:
     runs-on: macos-latest
@@ -34,17 +37,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  release-mac:
+  release-mac-arm:
     needs: generate-icons
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-latest
-            arch: arm64
-          - runner: macos-13
-            arch: x64
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -62,22 +57,64 @@ jobs:
 
       - run: yarn build:code
 
-      - run: yarn workspace sortie-desktop run dist:mac --${{ matrix.arch }} --publish always
+      - run: yarn workspace sortie-desktop run dist:mac --arm64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: dist-mac-${{ matrix.arch }}
+          name: dist-mac-arm64
           path: electron/out/*.dmg
           if-no-files-found: warn
 
       - name: Upload unpacked mac build for itch.io
         uses: actions/upload-artifact@v4
         with:
-          name: itch-mac-${{ matrix.arch }}
-          path: electron/out/${{ matrix.arch == 'arm64' && 'mac-arm64' || 'mac' }}
+          name: itch-mac-arm64
+          path: electron/out/mac-arm64
+          if-no-files-found: error
+          retention-days: 1
+
+  release-mac-intel:
+    needs: generate-icons
+    runs-on: macos-13
+    # macos-13 (Intel) runners are scarce and frequently time out waiting for
+    # allocation. publish-itch runs with `if: !cancelled()` and per-channel
+    # gating so a stalled Intel run doesn't block the other channels.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - run: yarn install --frozen-lockfile
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: icons
+          path: electron
+
+      - run: yarn build:code
+
+      - run: yarn workspace sortie-desktop run dist:mac --x64 --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dist-mac-x64
+          path: electron/out/*.dmg
+          if-no-files-found: warn
+
+      - name: Upload unpacked mac build for itch.io
+        uses: actions/upload-artifact@v4
+        with:
+          name: itch-mac-x64
+          path: electron/out/mac
           if-no-files-found: error
           retention-days: 1
 
@@ -174,7 +211,11 @@ jobs:
           retention-days: 1
 
   publish-itch:
-    needs: [release-mac, release-windows, release-linux]
+    needs: [release-mac-arm, release-mac-intel, release-windows, release-linux]
+    # Run as long as the release wasn't manually cancelled. Each matrix entry
+    # gates its own steps on its specific upstream job's result, so a stalled
+    # macos-13 runner won't block arm64/Windows/Linux from publishing.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     env:
       ITCH_USER: nighten
@@ -185,19 +226,34 @@ jobs:
         include:
           - artifact: itch-mac-arm64
             channel: osx-arm64
+            source: release-mac-arm
           - artifact: itch-mac-x64
             channel: osx-intel
+            source: release-mac-intel
           - artifact: itch-windows
             channel: windows
+            source: release-windows
           - artifact: itch-linux
             channel: linux
+            source: release-linux
     steps:
+      - name: Check upstream job status
+        id: upstream
+        run: |
+          result="${{ needs[matrix.source].result }}"
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          if [[ "$result" != "success" ]]; then
+            echo "::warning::Upstream ${{ matrix.source }} did not succeed (result=$result); skipping ${{ matrix.channel }} push"
+          fi
+
       - uses: actions/download-artifact@v4
+        if: steps.upstream.outputs.result == 'success'
         with:
           name: ${{ matrix.artifact }}
           path: ./build
 
       - name: Install butler
+        if: steps.upstream.outputs.result == 'success'
         run: |
           curl -L -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
           unzip -o butler.zip
@@ -206,9 +262,11 @@ jobs:
 
       - name: Derive version from tag
         id: version
+        if: steps.upstream.outputs.result == 'success'
         run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Push build to itch.io
+        if: steps.upstream.outputs.result == 'success'
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
