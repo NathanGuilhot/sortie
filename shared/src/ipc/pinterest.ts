@@ -11,23 +11,35 @@ export type PinterestTarget =
   | { kind: 'search'; query: string }
   | { kind: 'board'; username: string; slug: string };
 
+export type PinterestErrorCode =
+  | 'network'
+  | 'blocked'
+  | 'rate_limited'
+  | 'parse'
+  | 'bootstrap'
+  | 'invalid_input'
+  | 'not_found'
+  | 'unknown';
+
 export type PinterestScrapeResponse =
   | { ok: true; target: PinterestTarget; page: PinterestSearchPage }
-  | { ok: false; message: string };
+  | { ok: false; message: string; code: PinterestErrorCode };
 
 export type PinterestLoadMoreResponse =
   | { ok: true; page: PinterestSearchPage }
-  | { ok: false; message: string };
+  | { ok: false; message: string; code: PinterestErrorCode };
 
 export type PinterestImportResponse =
   | { ok: true; result: PinterestImportResult }
-  | { ok: false; message: string };
+  | { ok: false; message: string; code: PinterestErrorCode };
 
 export type PinterestBulkImportStartResponse =
   | { ok: true; jobId: string }
-  | { ok: false; message: string };
+  | { ok: false; message: string; code: PinterestErrorCode };
 
-export type PinterestBulkImportCancelResponse = { ok: true } | { ok: false; message: string };
+export type PinterestBulkImportCancelResponse =
+  | { ok: true }
+  | { ok: false; message: string; code: PinterestErrorCode };
 
 export interface PinterestApi {
   pinterest: {

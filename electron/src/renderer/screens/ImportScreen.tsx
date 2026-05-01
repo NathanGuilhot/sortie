@@ -154,6 +154,7 @@ export function ImportScreen() {
     }
   };
 
+  const showError = !loading && error !== null;
   const showEmpty = !loading && !error && results.length === 0 && storedQuery !== '';
   const showWelcome = !loading && !error && results.length === 0 && storedQuery === '';
   const showAllHidden =
@@ -164,6 +165,9 @@ export function ImportScreen() {
     visibleResults.length === 0 &&
     hideAiGenerated &&
     isEnd;
+  const handleRetry = useCallback(() => {
+    if (storedQuery) void search(storedQuery);
+  }, [search, storedQuery]);
   const targetLabel =
     target?.kind === 'board'
       ? `${target.username}/${target.slug}`
@@ -194,15 +198,10 @@ export function ImportScreen() {
       />
 
       <div ref={scrollRef} className="h-full overflow-y-auto pt-16 pb-10 px-6">
-        {error && (
-          <div className="max-w-2xl mx-auto mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
         <ImportResultsGrid
           boardPinCount={boardPinCount}
           columns={columns}
+          error={error}
           gridRef={gridRef}
           hiddenAiCount={hiddenAiCount}
           isEnd={isEnd}
@@ -214,11 +213,13 @@ export function ImportScreen() {
           setPreviewImage={setPreviewImage}
           showAllHidden={showAllHidden}
           showEmpty={showEmpty}
+          showError={showError}
           showWelcome={showWelcome}
           target={target}
           targetLabel={targetLabel}
           visibleResults={visibleResults}
           onPreview={handlePreview}
+          onRetry={handleRetry}
         />
       </div>
     </main>

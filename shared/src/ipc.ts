@@ -32,6 +32,7 @@ export type {
 export type {
   PinterestBulkImportCancelResponse,
   PinterestBulkImportStartResponse,
+  PinterestErrorCode,
   PinterestImportResponse,
   PinterestLoadMoreResponse,
   PinterestScrapeResponse,

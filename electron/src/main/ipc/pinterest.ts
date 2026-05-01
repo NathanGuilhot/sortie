@@ -1,7 +1,7 @@
 import { shell } from 'electron';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
-import { IPC_EVENTS } from 'shared';
+import { IPC_EVENTS, type PinterestErrorCode } from 'shared';
 import { getImportFolder, importPin } from '../pinterest/import';
 import { bulkImportBoard } from '../pinterest/bulkImport';
 import {
@@ -15,14 +15,16 @@ import { handleInvoke } from './context';
 
 async function pinterestResult<T extends object>(
   run: () => Promise<T>,
-): Promise<({ ok: true } & T) | { ok: false; message: string }> {
+): Promise<({ ok: true } & T) | { ok: false; message: string; code: PinterestErrorCode }> {
   try {
     const value = await run();
     return { ok: true, ...value };
   } catch (error) {
-    const message =
-      error instanceof PinterestAPIError || error instanceof Error ? error.message : String(error);
-    return { ok: false, message };
+    if (error instanceof PinterestAPIError) {
+      return { ok: false, message: error.message, code: error.code };
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, message, code: 'unknown' };
   }
 }
 
@@ -87,7 +89,9 @@ export function registerPinterestHandlers({ dbService, bulkImportJobs }: MainIpc
 
   handleInvoke('pinterestCancelBulkImport', async (_event, { jobId }) => {
     const controller = bulkImportJobs.get(jobId);
-    if (!controller) return { ok: false as const, message: 'Job not found' };
+    if (!controller) {
+      return { ok: false as const, message: 'Job not found', code: 'not_found' as const };
+    }
     controller.abort();
     return { ok: true as const };
   });

@@ -14,8 +14,25 @@ const DEFAULT_TARGET_RESULTS = 50;
 const MAX_BATCHES = 6;
 const BATCH_DELAY_MS = 200;
 
+const CANARY_QUERY = 'cat';
+const CANARY_TTL_MS = 5 * 60 * 1000;
+let canaryReachableUntil = 0;
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Pinterest returns HTTP 200 with empty results + bookmarks: ['-end-'] both for
+// genuinely empty searches AND for VPN/region-blocked traffic. The only way to
+// tell them apart is to probe with a canary query that should always have results.
+async function pinterestReachable(): Promise<boolean> {
+  if (Date.now() < canaryReachableUntil) return true;
+  const { pins } = await searchPins({ query: CANARY_QUERY, pageSize: 1 });
+  if (pins.length > 0) {
+    canaryReachableUntil = Date.now() + CANARY_TTL_MS;
+    return true;
+  }
+  return false;
 }
 
 function dedupeByPinId(
@@ -59,6 +76,16 @@ async function scrapeSearch(query: string, desired: number): Promise<PinterestSe
     bookmarks = nextBookmarks;
     batches++;
     if (isEndBookmark(bookmarks) || pins.length === 0) {
+      if (results.length === 0 && query.toLowerCase() !== CANARY_QUERY) {
+        const reachable = await pinterestReachable();
+        if (!reachable) {
+          throw new PinterestAPIError(
+            'Pinterest returned no results for any query on this connection.',
+            undefined,
+            'blocked',
+          );
+        }
+      }
       return { results: results.slice(0, desired), bookmarks, isEnd: true };
     }
     if (results.length < desired) await sleep(BATCH_DELAY_MS);

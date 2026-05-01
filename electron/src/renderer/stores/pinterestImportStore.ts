@@ -2,9 +2,16 @@ import { create } from 'zustand';
 import type {
   PinterestBulkImportProgress,
   PinterestBulkImportSummary,
+  PinterestErrorCode,
   PinterestResult,
   PinterestTarget,
 } from 'shared';
+import { toast } from './toastStore';
+
+export interface PinterestImportError {
+  code: PinterestErrorCode;
+  message: string;
+}
 
 type ImportStatus = 'idle' | 'pending' | 'imported' | 'error';
 
@@ -45,7 +52,7 @@ interface PinterestImportStore {
   isEnd: boolean;
   loading: boolean;
   loadingMore: boolean;
-  error: string | null;
+  error: PinterestImportError | null;
   imports: Record<string, ImportState>;
   bulkImport: BulkImportState;
   reset: () => void;
@@ -103,9 +110,17 @@ export const usePinterestImportStore = create<PinterestImportStore>()((set, get)
       bulkImport: INITIAL_BULK,
     });
 
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      set({
+        loading: false,
+        error: { code: 'network', message: 'You appear to be offline.' },
+      });
+      return;
+    }
+
     const response = await window.sortieAPI.pinterest.scrape(trimmed, 50);
     if (!response.ok) {
-      set({ loading: false, error: response.message });
+      set({ loading: false, error: { code: response.code, message: response.message } });
       return;
     }
 
@@ -127,7 +142,8 @@ export const usePinterestImportStore = create<PinterestImportStore>()((set, get)
     set({ loadingMore: true, error: null });
     const response = await window.sortieAPI.pinterest.loadMore(state.target, state.bookmarks, 50);
     if (!response.ok) {
-      set({ loadingMore: false, error: response.message });
+      set({ loadingMore: false });
+      toast.error(`Couldn't load more pins: ${response.message}`);
       return;
     }
 

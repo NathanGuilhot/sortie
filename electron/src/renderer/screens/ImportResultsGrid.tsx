@@ -1,17 +1,56 @@
 import type { RefObject } from 'react';
 import type { Image, PinterestResult, PinterestTarget } from 'shared';
 import { MetadataModal } from '../components/MetadataModal';
-import { EmptyState } from '../components/screen';
-import { BookIcon } from '../components/icons';
+import { EmptyState, PrimaryButton } from '../components/screen';
+import { AlertIcon, BookIcon } from '../components/icons';
 import { PinterestResultCard } from '../components/PinterestResultCard';
 import type { LayoutResult } from '../components/masonry-layout';
 import { ImportBoardSummary } from './ImportBoardSummary';
+import type { PinterestImportError } from '../stores/pinterestImportStore';
 
 const bookIconNode = <BookIcon />;
+const alertIconNode = <AlertIcon />;
+
+function errorCopy(error: PinterestImportError): { title: string; description: string } {
+  switch (error.code) {
+    case 'network':
+      return {
+        title: 'You appear to be offline.',
+        description: 'Reconnect to the internet and try again.',
+      };
+    case 'bootstrap':
+    case 'blocked':
+      return {
+        title: "Couldn't reach Pinterest.",
+        description:
+          "If you're using a VPN, try disabling it — Pinterest blocks some VPN exit nodes and silently returns no results.",
+      };
+    case 'rate_limited':
+      return {
+        title: 'Pinterest is rate-limiting us.',
+        description: 'Wait a few seconds and try again.',
+      };
+    case 'parse':
+      return {
+        title: 'Pinterest sent an unexpected response.',
+        description: 'Their API may have changed. Try again, and report this if it persists.',
+      };
+    case 'invalid_input':
+    case 'not_found':
+      return { title: "That input didn't work.", description: error.message };
+    case 'unknown':
+    default:
+      return {
+        title: 'Something went wrong fetching from Pinterest.',
+        description: error.message,
+      };
+  }
+}
 
 interface ImportResultsGridProps {
   boardPinCount: number | null;
   columns: number;
+  error: PinterestImportError | null;
   gridRef: RefObject<HTMLDivElement>;
   hiddenAiCount: number;
   isEnd: boolean;
@@ -23,16 +62,19 @@ interface ImportResultsGridProps {
   setPreviewImage: (image: Image | null) => void;
   showAllHidden: boolean;
   showEmpty: boolean;
+  showError: boolean;
   showWelcome: boolean;
   target: PinterestTarget | null;
   targetLabel: string;
   visibleResults: PinterestResult[];
   onPreview: (imageId: number) => void;
+  onRetry: () => void;
 }
 
 export function ImportResultsGrid({
   boardPinCount,
   columns,
+  error,
   gridRef,
   hiddenAiCount,
   isEnd,
@@ -44,12 +86,15 @@ export function ImportResultsGrid({
   setPreviewImage,
   showAllHidden,
   showEmpty,
+  showError,
   showWelcome,
   target,
   targetLabel,
   visibleResults,
   onPreview,
+  onRetry,
 }: ImportResultsGridProps) {
+  const errorInfo = showError && error ? errorCopy(error) : null;
   return (
     <>
       <div ref={gridRef} className="w-full">
@@ -68,6 +113,15 @@ export function ImportResultsGrid({
               />
             ))}
           </div>
+        )}
+
+        {errorInfo && (
+          <EmptyState
+            icon={alertIconNode}
+            title={errorInfo.title}
+            description={errorInfo.description}
+            action={<PrimaryButton onClick={onRetry}>Try again</PrimaryButton>}
+          />
         )}
 
         {showWelcome && (

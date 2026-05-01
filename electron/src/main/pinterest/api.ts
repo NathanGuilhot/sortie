@@ -20,13 +20,45 @@ export type ParsedTarget =
   | { kind: 'search'; query: string }
   | { kind: 'board'; username: string; slug: string };
 
+export type PinterestErrorCode =
+  | 'network'
+  | 'blocked'
+  | 'rate_limited'
+  | 'parse'
+  | 'bootstrap'
+  | 'invalid_input'
+  | 'not_found'
+  | 'unknown';
+
 export class PinterestAPIError extends Error {
   readonly status?: number;
-  constructor(message: string, status?: number) {
+  readonly code: PinterestErrorCode;
+  constructor(message: string, status?: number, code: PinterestErrorCode = 'unknown') {
     super(message);
     this.name = 'PinterestAPIError';
     this.status = status;
+    this.code = code;
   }
+}
+
+function classifyFetchError(err: unknown): PinterestAPIError {
+  if (err instanceof PinterestAPIError) return err;
+  const message = err instanceof Error ? err.message : String(err);
+  const name = err instanceof Error ? err.name : '';
+  if (name === 'AbortError' || /timeout/i.test(message)) {
+    return new PinterestAPIError('Pinterest request timed out.', undefined, 'network');
+  }
+  return new PinterestAPIError(`Network error: ${message}`, undefined, 'network');
+}
+
+function classifyHttpStatus(status: number, statusText: string): PinterestAPIError {
+  if (status === 429) {
+    return new PinterestAPIError(`Pinterest rate limit (${status}).`, status, 'rate_limited');
+  }
+  if (status >= 400 && status < 500) {
+    return new PinterestAPIError(`Pinterest API ${status} ${statusText}`, status, 'blocked');
+  }
+  return new PinterestAPIError(`Pinterest API ${status} ${statusText}`, status, 'unknown');
 }
 
 let cachedCookieHeader: { value: string; fetchedAt: number } | null = null;
@@ -37,17 +69,32 @@ async function getCookieHeader(): Promise<string> {
   if (cachedCookieHeader && now - cachedCookieHeader.fetchedAt < COOKIE_TTL_MS) {
     return cachedCookieHeader.value;
   }
-  const res = await fetch('https://www.pinterest.com/', {
-    headers: { 'user-agent': USER_AGENT },
-    redirect: 'follow',
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  let res: Response;
+  try {
+    res = await fetch('https://www.pinterest.com/', {
+      headers: { 'user-agent': USER_AGENT },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    const fetchErr = classifyFetchError(err);
+    throw new PinterestAPIError(fetchErr.message, fetchErr.status, 'bootstrap');
+  }
+  if (!res.ok) {
+    throw new PinterestAPIError(
+      `Pinterest bootstrap ${res.status} ${res.statusText}`,
+      res.status,
+      'bootstrap',
+    );
+  }
   const setCookies = res.headers.getSetCookie?.() ?? [];
   const value = setCookies
     .map((c) => c.split(';')[0])
     .filter(Boolean)
     .join('; ');
-  if (!value) throw new PinterestAPIError('Pinterest bootstrap returned no cookies');
+  if (!value) {
+    throw new PinterestAPIError('Pinterest bootstrap returned no cookies', undefined, 'bootstrap');
+  }
   cachedCookieHeader = { value, fetchedAt: now };
   return value;
 }
@@ -79,30 +126,41 @@ interface PinterestEnvelope<T> {
 
 async function callApi<T>(url: string): Promise<PinterestEnvelope<T>> {
   const cookie = await getCookieHeader();
-  const res = await fetch(url, {
-    headers: {
-      'user-agent': USER_AGENT,
-      'x-pinterest-pws-handler': PWS_HANDLER,
-      cookie,
-      accept: 'application/json, text/javascript, */*; q=0.01',
-      'accept-language': 'en-US,en;q=0.9',
-    },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: {
+        'user-agent': USER_AGENT,
+        'x-pinterest-pws-handler': PWS_HANDLER,
+        cookie,
+        accept: 'application/json, text/javascript, */*; q=0.01',
+        'accept-language': 'en-US,en;q=0.9',
+      },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw classifyFetchError(err);
+  }
   if (!res.ok) {
-    // Cookie may have rotated; clear cache so next call re-bootstraps.
     cachedCookieHeader = null;
-    throw new PinterestAPIError(`Pinterest API ${res.status} ${res.statusText}`, res.status);
+    throw classifyHttpStatus(res.status, res.statusText);
   }
   let json: PinterestEnvelope<T>;
   try {
     json = (await res.json()) as PinterestEnvelope<T>;
   } catch (err) {
-    throw new PinterestAPIError(`Failed to parse Pinterest response: ${(err as Error).message}`);
+    throw new PinterestAPIError(
+      `Failed to parse Pinterest response: ${(err as Error).message}`,
+      undefined,
+      'parse',
+    );
   }
   const apiError = json.resource_response?.error;
   if (apiError?.message) {
-    throw new PinterestAPIError(apiError.message, apiError.http_status);
+    const status = apiError.http_status;
+    const code: PinterestErrorCode =
+      status === 429 ? 'rate_limited' : status && status >= 400 && status < 500 ? 'blocked' : 'unknown';
+    throw new PinterestAPIError(apiError.message, status, code);
   }
   return json;
 }
@@ -115,12 +173,14 @@ const SEARCH_URL_RE = /^https?:\/\/(?:[a-z0-9-]+\.)?pinterest\.[a-z.]+\/search\/
 
 export function parsePinterestInput(input: string): ParsedTarget {
   const trimmed = input.trim();
-  if (!trimmed) throw new PinterestAPIError('Empty input');
+  if (!trimmed) throw new PinterestAPIError('Empty input', undefined, 'invalid_input');
 
   // Pin URL — treat as a single-pin board lookup is unsupported in v1.
   if (PIN_URL_RE.test(trimmed)) {
     throw new PinterestAPIError(
       "Direct pin URLs aren't supported yet — paste a board URL or search by keyword instead.",
+      undefined,
+      'invalid_input',
     );
   }
 
@@ -143,6 +203,8 @@ export function parsePinterestInput(input: string): ParsedTarget {
   if (/^https?:\/\//i.test(trimmed)) {
     throw new PinterestAPIError(
       "That URL doesn't look like a Pinterest board. Try a URL like https://www.pinterest.com/<user>/<board>/",
+      undefined,
+      'invalid_input',
     );
   }
 
@@ -197,7 +259,7 @@ export async function getBoardInfo(username: string, slug: string): Promise<Boar
   const env = await callApi<{ id?: string; pin_count?: number }>(url);
   const data = env.resource_response?.data;
   if (!data || typeof data !== 'object' || !('id' in data) || typeof data.id !== 'string') {
-    throw new PinterestAPIError(`Board not found: ${username}/${slug}`, 404);
+    throw new PinterestAPIError(`Board not found: ${username}/${slug}`, 404, 'not_found');
   }
   const d = data as { id: string; pin_count?: number };
   return { boardId: d.id, pinCount: d.pin_count ?? 0 };
