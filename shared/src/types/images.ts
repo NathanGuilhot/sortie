@@ -5,6 +5,7 @@ export interface Image {
   file_path: string;
   file_name: string;
   file_size: number | null;
+  file_mtime_ms?: number | null;
   mime_type: string | null;
   width: number | null;
   height: number | null;

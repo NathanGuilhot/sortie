@@ -256,4 +256,14 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
 
     db.pragma('user_version = 14');
   }
+
+  if (version < 20) {
+    const imageColumns = getColumnNames(db, 'images');
+    addColumnIfMissing(db, 'images', imageColumns, 'file_mtime_ms', 'REAL');
+    db.exec(
+      'CREATE INDEX IF NOT EXISTS idx_images_file_path_size_mtime ON images(file_path, file_size, file_mtime_ms)',
+    );
+
+    db.pragma('user_version = 20');
+  }
 }

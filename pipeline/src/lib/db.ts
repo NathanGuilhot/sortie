@@ -11,7 +11,11 @@ import {
   type AppSettingKey,
   type OcrStatus,
 } from 'shared';
-import { DatabaseImageRepository, type DatabaseImageMetadataUpdate } from './db-images';
+import {
+  DatabaseImageRepository,
+  type DatabaseImageMetadataUpdate,
+  type ImageScanState,
+} from './db-images';
 import { extractExif } from './exif';
 import { DatabaseFolderRepository } from './db-folders';
 import { runDatabaseMigrations } from './db-migrations';
@@ -115,6 +119,10 @@ export class DatabaseManager {
 
   getImageById(imageId: number): Image | null {
     return this.images.getImageById(imageId);
+  }
+
+  getImageScanState(filePath: string): ImageScanState | null {
+    return this.images.getImageScanState(filePath);
   }
 
   /**

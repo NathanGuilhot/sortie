@@ -16,6 +16,16 @@ export interface DatabaseImageMetadataUpdate {
   website_link?: string | null;
 }
 
+export interface ImageScanState {
+  id: number;
+  file_size: number | null;
+  file_mtime_ms: number | null;
+  file_hash: string | null;
+  embedded: number;
+  palette_json: string | null;
+  faces_scanned: number;
+}
+
 export class DatabaseImageRepository {
   constructor(
     private readonly db: Database.Database,
@@ -44,6 +54,7 @@ export class DatabaseImageRepository {
           `UPDATE images SET
              file_name = ?,
              file_size = ?,
+             file_mtime_ms = ?,
              mime_type = ?,
              width = COALESCE(?, width),
              height = COALESCE(?, height),
@@ -65,6 +76,7 @@ export class DatabaseImageRepository {
         .run(
           image.file_name,
           image.file_size,
+          image.file_mtime_ms ?? null,
           image.mime_type,
           image.width,
           image.height,
@@ -89,10 +101,10 @@ export class DatabaseImageRepository {
       .prepare(
         `INSERT INTO images (
            file_path, file_name, file_size, mime_type, width, height,
-           captured_at, latitude, longitude, city, country, description,
+           file_mtime_ms, captured_at, latitude, longitude, city, country, description,
            favorite, hidden, file_hash, dhash,
            camera_make, camera_model, aperture, iso, exposure_time, focal_length
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         image.file_path,
@@ -101,6 +113,7 @@ export class DatabaseImageRepository {
         image.mime_type,
         image.width,
         image.height,
+        image.file_mtime_ms ?? null,
         image.captured_at,
         image.latitude,
         image.longitude,
@@ -120,6 +133,19 @@ export class DatabaseImageRepository {
       );
 
     return { id: result.lastInsertRowid as number, created: true, fileHashMatched: false };
+  }
+
+  getImageScanState(filePath: string): ImageScanState | null {
+    const row = this.db
+      .prepare(
+        `SELECT i.id, i.file_size, i.file_mtime_ms, i.file_hash, i.palette_json,
+                i.faces_scanned,
+                (i.id IN (SELECT rowid FROM vec_images)) AS embedded
+         FROM images i
+         WHERE i.file_path = ?`,
+      )
+      .get(filePath) as ImageScanState | undefined;
+    return row ?? null;
   }
 
   getVisibleImageIds(): number[] {

@@ -13,6 +13,7 @@ export function setupDatabaseSchema(db: Database.Database, vecLoaded: boolean): 
         file_path TEXT UNIQUE NOT NULL,
         file_name TEXT NOT NULL,
         file_size INTEGER,
+        file_mtime_ms REAL,
         mime_type TEXT,
         width INTEGER,
         height INTEGER,
