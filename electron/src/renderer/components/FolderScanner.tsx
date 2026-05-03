@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import type { SortieProgress } from 'shared';
 import { ScreenShell, StatHeader, EmptyState, PrimaryButton } from './screen';
 import { toast } from '../stores/toastStore';
 import { useFolderStore } from '../stores/folderStore';
@@ -18,11 +19,7 @@ export function FolderScanner() {
   const [loading, setLoading] = useState(true);
   const [scanningFolder, setScanningFolder] = useState<string | null>(null);
   const [scanOpId, setScanOpId] = useState<string | null>(null);
-  const [scanProgress, setScanProgress] = useState<{
-    current: number;
-    total: number;
-    currentFile: string;
-  } | null>(null);
+  const [scanProgress, setScanProgress] = useState<SortieProgress | null>(null);
   const [removingFolder, setRemovingFolder] = useState<string | null>(null);
   const [resettingDb, setResettingDb] = useState(false);
 

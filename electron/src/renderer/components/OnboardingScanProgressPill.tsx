@@ -1,13 +1,15 @@
 import { XIcon } from './icons';
+import type { SortieProgress } from 'shared';
 
 export function OnboardingScanProgressPill({
   progress,
   onCancel,
 }: {
-  progress: { current: number; total: number; currentFile: string };
+  progress: SortieProgress;
   onCancel?: () => void;
 }) {
-  const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+  const pct =
+    progress.total > 0 ? Math.min(100, Math.max(0, (progress.current / progress.total) * 100)) : 0;
   const name = progress.currentFile.split('/').pop() ?? '';
   return (
     <div className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 animate-fade-in">
@@ -15,7 +17,7 @@ export function OnboardingScanProgressPill({
         <div className="animate-spin rounded-full h-4 w-4 border-2 border-lavender border-t-ink shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between text-xs text-ink">
-            <span>Scanning your folder</span>
+            <span>Checking your folder</span>
             <span className="text-ink/50">
               {progress.current}/{progress.total}
             </span>

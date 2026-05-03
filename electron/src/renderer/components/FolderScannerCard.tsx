@@ -1,4 +1,4 @@
-import type { FolderWithStats } from 'shared';
+import type { FolderWithStats, SortieProgress } from 'shared';
 import { CopyText } from './CopyText';
 import { PhotoIcon, RefreshIcon, TrashIcon } from './icons';
 import { formatRelativeTime, formatSize } from './folderScannerUtils';
@@ -7,7 +7,7 @@ interface FolderScannerCardProps {
   folder: FolderWithStats;
   removingFolder: string | null;
   scanningFolder: string | null;
-  scanProgress: { current: number; total: number; currentFile: string } | null;
+  scanProgress: SortieProgress | null;
   onRemoveFolder: (folderPath: string) => void;
   onCancelRemove: () => void;
   onWatchToggle: (folderPath: string, watched: boolean) => void;
@@ -28,6 +28,10 @@ export function FolderScannerCard({
   onCancelScan,
   onFaceScanToggle,
 }: FolderScannerCardProps) {
+  const checkedCount = scanProgress?.current ?? 0;
+  const totalCount = scanProgress?.total ?? 0;
+  const progressPct = totalCount > 0 ? Math.min(100, Math.max(0, (checkedCount / totalCount) * 100)) : 0;
+
   return (
     <div
       className={`rounded-lg border p-5 hover:shadow-md transition-shadow duration-150 ${
@@ -105,9 +109,12 @@ export function FolderScannerCard({
           <div className="w-full bg-lavender/40 rounded-full h-1.5">
             <div
               className="bg-ink h-1.5 rounded-full transition-all duration-300"
-              style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%` }}
+              style={{ width: `${progressPct}%` }}
             />
           </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Checked {checkedCount.toLocaleString()} / {totalCount.toLocaleString()}
+          </p>
           <p className="text-xs text-gray-400 mt-1 truncate" title={scanProgress.currentFile}>
             {scanProgress.currentFile.split('/').pop()}
           </p>
@@ -143,7 +150,7 @@ export function FolderScannerCard({
           >
             <div className="animate-spin rounded-full h-3 w-3 border-2 border-red-300 border-t-red-600" />
             Cancel
-            {scanProgress ? ` (${scanProgress.current}/${scanProgress.total})` : ''}
+            {scanProgress ? ` (${checkedCount}/${totalCount} checked)` : ''}
           </button>
         ) : (
           <button

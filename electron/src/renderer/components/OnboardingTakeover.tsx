@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { SortieProgress } from 'shared';
 import { useFolderStore } from '../stores/folderStore';
 import { useImageStore } from '../stores/imageStore';
 import { useOnboardingStore } from '../stores/onboardingStore';
@@ -20,11 +21,7 @@ export function OnboardingTakeover() {
   const [step, setStep] = useState<'features' | 'folders'>('features');
   const [suggestion, setSuggestion] = useState<SuggestedFolder | null>(null);
   const [working, setWorking] = useState<null | 'pictures' | 'custom'>(null);
-  const [scanProgress, setScanProgress] = useState<{
-    current: number;
-    total: number;
-    currentFile: string;
-  } | null>(null);
+  const [scanProgress, setScanProgress] = useState<SortieProgress | null>(null);
   const [scanningPath, setScanningPath] = useState<string | null>(null);
   const [scanOpId, setScanOpId] = useState<string | null>(null);
   const refreshInFlightRef = useRef(false);
