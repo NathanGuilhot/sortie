@@ -220,17 +220,41 @@ export class DatabaseSearchService {
     const embedding = db.getEmbedding(imageId);
     if (!embedding) return [];
 
+    const vectorLimit = Math.max(limit * 5, limit + 1);
     const matches = db
-      .findNearestImageMatches(embedding, limit + 1)
+      .findNearestImageMatches(embedding, vectorLimit)
       .filter((match) => match.rowid !== imageId);
+    const availableIds = this.availableImageIdSet(matches.map((match) => match.rowid));
     const results = this.hydrateScoredResults(
-      matches.map((match) => ({
-        imageId: match.rowid,
-        distance: match.distance,
-      })),
+      matches
+        .filter((match) => availableIds.has(match.rowid))
+        .slice(0, limit)
+        .map((match) => ({
+          imageId: match.rowid,
+          distance: match.distance,
+        })),
     );
 
     results.sort((left, right) => (left.distance ?? Infinity) - (right.distance ?? Infinity));
     return results;
+  }
+
+  private availableImageIdSet(ids: number[]): Set<number> {
+    if (ids.length === 0) return new Set();
+
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = this.deps
+      .requireDb()
+      .getDatabase()
+      .prepare(
+        `SELECT id
+         FROM images
+         WHERE id IN (${placeholders})
+           AND hidden = 0
+           AND missing = 0`,
+      )
+      .all(...ids) as Array<{ id: number }>;
+
+    return new Set(rows.map((row) => row.id));
   }
 }
