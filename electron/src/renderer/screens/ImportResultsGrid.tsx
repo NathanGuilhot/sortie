@@ -1,4 +1,5 @@
 import type { RefObject } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Image, PinterestResult, PinterestTarget } from 'shared';
 import { MetadataModal } from '../components/MetadataModal';
 import { EmptyState, PrimaryButton } from '../components/screen';
@@ -6,6 +7,7 @@ import { AlertIcon, BookIcon } from '../components/icons';
 import { PinterestResultCard } from '../components/PinterestResultCard';
 import type { LayoutResult } from '../components/masonry-layout';
 import { ImportBoardSummary } from './ImportBoardSummary';
+import { useImageStore } from '../stores/imageStore';
 import type { PinterestImportError } from '../stores/pinterestImportStore';
 
 const bookIconNode = <BookIcon />;
@@ -94,7 +96,15 @@ export function ImportResultsGrid({
   onPreview,
   onRetry,
 }: ImportResultsGridProps) {
+  const navigate = useNavigate();
+  const setGallerySelectedImage = useImageStore((state) => state.setSelectedImage);
   const errorInfo = showError && error ? errorCopy(error) : null;
+  const handleSimilarImageClick = (image: Image) => {
+    setPreviewImage(null);
+    setGallerySelectedImage(image);
+    void navigate('/gallery');
+  };
+
   return (
     <>
       <div ref={gridRef} className="w-full">
@@ -200,6 +210,7 @@ export function ImportResultsGrid({
           images={[previewImage]}
           onClose={() => setPreviewImage(null)}
           onNavigate={setPreviewImage}
+          onSimilarImageClick={handleSimilarImageClick}
         />
       )}
     </>

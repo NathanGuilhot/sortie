@@ -12,6 +12,7 @@ interface MetadataModalProps {
   image: Image;
   onClose: () => void;
   onNavigate: (image: Image) => void;
+  onSimilarImageClick?: (image: Image) => void;
   images?: Image[];
 }
 
@@ -19,6 +20,7 @@ export function MetadataModal({
   image,
   onClose,
   onNavigate,
+  onSimilarImageClick,
   images: imagesProp,
 }: MetadataModalProps) {
   const storeImages = useImageStore((s) => s.images);
@@ -73,6 +75,7 @@ export function MetadataModal({
   // Split into left/right (interleaved so both sides have equally similar images)
   const leftImages = useMemo(() => similarImages.filter((_, i) => i % 2 === 0), [similarImages]);
   const rightImages = useMemo(() => similarImages.filter((_, i) => i % 2 !== 0), [similarImages]);
+  const handleSimilarImageClick = onSimilarImageClick ?? onNavigate;
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -149,7 +152,11 @@ export function MetadataModal({
           onClick={(e) => e.stopPropagation()}
         >
           <div className="w-full">
-            <SimilarityGrid images={leftImages} onImageClick={onNavigate} columns={2} />
+            <SimilarityGrid
+              images={leftImages}
+              onImageClick={handleSimilarImageClick}
+              columns={2}
+            />
           </div>
         </div>
 
@@ -184,7 +191,11 @@ export function MetadataModal({
           onClick={(e) => e.stopPropagation()}
         >
           <div className="w-full">
-            <SimilarityGrid images={rightImages} onImageClick={onNavigate} columns={2} />
+            <SimilarityGrid
+              images={rightImages}
+              onImageClick={handleSimilarImageClick}
+              columns={2}
+            />
           </div>
         </div>
 

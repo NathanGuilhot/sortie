@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Face, Image, Person } from 'shared';
 import { MetadataModal } from './MetadataModal';
 import { buildFaceThumbUrl } from './faceThumb';
 import { ChevronLeftIcon, XIcon } from './icons';
+import { useImageStore } from '../stores/imageStore';
 import { usePeopleStore } from '../stores/peopleStore';
 
 interface PeoplePersonDetailProps {
@@ -13,6 +15,8 @@ interface PeoplePersonDetailProps {
 
 export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePersonDetailProps) {
   const { personImages, renamePerson, deletePerson, fetchPersonImages } = usePeopleStore();
+  const navigate = useNavigate();
+  const setGallerySelectedImage = useImageStore((state) => state.setSelectedImage);
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(person.name || '');
   const [faces, setFaces] = useState<Face[]>([]);
@@ -49,6 +53,12 @@ export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePers
       await renamePerson(person.id, nameInput.trim());
     }
     setEditing(false);
+  };
+
+  const handleSimilarImageClick = (image: Image) => {
+    setSelectedImage(null);
+    setGallerySelectedImage(image);
+    void navigate('/gallery');
   };
 
   return (
@@ -151,6 +161,7 @@ export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePers
           images={personImages}
           onClose={() => setSelectedImage(null)}
           onNavigate={(image) => setSelectedImage(image)}
+          onSimilarImageClick={handleSimilarImageClick}
         />
       )}
     </div>
