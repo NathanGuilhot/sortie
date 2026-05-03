@@ -256,6 +256,10 @@ export class DatabaseManager {
     this.people.insertFaceEmbedding(faceRowid, embedding);
   }
 
+  insertFaceClipEmbedding(faceRowid: number, embedding: number[]): void {
+    this.people.insertFaceClipEmbedding(faceRowid, embedding);
+  }
+
   getFaceEmbedding(faceId: number): number[] | null {
     return this.people.getFaceEmbedding(faceId);
   }
@@ -270,6 +274,18 @@ export class DatabaseManager {
 
   findNearestPerson(embedding: number[], limit: number = 1): VecMatchRow[] {
     return this.people.findNearestPerson(embedding, limit);
+  }
+
+  findNearestFace(embedding: number[], limit: number = 1): VecMatchRow[] {
+    return this.people.findNearestFace(embedding, limit);
+  }
+
+  findNearestFaceClip(embedding: number[], limit: number = 1): VecMatchRow[] {
+    return this.people.findNearestFaceClip(embedding, limit);
+  }
+
+  getPersonFaceClipEmbeddings(personId: number): number[][] {
+    return this.people.getPersonFaceClipEmbeddings(personId);
   }
 
   getAllPersons(): Person[] {

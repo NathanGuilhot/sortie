@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { FACE_EMBEDDING_DIM } from 'shared';
+import { CLIP_EMBEDDING_DIM, FACE_EMBEDDING_DIM } from 'shared';
 
 function getColumnNames(db: Database.Database, table: string): Set<string> {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
@@ -16,6 +16,17 @@ function addColumnIfMissing(
   if (columnNames.has(column)) return;
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   columnNames.add(column);
+}
+
+function clearFaceClusters(db: Database.Database, vecLoaded: boolean): void {
+  if (vecLoaded) {
+    db.exec('DELETE FROM vec_face_clips');
+    db.exec('DELETE FROM vec_faces');
+    db.exec('DELETE FROM vec_persons');
+  }
+  db.exec('DELETE FROM faces');
+  db.exec('DELETE FROM persons');
+  db.exec('UPDATE images SET faces_scanned = 0');
 }
 
 // Migrations `user_version` : inchrémental, idempotent par version.
@@ -255,6 +266,24 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
     db.exec('CREATE INDEX IF NOT EXISTS idx_images_ocr_status ON images(ocr_status)');
 
     db.pragma('user_version = 14');
+  }
+
+  if (version < 16) {
+    if (vecLoaded) {
+      db.exec(`
+          CREATE VIRTUAL TABLE IF NOT EXISTS vec_face_clips USING vec0(
+            embedding float[${CLIP_EMBEDDING_DIM}] distance_metric=cosine
+          )
+        `);
+    }
+    clearFaceClusters(db, vecLoaded);
+
+    db.pragma('user_version = 16');
+  }
+
+  if (version < 19) {
+    clearFaceClusters(db, vecLoaded);
+    db.pragma('user_version = 19');
   }
 
   if (version < 20) {

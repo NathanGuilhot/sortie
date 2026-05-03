@@ -44,6 +44,12 @@ export class DatabasePeopleRepository {
       .run(BigInt(faceRowid), new Float32Array(normalizeVector(embedding)));
   }
 
+  insertFaceClipEmbedding(faceRowid: number, embedding: number[]): void {
+    this.db
+      .prepare('INSERT OR REPLACE INTO vec_face_clips (rowid, embedding) VALUES (?, ?)')
+      .run(BigInt(faceRowid), new Float32Array(normalizeVector(embedding)));
+  }
+
   getFaceEmbedding(faceId: number): number[] | null {
     const row = this.db
       .prepare('SELECT embedding FROM vec_faces WHERE rowid = ?')
@@ -72,6 +78,38 @@ export class DatabasePeopleRepository {
          ORDER BY distance`,
       )
       .all(new Float32Array(embedding), limit) as VecMatchRow[];
+  }
+
+  findNearestFace(embedding: number[], limit: number = 1): VecMatchRow[] {
+    return this.db
+      .prepare(
+        `SELECT rowid, distance FROM vec_faces
+         WHERE embedding MATCH ? AND k = ?
+         ORDER BY distance`,
+      )
+      .all(new Float32Array(embedding), limit) as VecMatchRow[];
+  }
+
+  findNearestFaceClip(embedding: number[], limit: number = 1): VecMatchRow[] {
+    return this.db
+      .prepare(
+        `SELECT rowid, distance FROM vec_face_clips
+         WHERE embedding MATCH ? AND k = ?
+         ORDER BY distance`,
+      )
+      .all(new Float32Array(embedding), limit) as VecMatchRow[];
+  }
+
+  getPersonFaceClipEmbeddings(personId: number): number[][] {
+    const rows = this.db
+      .prepare(
+        `SELECT v.embedding AS embedding
+         FROM faces f
+         JOIN vec_face_clips v ON v.rowid = f.id
+         WHERE f.person_id = ?`,
+      )
+      .all(personId) as Array<{ embedding: Buffer | number[] }>;
+    return rows.map((row) => decodeEmbeddingValue(row.embedding));
   }
 
   getAllPersons(): Person[] {

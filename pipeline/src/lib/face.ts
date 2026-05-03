@@ -4,12 +4,21 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { dynamicImport } from './dynamic-import';
+import { createSerialQueue, type SerialQueue } from './queue';
 import { loadImageInput } from './raw';
 
 export interface DetectedFace {
   bbox: { x: number; y: number; width: number; height: number };
   confidence: number;
   descriptor: number[];
+}
+
+interface FaceApiDetection {
+  detection: {
+    box: { x: number; y: number; width: number; height: number };
+    score: number;
+  };
+  descriptor: Float32Array;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
@@ -19,10 +28,20 @@ export class FaceDetector {
   private canvas: any = null;
   private tf: any = null;
   private isInitialized = false;
+  private initializePromise: Promise<void> | null = null;
+  private readonly inferenceQueue: SerialQueue = createSerialQueue();
   constructor(
     private readonly modelsPath: string,
     private readonly cacheDir?: string,
-  ) {}
+  ) {
+    if (cacheDir) {
+      try {
+        fs.mkdirSync(cacheDir, { recursive: true });
+      } catch (err) {
+        console.warn('[face-cache] failed to create cache dir:', err);
+      }
+    }
+  }
 
   private getCachePath(imagePath: string): string | null {
     if (!this.cacheDir) return null;
@@ -42,7 +61,16 @@ export class FaceDetector {
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
+    if (this.initializePromise) return this.initializePromise;
 
+    this.initializePromise = this.doInitialize().catch((error) => {
+      this.initializePromise = null;
+      throw error;
+    });
+    return this.initializePromise;
+  }
+
+  private async doInitialize(): Promise<void> {
     const wasmBackend = await dynamicImport<any>('@tensorflow/tfjs-backend-wasm');
     const wasmDir = path.dirname(
       require.resolve('@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm.wasm'),
@@ -131,17 +159,18 @@ export class FaceDetector {
     );
     ctx.putImageData(imageData, 0, 0);
 
-    // Scope TF tensors so intermediate allocations are freed after detection
-    this.tf.engine().startScope();
-    let detections: any[];
-    try {
-      detections = await this.faceapi
-        .detectAllFaces(cvs, new this.faceapi.SsdMobilenetv1Options({ minConfidence }))
-        .withFaceLandmarks()
-        .withFaceDescriptors();
-    } finally {
-      this.tf.engine().endScope();
-    }
+    const detections = await this.inferenceQueue(async () => {
+      // Scope TF tensors so intermediate allocations are freed after detection.
+      this.tf.engine().startScope();
+      try {
+        return (await this.faceapi
+          .detectAllFaces(cvs, new this.faceapi.SsdMobilenetv1Options({ minConfidence }))
+          .withFaceLandmarks()
+          .withFaceDescriptors()) as FaceApiDetection[];
+      } finally {
+        this.tf.engine().endScope();
+      }
+    });
 
     const minArea = FACE_MIN_SIZE_RATIO * canvasWidth * canvasHeight;
 
@@ -159,7 +188,7 @@ export class FaceDetector {
           height: box.height / canvasHeight,
         },
         confidence: detection.detection.score,
-        descriptor: Array.from(detection.descriptor as Float32Array),
+        descriptor: Array.from(detection.descriptor),
       });
     }
 

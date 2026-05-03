@@ -1,4 +1,11 @@
-import { FACE_MATCH_THRESHOLD, FACE_EMBEDDING_DIM, normalizeVector } from 'shared';
+import {
+  cosineDistance,
+  FACE_CLIP_CLUSTER_MAX_DISTANCE,
+  FACE_CLIP_MATCH_THRESHOLD,
+  FACE_EMBEDDING_DIM,
+  FACE_MATCH_THRESHOLD,
+  normalizeVector,
+} from 'shared';
 import { DatabaseManager } from './db';
 import { hungarian } from './hungarian';
 
@@ -8,6 +15,12 @@ export interface MatchResult {
   isNewPerson: boolean;
 }
 
+export interface FaceMatchDescriptor {
+  descriptor: number[];
+  clipEmbedding?: number[] | null;
+  canGroup?: boolean;
+}
+
 export class FaceMatcher {
   private db: DatabaseManager;
 
@@ -15,27 +28,25 @@ export class FaceMatcher {
     this.db = db;
   }
 
-  matchFace(descriptor: number[]): MatchResult {
+  matchFace(descriptor: number[] | FaceMatchDescriptor): MatchResult {
     return this.matchFaceExcluding(descriptor, new Set());
   }
 
-  matchFaceExcluding(descriptor: number[], excluded: Set<number>): MatchResult {
-    const normed = normalizeVector(descriptor);
-    const k = Math.max(10, excluded.size + 5);
-    const candidates = this.db.findNearestPerson(normed, k);
+  matchFaceExcluding(descriptor: number[] | FaceMatchDescriptor, excluded: Set<number>): MatchResult {
+    const face = this.normalizeMatchDescriptor(descriptor);
+    const candidates = this.findCandidatePersons(face, Math.max(25, excluded.size + 10));
 
     for (const candidate of candidates) {
-      if (excluded.has(candidate.rowid)) continue;
-      if (candidate.distance >= FACE_MATCH_THRESHOLD) break;
+      if (excluded.has(candidate.personId)) continue;
       return {
-        personId: candidate.rowid,
+        personId: candidate.personId,
         distance: candidate.distance,
         isNewPerson: false,
       };
     }
 
     const personId = this.db.insertPerson(null);
-    this.db.insertPersonEmbedding(personId, normed);
+    this.db.insertPersonEmbedding(personId, face.descriptor);
     return { personId, distance: 0, isNewPerson: true };
   }
 
@@ -44,22 +55,21 @@ export class FaceMatcher {
    * For a single face, falls back to nearest-neighbour matching.
    * Returns one MatchResult per input descriptor (same order).
    */
-  matchFaces(descriptors: number[][]): MatchResult[] {
+  matchFaces(descriptors: Array<number[] | FaceMatchDescriptor>): MatchResult[] {
     if (descriptors.length === 0) return [];
     if (descriptors.length === 1) return [this.matchFace(descriptors[0])];
 
-    const normed = descriptors.map((d) => normalizeVector(d));
+    const faces = descriptors.map((descriptor) => this.normalizeMatchDescriptor(descriptor));
 
-    // Gather candidate persons for all faces.
-    const k = Math.max(10, descriptors.length + 5);
+    const k = Math.max(25, descriptors.length * 5);
     const personCandidates = new Set<number>();
-    const faceCandidateRows: Array<Array<{ rowid: number; distance: number }>> = [];
+    const faceCandidateRows: Array<Array<{ personId: number; distance: number }>> = [];
 
-    for (const desc of normed) {
-      const rows = this.db.findNearestPerson(desc, k);
+    for (const face of faces) {
+      const rows = this.findCandidatePersons(face, k);
       faceCandidateRows.push(rows);
       for (const row of rows) {
-        personCandidates.add(row.rowid);
+        personCandidates.add(row.personId);
       }
     }
 
@@ -70,7 +80,7 @@ export class FaceMatcher {
       let withinThreshold = false;
       for (const rows of faceCandidateRows) {
         for (const r of rows) {
-          if (r.rowid === pid && r.distance < FACE_MATCH_THRESHOLD) {
+          if (r.personId === pid && r.distance < FACE_CLIP_MATCH_THRESHOLD) {
             withinThreshold = true;
             break;
           }
@@ -80,14 +90,14 @@ export class FaceMatcher {
       if (withinThreshold) personIds.push(pid);
     }
 
-    const N = normed.length; // faces (rows)
+    const N = faces.length; // faces (rows)
     const M = personIds.length; // candidate persons (cols)
 
     if (M === 0) {
       // No existing persons match — create a new person for each face.
-      return normed.map((desc) => {
+      return faces.map((face) => {
         const personId = this.db.insertPerson(null);
-        this.db.insertPersonEmbedding(personId, desc);
+        this.db.insertPersonEmbedding(personId, face.descriptor);
         return { personId, distance: 0, isNewPerson: true };
       });
     }
@@ -98,7 +108,12 @@ export class FaceMatcher {
     const cost: number[][] = [];
     for (let i = 0; i < N; i++) {
       const distMap = new Map<number, number>();
-      for (const r of faceCandidateRows[i]) distMap.set(r.rowid, r.distance);
+      for (const r of faceCandidateRows[i]) {
+        const current = distMap.get(r.personId);
+        if (current === undefined || r.distance < current) {
+          distMap.set(r.personId, r.distance);
+        }
+      }
       cost.push(personIds.map((pid) => distMap.get(pid) ?? SENTINEL));
     }
 
@@ -121,17 +136,100 @@ export class FaceMatcher {
 
     for (let i = 0; i < N; i++) {
       const j = assignment[i];
-      if (j < M && padded[i][j] < FACE_MATCH_THRESHOLD) {
+      if (j < M && padded[i][j] < FACE_CLIP_MATCH_THRESHOLD) {
         results[i] = { personId: personIds[j], distance: padded[i][j], isNewPerson: false };
         usedPersonIds.add(personIds[j]);
       } else {
         const personId = this.db.insertPerson(null);
-        this.db.insertPersonEmbedding(personId, normed[i]);
+        this.db.insertPersonEmbedding(personId, faces[i].descriptor);
         results[i] = { personId, distance: 0, isNewPerson: true };
       }
     }
 
     return results;
+  }
+
+  private findCandidatePersons(
+    face: FaceMatchDescriptor,
+    limit: number,
+  ): Array<{ personId: number; distance: number }> {
+    if (face.canGroup === false) return [];
+    if (!face.clipEmbedding) return [];
+    return this.findClipCandidatePersons(face, limit);
+  }
+
+  private findClipCandidatePersons(
+    face: FaceMatchDescriptor,
+    limit: number,
+  ): Array<{ personId: number; distance: number }> {
+    const { clipEmbedding } = face;
+    if (!clipEmbedding) return [];
+
+    const nearestFaces = this.db.findNearestFaceClip(clipEmbedding, limit);
+    const nearestDescriptors = this.db.findNearestFace(face.descriptor, limit);
+    const descriptorDistanceByPerson = new Map<number, number>();
+
+    for (const descriptorFace of nearestDescriptors) {
+      if (descriptorFace.distance >= FACE_MATCH_THRESHOLD) break;
+
+      const personId = this.db.getFacePersonId(descriptorFace.rowid);
+      if (personId === null) continue;
+
+      const current = descriptorDistanceByPerson.get(personId);
+      if (current === undefined || descriptorFace.distance < current) {
+        descriptorDistanceByPerson.set(personId, descriptorFace.distance);
+      }
+    }
+
+    const bestByPerson = new Map<number, number>();
+    const personEmbeddingsCache = new Map<number, number[][]>();
+
+    for (const clipFace of nearestFaces) {
+      if (clipFace.distance >= FACE_CLIP_MATCH_THRESHOLD) break;
+
+      const personId = this.db.getFacePersonId(clipFace.rowid);
+      if (personId === null) continue;
+      if (!descriptorDistanceByPerson.has(personId)) continue;
+      if (!this.isCohesiveClipMatch(personId, clipEmbedding, personEmbeddingsCache)) continue;
+
+      const current = bestByPerson.get(personId);
+      if (current === undefined || clipFace.distance < current) {
+        bestByPerson.set(personId, clipFace.distance);
+      }
+    }
+
+    return [...bestByPerson.entries()]
+      .map(([personId, distance]) => ({ personId, distance }))
+      .sort((a, b) => a.distance - b.distance);
+  }
+
+  private isCohesiveClipMatch(
+    personId: number,
+    clipEmbedding: number[],
+    cache: Map<number, number[][]>,
+  ): boolean {
+    let embeddings = cache.get(personId);
+    if (!embeddings) {
+      embeddings = this.db.getPersonFaceClipEmbeddings(personId);
+      cache.set(personId, embeddings);
+    }
+    if (embeddings.length === 0) return false;
+
+    return embeddings.every(
+      (embedding) => cosineDistance(clipEmbedding, embedding) < FACE_CLIP_CLUSTER_MAX_DISTANCE,
+    );
+  }
+
+  private normalizeMatchDescriptor(descriptor: number[] | FaceMatchDescriptor): FaceMatchDescriptor {
+    if (Array.isArray(descriptor)) {
+      return { descriptor: normalizeVector(descriptor), clipEmbedding: null };
+    }
+
+    return {
+      descriptor: normalizeVector(descriptor.descriptor),
+      clipEmbedding: descriptor.clipEmbedding ? normalizeVector(descriptor.clipEmbedding) : null,
+      canGroup: descriptor.canGroup,
+    };
   }
 
   assignFaceToPerson(faceId: number, personId: number): void {
