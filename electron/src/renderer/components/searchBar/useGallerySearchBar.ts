@@ -93,6 +93,10 @@ export function useGallerySearchBar({
     return () => clearTimeout(timer);
   }, [localQuery, searchQuery, setSearchQuery]);
 
+  useEffect(() => {
+    setLocalQuery(searchQuery);
+  }, [searchQuery]);
+
   const builtQuery = useBuiltSearchQuery({
     searchQuery,
     personFilter,
