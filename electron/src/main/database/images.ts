@@ -20,6 +20,15 @@ interface DatabaseImagesDeps {
   getFolderForPath(filePath: string): Folder | null;
 }
 
+export interface AddImageOptions {
+  invalidateCache?: boolean;
+}
+
+export interface AddImageResult {
+  imageId: number;
+  skipped: boolean;
+}
+
 export class DatabaseImagesService {
   private readonly imageCache = new Map<string, Image[]>();
   private readonly shuffledIdCache = new Map<string, number[]>();
@@ -164,12 +173,39 @@ export class DatabaseImagesService {
     return this.deps.requireDb().getTagsWithCounts() as Array<Tag & { usage_count: number }>;
   }
 
-  async addImage(filePath: string): Promise<number> {
+  private isUnchangedScanComplete(
+    state: ReturnType<DatabaseManager['getImageScanState']>,
+    stats: Awaited<ReturnType<typeof fs.stat>>,
+    faceScanExcluded: boolean,
+  ): state is NonNullable<typeof state> {
+    if (!state) return false;
+    if (state.file_size !== Number(stats.size)) return false;
+    if (state.file_mtime_ms === null) return false;
+    if (Math.abs(state.file_mtime_ms - Number(stats.mtimeMs)) > 1) return false;
+
+    return (
+      state.file_hash !== null &&
+      !!state.embedded &&
+      state.palette_json !== null &&
+      (faceScanExcluded || !!state.faces_scanned)
+    );
+  }
+
+  async addImage(filePath: string, options: AddImageOptions = {}): Promise<AddImageResult> {
     const db = this.deps.requireDb();
     const embedder = this.deps.getEmbedder();
     const normalizedPath = path.resolve(filePath);
     const fileName = path.basename(filePath);
     const stats = await fs.stat(filePath);
+    const folder = this.deps.getFolderForPath(filePath);
+    const existingState = db.getImageScanState(normalizedPath);
+    if (this.isUnchangedScanComplete(existingState, stats, !!folder?.exclude_from_face_scan)) {
+      db.getDatabase()
+        .prepare('UPDATE images SET missing = 0 WHERE id = ? AND missing <> 0')
+        .run(existingState.id);
+      return { imageId: existingState.id, skipped: true };
+    }
+
     const ext = path.extname(filePath).toLowerCase();
     const mimeType = MIME_TYPES[ext] || null;
     const loaded = await loadImageInput(filePath);
@@ -182,7 +218,8 @@ export class DatabaseImagesService {
     const imageData: Omit<Image, 'id' | 'created_at' | 'modified_at'> = {
       file_path: normalizedPath,
       file_name: fileName,
-      file_size: stats.size,
+      file_size: Number(stats.size),
+      file_mtime_ms: Number(stats.mtimeMs),
       mime_type: mimeType,
       width: exifData.width,
       height: exifData.height,
@@ -207,8 +244,10 @@ export class DatabaseImagesService {
 
     const { id: imageId, created, fileHashMatched } = db.upsertImage(imageData);
     if (!created && fileHashMatched) {
-      this.invalidateImageCache();
-      return imageId;
+      if (options.invalidateCache !== false) {
+        this.invalidateImageCache();
+      }
+      return { imageId, skipped: true };
     }
 
     const [embeddingResult, paletteResult] = await Promise.allSettled([
@@ -236,7 +275,6 @@ export class DatabaseImagesService {
       console.error(`Failed to extract palette for ${filePath}:`, paletteResult.reason);
     }
 
-    const folder = this.deps.getFolderForPath(filePath);
     if (!folder?.exclude_from_face_scan) {
       try {
         const result = await this.deps.getFaceScan().processImage(imageId, filePath, loaded);
@@ -248,7 +286,9 @@ export class DatabaseImagesService {
       }
     }
 
-    this.invalidateImageCache();
-    return imageId;
+    if (options.invalidateCache !== false) {
+      this.invalidateImageCache();
+    }
+    return { imageId, skipped: false };
   }
 }

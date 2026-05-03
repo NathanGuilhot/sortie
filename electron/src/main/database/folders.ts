@@ -1,5 +1,8 @@
 import type { DatabaseManager } from 'pipeline';
-import type { Folder, FolderWithStats, ScanFolderResult } from 'shared';
+import { runWithConcurrency } from 'pipeline';
+import type { Folder, FolderWithStats, ScanFolderResult, SortieProgress } from 'shared';
+import type { AddImageResult } from './images';
+import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
 import { OVERLAP_EXCLUDE_AVAILABLE_CLAUSE, OVERLAP_EXCLUDE_CLAUSE } from '../folder-overlap-sql';
@@ -7,12 +10,115 @@ import { IMAGE_EXTENSIONS } from '../database-helpers';
 
 interface DatabaseFoldersDeps {
   requireDb(): DatabaseManager;
-  addImage(filePath: string): Promise<number>;
+  addImage(filePath: string, options?: { invalidateCache?: boolean }): Promise<AddImageResult>;
   invalidateImageCache(): void;
 }
 
+const cpuCount = Math.max(1, os.cpus().length);
+const WALK_CONCURRENCY = Math.min(32, Math.max(8, cpuCount * 4));
+const IMAGE_PROCESSING_CONCURRENCY = Math.min(4, Math.max(2, Math.floor(cpuCount / 2)));
+
 export class DatabaseFoldersService {
   constructor(private readonly deps: DatabaseFoldersDeps) {}
+
+  private async collectImageFiles(folderPath: string, signal?: AbortSignal): Promise<string[]> {
+    const imageFiles: string[] = [];
+    const pendingDirs = [folderPath];
+    let active = 0;
+    let resolveDone: (() => void) | null = null;
+    let rejectDone: ((error: unknown) => void) | null = null;
+
+    const done = new Promise<void>((resolve, reject) => {
+      resolveDone = resolve;
+      rejectDone = reject;
+    });
+
+    const schedule = () => {
+      if (signal?.aborted) {
+        resolveDone?.();
+        return;
+      }
+
+      while (active < WALK_CONCURRENCY && pendingDirs.length > 0) {
+        const dir = pendingDirs.shift();
+        if (!dir) continue;
+
+        active += 1;
+        void fs
+          .readdir(dir, { withFileTypes: true })
+          .then((entries) => {
+            for (const entry of entries) {
+              if (signal?.aborted) break;
+              const fullPath = path.join(dir, entry.name);
+              if (entry.isDirectory()) {
+                pendingDirs.push(fullPath);
+              } else if (entry.isFile()) {
+                const ext = path.extname(entry.name).toLowerCase();
+                if (IMAGE_EXTENSIONS.has(ext)) {
+                  imageFiles.push(fullPath);
+                }
+              }
+            }
+          })
+          .then(
+            () => {
+              active -= 1;
+              if (active === 0 && pendingDirs.length === 0) {
+                resolveDone?.();
+              } else {
+                schedule();
+              }
+            },
+            (error) => {
+              rejectDone?.(error);
+            },
+          );
+      }
+    };
+
+    schedule();
+    await done;
+    return imageFiles;
+  }
+
+  private async processImageFiles(
+    imageFiles: string[],
+    onProgress?: (progress: SortieProgress) => void,
+    signal?: AbortSignal,
+  ): Promise<{ processed: number; cancelled: boolean }> {
+    let completed = 0;
+    let processed = 0;
+    let skipped = 0;
+
+    const { cancelled } = await runWithConcurrency(
+      imageFiles,
+      IMAGE_PROCESSING_CONCURRENCY,
+      async (file) => {
+        try {
+          const result = await this.deps.addImage(file, { invalidateCache: false });
+          if (result.skipped) {
+            skipped += 1;
+          } else {
+            processed += 1;
+          }
+        } catch (error) {
+          console.error(`Failed to process ${file}:`, error);
+        }
+
+        completed += 1;
+        onProgress?.({
+          current: completed,
+          total: imageFiles.length,
+          currentFile: file,
+          processed,
+          skipped,
+        });
+      },
+      signal,
+    );
+
+    return { processed, cancelled };
+  }
 
   async addFolder(folderPath: string): Promise<number> {
     const db = this.deps.requireDb().getDatabase();
@@ -95,47 +201,12 @@ export class DatabaseFoldersService {
       return { folderId, processed: 0, cancelled: false };
     }
 
-    const imageFiles: string[] = [];
-
-    async function walk(dir: string): Promise<void> {
-      if (signal?.aborted) return;
-      const entries = await fs.readdir(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (signal?.aborted) return;
-        const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          await walk(fullPath);
-        } else if (entry.isFile()) {
-          const ext = path.extname(entry.name).toLowerCase();
-          if (IMAGE_EXTENSIONS.has(ext)) {
-            imageFiles.push(fullPath);
-          }
-        }
-      }
-    }
-
     console.log(`Scanning folder ${normalized} for images...`);
-    await walk(normalized);
+    const imageFiles = await this.collectImageFiles(normalized, signal);
     console.log(`Found ${imageFiles.length} image files`);
 
-    let processed = 0;
-    let cancelled = false;
-    for (let index = 0; index < imageFiles.length; index++) {
-      if (signal?.aborted) {
-        cancelled = true;
-        break;
-      }
-
-      const file = imageFiles[index];
-      try {
-        await this.deps.addImage(file);
-        processed++;
-      } catch (error) {
-        console.error(`Failed to process ${file}:`, error);
-      }
-
-      onProgress?.({ current: index + 1, total: imageFiles.length, currentFile: file });
-    }
+    const { processed, cancelled } = await this.processImageFiles(imageFiles, onProgress, signal);
+    this.deps.invalidateImageCache();
 
     this.deps
       .requireDb()

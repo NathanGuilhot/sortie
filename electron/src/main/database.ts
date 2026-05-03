@@ -85,7 +85,7 @@ export class DatabaseService {
   });
   readonly folders = new DatabaseFoldersService({
     requireDb: () => this.requireDb(),
-    addImage: (filePath) => this.images.addImage(filePath),
+    addImage: (filePath, options) => this.images.addImage(filePath, options),
     invalidateImageCache: () => this.images.invalidateImageCache(),
   });
   readonly people = new DatabasePeopleService({
@@ -131,7 +131,12 @@ export class DatabaseService {
     this.suggestionEngine = new SuggestionEngine(this.db);
     this.faceDetector = new FaceDetector(faceModelsPath, faceCacheDir);
     this.faceMatcher = new FaceMatcher(this.db);
-    this.faceScan = new FaceScanService(this.db, this.faceDetector, this.faceMatcher);
+    this.faceScan = new FaceScanService(
+      this.db,
+      this.faceDetector,
+      this.faceMatcher,
+      this.embedder,
+    );
     this.ocr = new DatabaseOcrService(this.db, ocrModelsPath);
   }
 
@@ -451,7 +456,8 @@ export class DatabaseService {
   }
 
   async addImage(filePath: string): Promise<number> {
-    return this.images.addImage(filePath);
+    const result = await this.images.addImage(filePath);
+    return result.imageId;
   }
 
   async recomputeEmbedding(imageId: number): Promise<void> {

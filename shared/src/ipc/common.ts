@@ -2,6 +2,8 @@ export interface SortieProgress {
   current: number;
   total: number;
   currentFile: string;
+  processed?: number;
+  skipped?: number;
 }
 
 export interface FolderAvailabilityChange {
