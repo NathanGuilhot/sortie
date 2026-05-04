@@ -129,7 +129,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
       <SearchStatusNotice embedderStatus={embedderStatus} />
 
       {showDropdown && (
-        <div className="mt-2 bg-white rounded-2xl border border-gray-200/60 shadow-xl shadow-black/5 animate-dropdown-in">
+        <div className="mt-2 max-h-[calc(100vh-8rem)] overflow-y-auto overscroll-contain bg-white rounded-2xl border border-gray-200/60 shadow-xl shadow-black/5 animate-dropdown-in">
           {isFocused && !localQuery && <SearchSuggestions onSelect={handleSuggestionClick} />}
 
           {showAdvanced && <SearchBarAdvancedFilters showDivider={isFocused && !localQuery} />}
