@@ -6,12 +6,21 @@ import { SimilarityGrid } from './SimilarityGrid';
 import { OcrOverlay } from './OcrOverlay';
 import { useImageStore } from '../stores/imageStore';
 import { toast } from '../stores/toastStore';
-import { InfoIcon, XIcon } from './icons';
+import { ChevronLeftIcon, InfoIcon, XIcon } from './icons';
+
+const SWIPE_THRESHOLD_PX = 60;
+const SWIPE_VERTICAL_TOLERANCE_PX = 45;
+const WHEEL_SWIPE_THRESHOLD_PX = 45;
+const WHEEL_SWIPE_IDLE_RESET_MS = 160;
 
 interface MetadataModalProps {
   image: Image;
   onClose: () => void;
   onNavigate: (image: Image) => void;
+  onBack: () => void;
+  onForward: () => void;
+  canGoBack: boolean;
+  canGoForward: boolean;
   onSimilarImageClick?: (image: Image) => void;
   images?: Image[];
 }
@@ -20,6 +29,10 @@ export function MetadataModal({
   image,
   onClose,
   onNavigate,
+  onBack,
+  onForward,
+  canGoBack,
+  canGoForward,
   onSimilarImageClick,
   images: imagesProp,
 }: MetadataModalProps) {
@@ -29,7 +42,12 @@ export function MetadataModal({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [similarImages, setSimilarImages] = useState<SearchResult[]>([]);
   const imgRef = useRef<HTMLImageElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
   const cache = useRef(new Map<number, SearchResult[]>());
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const didSwipeRef = useRef(false);
+  const wheelSwipeConsumedRef = useRef(false);
+  const wheelSwipeResetRef = useRef<number | null>(null);
 
   // Reset image loaded state when image changes
   /* eslint-disable react-hooks/set-state-in-effect -- intentional reset on prop change */
@@ -76,11 +94,25 @@ export function MetadataModal({
   const leftImages = useMemo(() => similarImages.filter((_, i) => i % 2 === 0), [similarImages]);
   const rightImages = useMemo(() => similarImages.filter((_, i) => i % 2 !== 0), [similarImages]);
   const handleSimilarImageClick = onSimilarImageClick ?? onNavigate;
+  const historyButtonClass =
+    'w-9 h-9 flex items-center justify-center rounded-full transition-colors';
+  const disabledHistoryButtonClass = 'text-white/25 cursor-default';
+  const enabledHistoryButtonClass = 'text-white/60 hover:text-white hover:bg-white/10';
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const target = e.target as HTMLElement;
+      const tag = target.tagName;
+      if (
+        target.isContentEditable ||
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        tag === 'BUTTON' ||
+        tag === 'A'
+      ) {
+        return;
+      }
 
       switch (e.key) {
         case 'Escape':
@@ -98,12 +130,24 @@ export function MetadataModal({
           if (idx >= 0 && idx < images.length - 1) onNavigate(images[idx + 1]);
           break;
         }
+        case 'Backspace':
+          e.preventDefault();
+          if (canGoBack) {
+            onBack();
+          }
+          break;
+        case 'Enter':
+          if (canGoForward) {
+            e.preventDefault();
+            onForward();
+          }
+          break;
         case 'i':
           setShowMetadata((prev) => !prev);
           break;
       }
     },
-    [onClose, onNavigate, images, image.id],
+    [onClose, onNavigate, onBack, onForward, canGoBack, canGoForward, images, image.id],
   );
 
   useEffect(() => {
@@ -111,16 +155,118 @@ export function MetadataModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  const handlePointerDown = (event: React.PointerEvent) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    pointerStartRef.current = { x: event.clientX, y: event.clientY };
+  };
+
+  const handlePointerUp = (event: React.PointerEvent) => {
+    const start = pointerStartRef.current;
+    pointerStartRef.current = null;
+    if (!start) return;
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const horizontalSwipe =
+      Math.abs(deltaX) >= SWIPE_THRESHOLD_PX &&
+      Math.abs(deltaY) <= SWIPE_VERTICAL_TOLERANCE_PX &&
+      Math.abs(deltaX) > Math.abs(deltaY);
+    if (!horizontalSwipe) return;
+
+    didSwipeRef.current = true;
+    if (deltaX > 0 && canGoBack) {
+      onBack();
+    } else if (deltaX < 0 && canGoForward) {
+      onForward();
+    }
+
+    window.setTimeout(() => {
+      didSwipeRef.current = false;
+    }, 0);
+  };
+
+  const handleCloseClick = () => {
+    if (didSwipeRef.current) return;
+    onClose();
+  };
+
+  useEffect(() => {
+    const element = modalRef.current;
+    if (!element) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaX) < WHEEL_SWIPE_THRESHOLD_PX) return;
+      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+
+      event.preventDefault();
+
+      if (wheelSwipeResetRef.current) {
+        window.clearTimeout(wheelSwipeResetRef.current);
+      }
+      wheelSwipeResetRef.current = window.setTimeout(() => {
+        wheelSwipeConsumedRef.current = false;
+      }, WHEEL_SWIPE_IDLE_RESET_MS);
+
+      if (wheelSwipeConsumedRef.current) return;
+
+      if (event.deltaX < 0 && canGoBack) {
+        wheelSwipeConsumedRef.current = true;
+        onBack();
+      } else if (event.deltaX > 0 && canGoForward) {
+        wheelSwipeConsumedRef.current = true;
+        onForward();
+      }
+    };
+
+    element.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      element.removeEventListener('wheel', handleWheel);
+      if (wheelSwipeResetRef.current) {
+        window.clearTimeout(wheelSwipeResetRef.current);
+        wheelSwipeResetRef.current = null;
+      }
+    };
+  }, [canGoBack, canGoForward, onBack, onForward]);
+
   return (
-    <div className="fixed inset-0 z-50 animate-fade-in">
+    <div ref={modalRef} className="fixed inset-0 z-50 animate-fade-in">
       {/* Dark backdrop */}
-      <div className="absolute inset-0 bg-black/90" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/90"
+        onClick={handleCloseClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+      />
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-10">
-        <CopyText value={image.file_name} className="text-white/80 text-sm truncate max-w-md">
-          {image.file_name}
-        </CopyText>
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            onClick={onBack}
+            disabled={!canGoBack}
+            className={`${historyButtonClass} ${
+              canGoBack ? enabledHistoryButtonClass : disabledHistoryButtonClass
+            }`}
+            title="Back (Backspace)"
+            aria-label="Back in image history"
+          >
+            <ChevronLeftIcon className="w-5 h-5" />
+          </button>
+          <button
+            onClick={onForward}
+            disabled={!canGoForward}
+            className={`${historyButtonClass} ${
+              canGoForward ? enabledHistoryButtonClass : disabledHistoryButtonClass
+            }`}
+            title="Forward (Enter)"
+            aria-label="Forward in image history"
+          >
+            <ChevronLeftIcon className="w-5 h-5 rotate-180" />
+          </button>
+          <CopyText value={image.file_name} className="text-white/80 text-sm truncate max-w-md">
+            {image.file_name}
+          </CopyText>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowMetadata((prev) => !prev)}
@@ -163,7 +309,9 @@ export function MetadataModal({
         {/* Center image */}
         <div
           className="flex-1 flex items-center justify-center p-4 min-w-0 h-full overflow-hidden"
-          onClick={onClose}
+          onClick={handleCloseClick}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
         >
           <div
             className="relative inline-block max-w-full max-h-full"

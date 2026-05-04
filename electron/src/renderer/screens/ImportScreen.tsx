@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Image } from 'shared';
 import { usePinterestImportStore } from '../stores/pinterestImportStore';
 import { usePinterestStore } from '../stores/pinterestStore';
 import { useUIStore } from '../stores/uiStore';
+import { useImageStore } from '../stores/imageStore';
 import { toast } from '../stores/toastStore';
 import { ImportSearchBar } from './ImportSearchBar';
 import { ImportResultsGrid } from './ImportResultsGrid';
@@ -33,7 +33,7 @@ export function ImportScreen() {
   const hiddenAiCount = results.length - visibleResults.length;
   const [showFilters, setShowFilters] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [previewImage, setPreviewImage] = useState<Image | null>(null);
+  const openImageViewer = useImageStore((state) => state.openImageViewer);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -137,14 +137,14 @@ export function ImportScreen() {
       .getImage(imageId)
       .then((image) => {
         if (image) {
-          setPreviewImage(image);
+          openImageViewer(image);
         }
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         toast.error(`Failed to open preview: ${message}`);
       });
-  }, []);
+  }, [openImageViewer]);
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Escape') {
@@ -208,9 +208,7 @@ export function ImportScreen() {
           layout={layout}
           loading={loading}
           loadingMore={loadingMore}
-          previewImage={previewImage}
           results={results}
-          setPreviewImage={setPreviewImage}
           showAllHidden={showAllHidden}
           showEmpty={showEmpty}
           showError={showError}

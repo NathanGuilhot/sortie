@@ -59,9 +59,7 @@ interface ImportResultsGridProps {
   layout: LayoutResult;
   loading: boolean;
   loadingMore: boolean;
-  previewImage: Image | null;
   results: PinterestResult[];
-  setPreviewImage: (image: Image | null) => void;
   showAllHidden: boolean;
   showEmpty: boolean;
   showError: boolean;
@@ -83,9 +81,7 @@ export function ImportResultsGrid({
   layout,
   loading,
   loadingMore,
-  previewImage,
   results,
-  setPreviewImage,
   showAllHidden,
   showEmpty,
   showError,
@@ -97,11 +93,16 @@ export function ImportResultsGrid({
   onRetry,
 }: ImportResultsGridProps) {
   const navigate = useNavigate();
-  const setGallerySelectedImage = useImageStore((state) => state.setSelectedImage);
+  const selectedImage = useImageStore((state) => state.selectedImage);
+  const viewerBackStack = useImageStore((state) => state.viewerBackStack);
+  const viewerForwardStack = useImageStore((state) => state.viewerForwardStack);
+  const closeImageViewer = useImageStore((state) => state.closeImageViewer);
+  const navigateImageViewer = useImageStore((state) => state.navigateImageViewer);
+  const goBackImageViewer = useImageStore((state) => state.goBackImageViewer);
+  const goForwardImageViewer = useImageStore((state) => state.goForwardImageViewer);
   const errorInfo = showError && error ? errorCopy(error) : null;
   const handleSimilarImageClick = (image: Image) => {
-    setPreviewImage(null);
-    setGallerySelectedImage(image);
+    navigateImageViewer(image);
     void navigate('/gallery');
   };
 
@@ -204,12 +205,16 @@ export function ImportResultsGrid({
         )}
       </div>
 
-      {previewImage && (
+      {selectedImage && (
         <MetadataModal
-          image={previewImage}
-          images={[previewImage]}
-          onClose={() => setPreviewImage(null)}
-          onNavigate={setPreviewImage}
+          image={selectedImage}
+          images={[selectedImage]}
+          onClose={closeImageViewer}
+          onNavigate={navigateImageViewer}
+          onBack={goBackImageViewer}
+          onForward={goForwardImageViewer}
+          canGoBack={viewerBackStack.length > 0}
+          canGoForward={viewerForwardStack.length > 0}
           onSimilarImageClick={handleSimilarImageClick}
         />
       )}

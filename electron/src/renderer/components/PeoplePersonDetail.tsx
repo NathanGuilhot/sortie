@@ -16,17 +16,19 @@ interface PeoplePersonDetailProps {
 export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePersonDetailProps) {
   const { personImages, renamePerson, deletePerson, fetchPersonImages } = usePeopleStore();
   const navigate = useNavigate();
-  const setGallerySelectedImage = useImageStore((state) => state.setSelectedImage);
+  const selectedImage = useImageStore((state) => state.selectedImage);
+  const viewerBackStack = useImageStore((state) => state.viewerBackStack);
+  const viewerForwardStack = useImageStore((state) => state.viewerForwardStack);
+  const openImageViewer = useImageStore((state) => state.openImageViewer);
+  const closeImageViewer = useImageStore((state) => state.closeImageViewer);
+  const navigateImageViewer = useImageStore((state) => state.navigateImageViewer);
+  const goBackImageViewer = useImageStore((state) => state.goBackImageViewer);
+  const goForwardImageViewer = useImageStore((state) => state.goForwardImageViewer);
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(person.name || '');
   const [faces, setFaces] = useState<Face[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<Image | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
-
-  if (selectedImage && !personImages.some((image) => image.id === selectedImage.id)) {
-    setSelectedImage(null);
-  }
 
   /* eslint-disable react-hooks/set-state-in-effect -- intentional reset on prop change */
   useEffect(() => {
@@ -56,8 +58,7 @@ export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePers
   };
 
   const handleSimilarImageClick = (image: Image) => {
-    setSelectedImage(null);
-    setGallerySelectedImage(image);
+    navigateImageViewer(image);
     void navigate('/gallery');
   };
 
@@ -142,7 +143,7 @@ export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePers
           <button
             key={image.id}
             type="button"
-            onClick={() => setSelectedImage(image)}
+            onClick={() => openImageViewer(image)}
             className="aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
           >
             <img
@@ -159,8 +160,12 @@ export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePers
         <MetadataModal
           image={selectedImage}
           images={personImages}
-          onClose={() => setSelectedImage(null)}
-          onNavigate={(image) => setSelectedImage(image)}
+          onClose={closeImageViewer}
+          onNavigate={navigateImageViewer}
+          onBack={goBackImageViewer}
+          onForward={goForwardImageViewer}
+          canGoBack={viewerBackStack.length > 0}
+          canGoForward={viewerForwardStack.length > 0}
           onSimilarImageClick={handleSimilarImageClick}
         />
       )}

@@ -23,8 +23,15 @@ interface ImageStore {
   lastQuery: Query | null;
   activeImageQuery: ActiveImageQuery | null;
   selectedImage: Image | null;
+  viewerBackStack: Image[];
+  viewerForwardStack: Image[];
 
   setSelectedImage: (image: Image | null) => void;
+  openImageViewer: (image: Image) => void;
+  closeImageViewer: () => void;
+  navigateImageViewer: (image: Image) => void;
+  goBackImageViewer: () => void;
+  goForwardImageViewer: () => void;
   setImages: (images: SearchResult[]) => void;
 
   runQuery: (q: Query) => Promise<void>;
@@ -47,11 +54,16 @@ function releasePreviewUrl(current: ActiveImageQuery | null) {
 }
 
 export const useImageStore = create<ImageStore>((set, get) => {
+  const patchImageList = (images: Image[], imageId: number, updated: Image | null) =>
+    updated ? images.map((img) => (img.id === imageId ? { ...img, ...updated } : img)) : images;
+
   const patchUpdatedImage = (imageId: number, updated: Image | null) => {
     if (!updated) return;
     set((state) => ({
       images: state.images.map((img) => (img.id === imageId ? { ...img, ...updated } : img)),
       selectedImage: state.selectedImage?.id === imageId ? updated : state.selectedImage,
+      viewerBackStack: patchImageList(state.viewerBackStack, imageId, updated),
+      viewerForwardStack: patchImageList(state.viewerForwardStack, imageId, updated),
     }));
   };
 
@@ -59,6 +71,8 @@ export const useImageStore = create<ImageStore>((set, get) => {
     set((state) => ({
       images: state.images.filter((img) => img.id !== imageId),
       selectedImage: state.selectedImage?.id === imageId ? null : state.selectedImage,
+      viewerBackStack: state.viewerBackStack.filter((img) => img.id !== imageId),
+      viewerForwardStack: state.viewerForwardStack.filter((img) => img.id !== imageId),
     }));
   };
 
@@ -84,8 +98,59 @@ export const useImageStore = create<ImageStore>((set, get) => {
     lastQuery: null,
     activeImageQuery: null,
     selectedImage: null,
+    viewerBackStack: [],
+    viewerForwardStack: [],
 
-    setSelectedImage: (image) => set({ selectedImage: image }),
+    setSelectedImage: (image) =>
+      set(
+        image
+          ? { selectedImage: image }
+          : { selectedImage: null, viewerBackStack: [], viewerForwardStack: [] },
+      ),
+    openImageViewer: (image) =>
+      set({
+        selectedImage: image,
+        viewerBackStack: [],
+        viewerForwardStack: [],
+      }),
+    closeImageViewer: () =>
+      set({
+        selectedImage: null,
+        viewerBackStack: [],
+        viewerForwardStack: [],
+      }),
+    navigateImageViewer: (image) => {
+      const current = get().selectedImage;
+      if (!current || current.id === image.id) {
+        set({ selectedImage: image });
+        return;
+      }
+      set((state) => ({
+        selectedImage: image,
+        viewerBackStack: [...state.viewerBackStack, current],
+        viewerForwardStack: [],
+      }));
+    },
+    goBackImageViewer: () => {
+      const { selectedImage, viewerBackStack } = get();
+      if (!selectedImage || viewerBackStack.length === 0) return;
+      const previous = viewerBackStack[viewerBackStack.length - 1];
+      set((state) => ({
+        selectedImage: previous,
+        viewerBackStack: state.viewerBackStack.slice(0, -1),
+        viewerForwardStack: [selectedImage, ...state.viewerForwardStack],
+      }));
+    },
+    goForwardImageViewer: () => {
+      const { selectedImage, viewerForwardStack } = get();
+      if (!selectedImage || viewerForwardStack.length === 0) return;
+      const next = viewerForwardStack[0];
+      set((state) => ({
+        selectedImage: next,
+        viewerBackStack: [...state.viewerBackStack, selectedImage],
+        viewerForwardStack: state.viewerForwardStack.slice(1),
+      }));
+    },
     setImages: (images) => set({ images }),
 
     runQuery: async (q: Query) => {

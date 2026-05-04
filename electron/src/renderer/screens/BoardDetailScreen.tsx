@@ -26,7 +26,13 @@ export function BoardDetailScreen() {
   const reorderBoardImages = useImageStore((s) => s.reorderBoardImages);
   const removeFromBoard = useImageStore((s) => s.removeFromBoard);
   const selectedImage = useImageStore((s) => s.selectedImage);
-  const setSelectedImage = useImageStore((s) => s.setSelectedImage);
+  const viewerBackStack = useImageStore((s) => s.viewerBackStack);
+  const viewerForwardStack = useImageStore((s) => s.viewerForwardStack);
+  const openImageViewer = useImageStore((s) => s.openImageViewer);
+  const closeImageViewer = useImageStore((s) => s.closeImageViewer);
+  const navigateImageViewer = useImageStore((s) => s.navigateImageViewer);
+  const goBackImageViewer = useImageStore((s) => s.goBackImageViewer);
+  const goForwardImageViewer = useImageStore((s) => s.goForwardImageViewer);
 
   const boards = useBoardStore((s) => s.boards);
   const fetchBoards = useBoardStore((s) => s.fetchBoards);
@@ -126,7 +132,7 @@ export function BoardDetailScreen() {
             scrollContainerRef={scrollContainerRef}
             onReorder={handleReorder}
             onDropCommit={handleDropCommit}
-            onOpen={(img) => setSelectedImage(img)}
+            onOpen={(img) => openImageViewer(img)}
             onRemove={(imageId) => void handleRemove(imageId)}
           />
 
@@ -153,8 +159,12 @@ export function BoardDetailScreen() {
         {selectedImage && (
           <MetadataModal
             image={selectedImage}
-            onClose={() => setSelectedImage(null)}
-            onNavigate={(img) => setSelectedImage(img)}
+            onClose={closeImageViewer}
+            onNavigate={navigateImageViewer}
+            onBack={goBackImageViewer}
+            onForward={goForwardImageViewer}
+            canGoBack={viewerBackStack.length > 0}
+            canGoForward={viewerForwardStack.length > 0}
           />
         )}
       </main>

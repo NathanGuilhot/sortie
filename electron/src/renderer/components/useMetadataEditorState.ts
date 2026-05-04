@@ -10,8 +10,14 @@ interface UseMetadataEditorStateArgs {
 }
 
 export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
-  const { hideImage, deleteImage, updateImageMetadata, addToBoard, setSelectedImage } =
-    useImageStore();
+  const {
+    hideImage,
+    deleteImage,
+    updateImageMetadata,
+    addToBoard,
+    setSelectedImage,
+    closeImageViewer,
+  } = useImageStore();
   const fetchBoards = useBoardStore((state) => state.fetchBoards);
   const canDeleteFile = useFolderStore((state) =>
     image ? state.isWritable(image.file_path) : false,
@@ -151,7 +157,7 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
     }
 
     await hideImage(image.id);
-    setSelectedImage(null);
+    closeImageViewer();
     setDeleteMode(null);
   };
 
@@ -163,7 +169,7 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
     }
 
     await deleteImage(image.id);
-    setSelectedImage(null);
+    closeImageViewer();
     setDeleteMode(null);
   };
 

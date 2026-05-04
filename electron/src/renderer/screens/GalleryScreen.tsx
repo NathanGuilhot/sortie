@@ -10,7 +10,12 @@ import { useUIStore } from '../stores/uiStore';
 
 export function GalleryScreen() {
   const selectedImage = useImageStore((s) => s.selectedImage);
-  const setSelectedImage = useImageStore((s) => s.setSelectedImage);
+  const viewerBackStack = useImageStore((s) => s.viewerBackStack);
+  const viewerForwardStack = useImageStore((s) => s.viewerForwardStack);
+  const closeImageViewer = useImageStore((s) => s.closeImageViewer);
+  const navigateImageViewer = useImageStore((s) => s.navigateImageViewer);
+  const goBackImageViewer = useImageStore((s) => s.goBackImageViewer);
+  const goForwardImageViewer = useImageStore((s) => s.goForwardImageViewer);
   const clearFilters = useUIStore((s) => s.clearFilters);
   const focusSearchRequestedAt = useUIStore((s) => s.focusSearchRequestedAt);
   const scrollGalleryToTopRequestedAt = useUIStore((s) => s.scrollGalleryToTopRequestedAt);
@@ -43,8 +48,12 @@ export function GalleryScreen() {
         {selectedImage && (
           <MetadataModal
             image={selectedImage}
-            onClose={() => setSelectedImage(null)}
-            onNavigate={(img) => setSelectedImage(img)}
+            onClose={closeImageViewer}
+            onNavigate={navigateImageViewer}
+            onBack={goBackImageViewer}
+            onForward={goForwardImageViewer}
+            canGoBack={viewerBackStack.length > 0}
+            canGoForward={viewerForwardStack.length > 0}
           />
         )}
         <AddFromWebPill />

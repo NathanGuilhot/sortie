@@ -9,7 +9,7 @@ interface MasonryGridProps {
 }
 
 export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
-  const { images, loading, error, loadMore, hasMore, setSelectedImage } = useImageStore();
+  const { images, loading, error, loadMore, hasMore, openImageViewer } = useImageStore();
   const loadingMore = useRef(false);
 
   const { containerRef, columnWidth, layout, visibleIndices, scrollTop, viewportHeight, padding } =
@@ -19,7 +19,7 @@ export function MasonryGrid({ scrollContainerRef }: MasonryGridProps) {
       resumeOnAppend: true,
     });
 
-  const handleSelect = useCallback((image: Image) => setSelectedImage(image), [setSelectedImage]);
+  const handleSelect = useCallback((image: Image) => openImageViewer(image), [openImageViewer]);
 
   useEffect(() => {
     if (!hasMore || loadingMore.current) return;
