@@ -4,6 +4,7 @@ import { IPC_EVENTS } from 'shared';
 import type { MainIpcContext } from './context';
 import { handleInvoke, sendToRenderer, withOperation } from './context';
 import { getSortieUserDataPaths } from '../userDataPaths';
+import { createDisplayOrientedPngBuffer } from '../clipboardImage';
 
 async function wipeCacheDir(dirPath: string): Promise<void> {
   try {
@@ -63,9 +64,15 @@ export function registerMaintenanceHandlers({ dbService, watcherService }: MainI
   });
 
   handleInvoke('copyImageToClipboard', async (_event, { filePath }) => {
-    const image = nativeImage.createFromPath(filePath);
-    if (image.isEmpty()) return { success: false };
-    clipboard.writeImage(image);
-    return { success: true };
+    try {
+      const buffer = await createDisplayOrientedPngBuffer(filePath);
+      const image = nativeImage.createFromBuffer(buffer);
+      if (image.isEmpty()) return { success: false };
+      clipboard.writeImage(image);
+      return { success: true };
+    } catch (error) {
+      console.warn('[clipboard] failed to copy display-oriented image:', error);
+      return { success: false };
+    }
   });
 }
