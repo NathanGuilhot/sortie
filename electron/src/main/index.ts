@@ -262,6 +262,16 @@ void app.whenReady().then(async () => {
 
   await initializeServices();
   createWindow();
+  void dbService
+    ?.recheckExternalImageAvailability()
+    .then(({ changed }) => {
+      if (changed > 0) {
+        console.log(`[maintenance] updated availability for ${changed} external images`);
+      }
+    })
+    .catch((error) => {
+      console.warn('[maintenance] external image availability check failed:', error);
+    });
   Menu.setApplicationMenu(buildMenu(mainWindow));
 
   app.on('activate', () => {
@@ -272,6 +282,7 @@ void app.whenReady().then(async () => {
 
   app.on('browser-window-focus', () => {
     void availabilityMonitor?.checkNow();
+    void dbService?.recheckExternalImageAvailability();
   });
 });
 

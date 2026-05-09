@@ -6,6 +6,7 @@ import {
   extractPalette,
   type FaceScanService,
   loadImageInput,
+  runWithConcurrency,
 } from 'pipeline';
 import type { Folder, Image, LinkPreview, Tag } from 'shared';
 import { fetchLinkPreview, hashUrl } from '../linkPreview';
@@ -290,5 +291,44 @@ export class DatabaseImagesService {
       this.invalidateImageCache();
     }
     return { imageId, skipped: false };
+  }
+
+  async recheckExternalImageAvailability(): Promise<{ changed: number }> {
+    const db = this.deps.requireDb().getDatabase();
+    const rows = db
+      .prepare(
+        `SELECT i.id, i.file_path, i.missing
+         FROM images i
+         WHERE i.hidden = 0
+           AND NOT EXISTS (
+             SELECT 1 FROM folders f
+             WHERE i.file_path = f.path OR i.file_path LIKE f.path || '/%'
+           )`,
+      )
+      .all() as Array<{ id: number; file_path: string; missing: number }>;
+
+    let changed = 0;
+    const update = db.prepare(
+      "UPDATE images SET missing = ?, modified_at = datetime('now') WHERE id = ?",
+    );
+    await runWithConcurrency(rows, 16, async (row) => {
+      const nextMissing = (await pathExists(row.file_path)) ? 0 : 1;
+      if (row.missing !== nextMissing) {
+        update.run(nextMissing, row.id);
+        changed += 1;
+      }
+    });
+
+    if (changed > 0) this.invalidateImageCache();
+    return { changed };
+  }
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
   }
 }

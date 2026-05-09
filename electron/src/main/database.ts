@@ -20,6 +20,7 @@ import {
   FaceScanProgress,
   FaceScanResult,
   ScanFolderResult,
+  SortieProgress,
   HashScanResult,
   BackfillExifResult,
   EmbedderStatus,
@@ -248,7 +249,7 @@ export class DatabaseService {
 
   async scanFolder(
     folderPath: string,
-    onProgress?: (progress: { current: number; total: number; currentFile: string }) => void,
+    onProgress?: (progress: SortieProgress) => void,
     signal?: AbortSignal,
   ): Promise<ScanFolderResult> {
     return this.folders.scanFolder(folderPath, onProgress, signal);
@@ -462,6 +463,10 @@ export class DatabaseService {
   async addImage(filePath: string): Promise<number> {
     const result = await this.images.addImage(filePath);
     return result.imageId;
+  }
+
+  async recheckExternalImageAvailability(): Promise<{ changed: number }> {
+    return this.images.recheckExternalImageAvailability();
   }
 
   async recomputeEmbedding(imageId: number): Promise<void> {

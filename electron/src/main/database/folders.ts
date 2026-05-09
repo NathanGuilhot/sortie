@@ -184,7 +184,7 @@ export class DatabaseFoldersService {
 
   async scanFolder(
     folderPath: string,
-    onProgress?: (progress: { current: number; total: number; currentFile: string }) => void,
+    onProgress?: (progress: SortieProgress) => void,
     signal?: AbortSignal,
   ): Promise<ScanFolderResult> {
     const normalized = path.resolve(folderPath);
