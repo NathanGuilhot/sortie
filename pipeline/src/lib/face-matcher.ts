@@ -32,7 +32,10 @@ export class FaceMatcher {
     return this.matchFaceExcluding(descriptor, new Set());
   }
 
-  matchFaceExcluding(descriptor: number[] | FaceMatchDescriptor, excluded: Set<number>): MatchResult {
+  matchFaceExcluding(
+    descriptor: number[] | FaceMatchDescriptor,
+    excluded: Set<number>,
+  ): MatchResult {
     const face = this.normalizeMatchDescriptor(descriptor);
     const candidates = this.findCandidatePersons(face, Math.max(25, excluded.size + 10));
 
@@ -220,7 +223,9 @@ export class FaceMatcher {
     );
   }
 
-  private normalizeMatchDescriptor(descriptor: number[] | FaceMatchDescriptor): FaceMatchDescriptor {
+  private normalizeMatchDescriptor(
+    descriptor: number[] | FaceMatchDescriptor,
+  ): FaceMatchDescriptor {
     if (Array.isArray(descriptor)) {
       return { descriptor: normalizeVector(descriptor), clipEmbedding: null };
     }

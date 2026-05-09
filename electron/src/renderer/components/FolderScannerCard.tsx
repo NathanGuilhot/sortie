@@ -30,7 +30,8 @@ export function FolderScannerCard({
 }: FolderScannerCardProps) {
   const checkedCount = scanProgress?.current ?? 0;
   const totalCount = scanProgress?.total ?? 0;
-  const progressPct = totalCount > 0 ? Math.min(100, Math.max(0, (checkedCount / totalCount) * 100)) : 0;
+  const progressPct =
+    totalCount > 0 ? Math.min(100, Math.max(0, (checkedCount / totalCount) * 100)) : 0;
 
   return (
     <div

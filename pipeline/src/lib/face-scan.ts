@@ -39,7 +39,9 @@ export class FaceScanService {
     const resolvedInput = input ?? (await loadImageInput(filePath));
     const decodedImage = await this.decodeForCrop(resolvedInput);
     const faceCropEmbeddings = decodedImage
-      ? await Promise.all(faces.map((face) => this.embedFaceCrop(filePath, face.bbox, decodedImage)))
+      ? await Promise.all(
+          faces.map((face) => this.embedFaceCrop(filePath, face.bbox, decodedImage)),
+        )
       : faces.map(() => null);
 
     return await this.dbQueue(() => this.saveDetectedFaces(imageId, faces, faceCropEmbeddings));

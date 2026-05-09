@@ -132,19 +132,22 @@ export function ImportScreen() {
     blurTimeoutRef.current = setTimeout(() => setIsFocused(false), 150);
   };
 
-  const handlePreview = useCallback((imageId: number) => {
-    window.sortieAPI
-      .getImage(imageId)
-      .then((image) => {
-        if (image) {
-          openImageViewer(image);
-        }
-      })
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        toast.error(`Failed to open preview: ${message}`);
-      });
-  }, [openImageViewer]);
+  const handlePreview = useCallback(
+    (imageId: number) => {
+      window.sortieAPI
+        .getImage(imageId)
+        .then((image) => {
+          if (image) {
+            openImageViewer(image);
+          }
+        })
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          toast.error(`Failed to open preview: ${message}`);
+        });
+    },
+    [openImageViewer],
+  );
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Escape') {

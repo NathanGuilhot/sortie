@@ -158,8 +158,9 @@ async function callApi<T>(url: string): Promise<PinterestEnvelope<T>> {
   const apiError = json.resource_response?.error;
   if (apiError?.message) {
     const status = apiError.http_status;
-    const code: PinterestErrorCode =
-      status === 429 ? 'rate_limited' : status && status >= 400 && status < 500 ? 'blocked' : 'unknown';
+    let code: PinterestErrorCode = 'unknown';
+    if (status === 429) code = 'rate_limited';
+    else if (status && status >= 400 && status < 500) code = 'blocked';
     throw new PinterestAPIError(apiError.message, status, code);
   }
   return json;
