@@ -14,10 +14,9 @@ export function OnboardingTakeover() {
   const setCompleted = useOnboardingStore((s) => s.setCompleted);
   const markHint = useOnboardingStore((s) => s.markHint);
 
-  const folders = useFolderStore((s) => s.folders);
-  const foldersLoaded = useFolderStore((s) => s.loaded);
   const refreshFolders = useFolderStore((s) => s.load);
 
+  const [hasImages, setHasImages] = useState<boolean | null>(null);
   const [step, setStep] = useState<'features' | 'folders'>('features');
   const [suggestion, setSuggestion] = useState<SuggestedFolder | null>(null);
   const [working, setWorking] = useState<null | 'pictures' | 'custom'>(null);
@@ -26,7 +25,24 @@ export function OnboardingTakeover() {
   const [scanOpId, setScanOpId] = useState<string | null>(null);
   const refreshInFlightRef = useRef(false);
 
-  const visible = loaded && foldersLoaded && folders.length === 0 && !completed;
+  const visible = loaded && hasImages === false && !completed;
+
+  useEffect(() => {
+    if (!loaded) return;
+    let cancelled = false;
+    setHasImages(null);
+    window.sortieAPI
+      .getImages(1, 0)
+      .then((images) => {
+        if (!cancelled) setHasImages(images.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setHasImages(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loaded, completed]);
 
   useEffect(() => {
     if (!visible) return;
@@ -36,14 +52,14 @@ export function OnboardingTakeover() {
       .catch(() => setSuggestion(null));
   }, [visible]);
 
-  // Pre-onboarding installs: mark done silently so they don't see a takeover.
+  // Pre-onboarding installs: mark done silently when they already have images.
   useEffect(() => {
-    if (loaded && foldersLoaded && !completed && folders.length > 0) {
+    if (loaded && !completed && hasImages) {
       void setCompleted();
       void markHint('search', 'seen');
       void markHint('web', 'seen');
     }
-  }, [loaded, foldersLoaded, completed, folders.length, setCompleted, markHint]);
+  }, [loaded, completed, hasImages, setCompleted, markHint]);
 
   const kickScan = async (folderPath: string) => {
     const opId = crypto.randomUUID();
