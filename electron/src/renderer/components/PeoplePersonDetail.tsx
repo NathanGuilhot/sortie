@@ -4,6 +4,7 @@ import type { Face, Image, Person } from 'shared';
 import { MetadataModal } from './MetadataModal';
 import { buildFaceThumbUrl } from './faceThumb';
 import { ChevronLeftIcon, XIcon } from './icons';
+import { buildSortieThumbUrl } from './sortieImageUrl';
 import { useImageStore } from '../stores/imageStore';
 import { usePeopleStore } from '../stores/peopleStore';
 
@@ -147,7 +148,7 @@ export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePers
             className="aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
           >
             <img
-              src={`sortie-thumb://${image.file_path}?w=300`}
+              src={buildSortieThumbUrl(image.file_path, 300)}
               alt={image.file_name}
               className="w-full h-full object-cover"
               loading="lazy"

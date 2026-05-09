@@ -4,6 +4,7 @@ import { useImageStore } from '../stores/imageStore';
 import { isGif } from './gif-utils';
 import { GifBadge } from './gif';
 import { BulbIcon, XIcon } from './icons';
+import { buildSortieFileUrl, buildSortieThumbUrl } from './sortieImageUrl';
 
 const THUMB_SIZE = 96;
 const THUMB_FETCH_WIDTH = 200;
@@ -68,8 +69,8 @@ export function BoardSuggestionsRow({ tagId, excludeIds, onAdd }: BoardSuggestio
             : visible.map((image) => {
                 const gif = isGif(image);
                 const src = gif
-                  ? `sortie-file://${image.file_path}`
-                  : `sortie-thumb://${image.file_path}?w=${THUMB_FETCH_WIDTH}`;
+                  ? buildSortieFileUrl(image.file_path)
+                  : buildSortieThumbUrl(image.file_path, THUMB_FETCH_WIDTH);
                 return (
                   <div
                     key={image.id}

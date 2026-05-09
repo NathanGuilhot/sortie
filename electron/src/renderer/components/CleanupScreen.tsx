@@ -4,6 +4,7 @@ import { useFolderStore } from '../stores/folderStore';
 import { CopyText } from './CopyText';
 import { DuplicateGroup, Image } from 'shared';
 import { formatSize } from './folderScannerUtils';
+import { buildSortieThumbUrl } from './sortieImageUrl';
 import {
   ScreenShell,
   StatHeader,
@@ -129,7 +130,10 @@ function ImageCard({
       {/* Thumbnail */}
       <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden mb-2">
         <img
-          src={`sortie-thumb://${image.file_path}?w=${Math.ceil((300 * (window.devicePixelRatio || 1)) / 100) * 100}`}
+          src={buildSortieThumbUrl(
+            image.file_path,
+            Math.ceil((300 * (window.devicePixelRatio || 1)) / 100) * 100,
+          )}
           alt={image.file_name}
           className="w-full h-full object-cover"
           loading="lazy"

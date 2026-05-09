@@ -4,6 +4,7 @@ import { type Position } from './masonry-layout';
 import { isGif } from './gif-utils';
 import { GifBadge } from './gif';
 import { HeartIcon, XIcon } from './icons';
+import { buildSortieFileUrl, buildSortieThumbUrl } from './sortieImageUrl';
 
 export const MasonryImage = memo(function MasonryImage({
   image,
@@ -24,8 +25,8 @@ export const MasonryImage = memo(function MasonryImage({
   // pipeline, so stream the original file. Static images still go through the
   // thumb cache.
   const src = gif
-    ? `sortie-file://${image.file_path}`
-    : `sortie-thumb://${image.file_path}?w=${thumbWidth}`;
+    ? buildSortieFileUrl(image.file_path)
+    : buildSortieThumbUrl(image.file_path, thumbWidth);
 
   return (
     <div

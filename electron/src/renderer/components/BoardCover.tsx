@@ -1,4 +1,5 @@
 import { Board } from 'shared';
+import { buildSortieThumbUrl } from './sortieImageUrl';
 
 interface BoardCoverProps {
   board: Board;
@@ -27,7 +28,7 @@ export function BoardCover({ board, thumbWidth = 400 }: BoardCoverProps) {
           return (
             <img
               key={i}
-              src={`sortie-thumb://${path}?w=${thumbWidth}`}
+              src={buildSortieThumbUrl(path, thumbWidth)}
               alt=""
               className="w-full h-full object-cover"
             />

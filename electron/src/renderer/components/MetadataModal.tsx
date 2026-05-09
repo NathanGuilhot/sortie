@@ -7,6 +7,7 @@ import { OcrOverlay } from './OcrOverlay';
 import { useImageStore } from '../stores/imageStore';
 import { toast } from '../stores/toastStore';
 import { ChevronLeftIcon, InfoIcon, XIcon } from './icons';
+import { buildSortieFileUrl } from './sortieImageUrl';
 
 const SWIPE_THRESHOLD_PX = 60;
 const SWIPE_VERTICAL_TOLERANCE_PX = 45;
@@ -319,7 +320,7 @@ export function MetadataModal({
           >
             <img
               ref={imgRef}
-              src={`sortie-file://${image.file_path}`}
+              src={buildSortieFileUrl(image.file_path)}
               alt={image.file_name}
               className={`block max-w-full object-contain transition-opacity duration-200 ${
                 imageLoaded ? 'opacity-100' : 'opacity-0'

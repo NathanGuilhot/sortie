@@ -2,6 +2,7 @@ import { net, protocol } from 'electron';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import sharp from 'sharp';
 import { isRawPath, loadImageInput } from 'pipeline';
 import { getSortieUserDataPaths } from './userDataPaths';
@@ -32,7 +33,13 @@ function buildHash(value: string): string {
 }
 
 function fetchLocalFile(filePath: string): Promise<Response> {
-  return net.fetch(`file://${filePath}`);
+  return net.fetch(pathToFileURL(filePath).toString());
+}
+
+function getFilePathFromUrl(url: URL): string {
+  const queryPath = url.searchParams.get('path');
+  if (queryPath !== null) return queryPath;
+  return decodeURIComponent(url.pathname);
 }
 
 function evictRawPreviewCacheIfFull(rawPreviewDir: string, incomingBytes: number): void {
@@ -91,7 +98,7 @@ export function registerSortieProtocols(userDataPath: string): void {
   ensureDir(paths.linkPreviews);
 
   protocol.handle('sortie-file', async (request) => {
-    const filePath = decodeURIComponent(new URL(request.url).pathname);
+    const filePath = getFilePathFromUrl(new URL(request.url));
     if (!isRawPath(filePath)) {
       return fetchLocalFile(filePath);
     }
@@ -107,7 +114,7 @@ export function registerSortieProtocols(userDataPath: string): void {
 
   protocol.handle('sortie-thumb', async (request) => {
     const url = new URL(request.url);
-    const filePath = decodeURIComponent(url.pathname);
+    const filePath = getFilePathFromUrl(url);
     const width = parseInt(url.searchParams.get('w') || '400', 10);
     const cachePath = path.join(paths.thumbs, `${buildHash(filePath)}_${width}.webp`);
 

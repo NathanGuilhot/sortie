@@ -12,6 +12,7 @@ import { BoardSuggestionsRow } from '../components/BoardSuggestionsRow';
 import { isGif } from '../components/gif-utils';
 import { GifBadge } from '../components/gif';
 import { ChevronLeftIcon, XIcon } from '../components/icons';
+import { buildSortieFileUrl, buildSortieThumbUrl } from '../components/sortieImageUrl';
 
 const DND_TYPE = 'board-image';
 
@@ -266,8 +267,8 @@ function DraggableTile({
   const thumbWidth = Math.ceil((columnWidth * (window.devicePixelRatio || 1)) / 100) * 100;
   const gif = isGif(image);
   const src = gif
-    ? `sortie-file://${image.file_path}`
-    : `sortie-thumb://${image.file_path}?w=${thumbWidth}`;
+    ? buildSortieFileUrl(image.file_path)
+    : buildSortieThumbUrl(image.file_path, thumbWidth);
 
   return (
     <div
