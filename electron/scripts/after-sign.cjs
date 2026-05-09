@@ -35,7 +35,8 @@ exports.default = function afterSign(context) {
   signBundle(identity, appEntitlements, appPath);
   console.log(`[finder-sync] re-signed app with ${identity}`);
 
-  run('codesign', ['--verify', '--deep', '--strict', '--verbose=4', appPath]);
+  run('codesign', ['--verify', '--deep', '--strict', '--verbose=4', appexPath]);
+  run('codesign', ['--verify', '--verbose=4', appPath]);
   console.log('[finder-sync] verified signed app bundle');
 };
 
