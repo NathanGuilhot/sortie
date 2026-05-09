@@ -7,9 +7,15 @@ import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
 import { FolderAvailabilityMonitor } from './folderAvailability';
 import { setupIpcHandlers } from './ipc';
+import {
+  ExternalImportService,
+  parseExternalImportArgs,
+  type ExternalImportInvocation,
+} from './externalImport';
 import { buildMenu } from './menu';
 import { ensureImportFolder } from './pinterest/import';
 import { registerSortieProtocols, registerSortieSchemes } from './protocols';
+import { registerExternalImportEntrypoints } from './shellContextMenu';
 import { getSortieUserDataPaths } from './userDataPaths';
 
 app.setName('Sortie');
@@ -24,6 +30,67 @@ let mainWindow: BrowserWindow | null = null;
 let dbService: DatabaseService | null = null;
 let watcherService: WatcherService | null = null;
 let availabilityMonitor: FolderAvailabilityMonitor | null = null;
+let externalImportService: ExternalImportService | null = null;
+const pendingExternalImports: ExternalImportInvocation[] = [];
+
+const initialExternalImport = parseExternalImportArgs(process.argv);
+if (initialExternalImport) {
+  pendingExternalImports.push(initialExternalImport);
+}
+
+const singleInstanceLock = app.requestSingleInstanceLock();
+if (!singleInstanceLock) {
+  app.quit();
+}
+
+app.on('second-instance', (_event, argv) => {
+  const invocation = parseExternalImportArgs(argv);
+  if (invocation) {
+    queueExternalImport(invocation);
+  }
+
+  if (!mainWindow && externalImportService) {
+    createWindow();
+  } else if (mainWindow) {
+    showMainWindow();
+  }
+});
+
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  const invocation = parseExternalImportArgs([url]);
+  if (invocation) queueExternalImport(invocation);
+});
+
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  queueExternalImport({ action: 'add-images-to-gallery', paths: [filePath] });
+});
+
+function queueExternalImport(invocation: ExternalImportInvocation): void {
+  pendingExternalImports.push(invocation);
+  if (externalImportService && !mainWindow && app.isReady()) {
+    createWindow();
+  }
+  flushExternalImports();
+}
+
+function flushExternalImports(): void {
+  if (!externalImportService || !mainWindow || mainWindow.webContents.isLoading()) return;
+  while (pendingExternalImports.length > 0) {
+    const invocation = pendingExternalImports.shift()!;
+    void externalImportService.run(invocation).catch((error) => {
+      console.error('[external-import] failed:', error);
+    });
+  }
+}
+
+function showMainWindow(): void {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
 
 function migrateLegacyClipCache(targetDir: string) {
   try {
@@ -69,6 +136,11 @@ function createWindow() {
         event.preventDefault();
       }
     });
+  }
+
+  mainWindow.webContents.once('did-stop-loading', () => setImmediate(flushExternalImports));
+
+  if (process.env.NODE_ENV === 'development') {
     void mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
@@ -111,10 +183,16 @@ async function initializeServices() {
   watcherService.setDatabaseService(dbService);
 
   availabilityMonitor = new FolderAvailabilityMonitor(dbService);
+  externalImportService = new ExternalImportService({
+    dbService,
+    watcherService,
+    availabilityMonitor,
+    getWindow: () => mainWindow,
+  });
 
   await dbService.runStartupMaintenance();
 
-  setupIpcHandlers(dbService, watcherService, availabilityMonitor, dbPath);
+  setupIpcHandlers(dbService, watcherService, availabilityMonitor, externalImportService, dbPath);
 
   dbService.onEmbedderStatus((status) => {
     mainWindow?.webContents.send(IPC_EVENTS.embedderStatus, status);
@@ -167,6 +245,7 @@ void app.whenReady().then(async () => {
     }
   }
   registerSortieProtocols(app.getPath('userData'));
+  await registerExternalImportEntrypoints();
 
   try {
     app.setAboutPanelOptions({

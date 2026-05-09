@@ -63,6 +63,11 @@ export const IPC_CHANNELS = {
     setColor: 'boards:set-color',
     delete: 'boards:delete',
   },
+  externalImport: {
+    getPendingBoardImport: 'external-import:get-pending-board-import',
+    addPendingImagesToBoard: 'external-import:add-pending-images-to-board',
+    dismissPendingBoardImport: 'external-import:dismiss-pending-board-import',
+  },
   settings: {
     get: 'settings:get',
     set: 'settings:set',
@@ -98,4 +103,7 @@ export const IPC_EVENTS = {
   ocrUpdated: 'ocr-updated',
   pinterestBulkImportProgress: 'pinterest:bulk-import-progress',
   pinterestBulkImportComplete: 'pinterest:bulk-import-complete',
+  externalImportProgress: 'external-import:progress',
+  externalImportComplete: 'external-import:complete',
+  externalImportBoardRequest: 'external-import:board-request',
 } as const;

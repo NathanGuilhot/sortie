@@ -9,6 +9,7 @@ import { clearOperation, registerOperation } from '../operations';
 import type { DatabaseService } from '../database';
 import type { FolderAvailabilityMonitor } from '../folderAvailability';
 import type { WatcherService } from '../watcher';
+import type { ExternalImportService } from '../externalImport';
 
 export interface MainIpcContext {
   dbService: DatabaseService;
@@ -16,6 +17,7 @@ export interface MainIpcContext {
   availabilityMonitor: FolderAvailabilityMonitor;
   dbPath: string;
   bulkImportJobs: Map<string, AbortController>;
+  externalImportService: ExternalImportService;
 }
 
 export async function withOperation<T>(

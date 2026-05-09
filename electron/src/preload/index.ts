@@ -3,6 +3,7 @@ import type { SortieAPI } from 'shared';
 import { createBoardApi } from './api/boards';
 import { createFolderApi } from './api/folders';
 import { createImageApi } from './api/images';
+import { createExternalImportApi } from './api/externalImport';
 import { createMaintenanceApi } from './api/maintenance';
 import { createOcrApi } from './api/ocr';
 import { createPeopleApi } from './api/people';
@@ -13,6 +14,7 @@ const sortieAPI: SortieAPI = {
   ...createImageApi(),
   ...createBoardApi(),
   ...createFolderApi(),
+  ...createExternalImportApi(),
   ...createMaintenanceApi(),
   ...createPeopleApi(),
   ...createSystemApi(),

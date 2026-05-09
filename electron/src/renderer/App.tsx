@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useRoutes } from 'react-router-dom';
 import { routes } from './routes';
 import { Toaster } from './components/Toaster';
+import { ExternalImportBridge } from './components/ExternalImportBridge';
 import { OnboardingTakeover } from './components/OnboardingTakeover';
 import { useErrorToastBridge } from './stores/useErrorToastBridge';
 import { useFolderStore } from './stores/folderStore';
@@ -32,6 +33,7 @@ function App() {
   return (
     <>
       {element}
+      <ExternalImportBridge />
       <OnboardingTakeover />
       <Toaster />
     </>
