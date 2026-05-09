@@ -129,7 +129,8 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "Sortie"
+    "shortcutName": "Sortie",
+    "include": "resources/installer.nsh"
   },
   "linux": {
     "maintainer": "Nathan Guilhot <nathan.guilhot@gmx.fr>",
