@@ -7,6 +7,14 @@
     "buildResources": "resources"
   },
   "compression": "maximum",
+  "afterPack": "scripts/after-pack.cjs",
+  "afterSign": "scripts/after-sign.cjs",
+  "protocols": [
+    {
+      "name": "Sortie External Import",
+      "schemes": ["sortie"]
+    }
+  ],
   "files": [
     "dist/**/*",
     "package.json",
@@ -96,8 +104,9 @@
     "category": "public.app-category.photography",
     "icon": "resources/icons/icon.icns",
     "target": ["dmg"],
-    "identity": null,
-    "hardenedRuntime": false,
+    "hardenedRuntime": true,
+    "entitlements": "resources/entitlements.mac.plist",
+    "entitlementsInherit": "resources/entitlements.mac.plist",
     "gatekeeperAssess": false,
     "artifactName": "Sortie-${version}-${arch}.${ext}",
     "files": [

@@ -11,15 +11,16 @@
   "scripts": {
     "build:icons": "node scripts/generate-icons.mjs",
     "fetch:ocr-models": "node scripts/fetch-ocr-models.mjs",
+    "build:finder-sync": "node scripts/build-finder-sync.mjs",
     "build:code": "tsc && electron-vite build",
     "build": "yarn build:icons && yarn fetch:ocr-models && yarn build:code",
-    "clean": "rm -rf dist out",
+    "clean": "rm -rf dist out build/finder-sync",
     "type-check": "tsc --noEmit",
     "start": "electron-vite preview",
     "dev": "node scripts/dev.js",
     "package": "electron-builder --dir",
     "dist": "electron-builder",
-    "dist:mac": "electron-builder --mac",
+    "dist:mac": "yarn build:finder-sync && electron-builder --mac",
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux"
   },

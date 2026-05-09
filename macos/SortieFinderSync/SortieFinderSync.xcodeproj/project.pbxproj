@@ -1,0 +1,239 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		8A1111111111111111111101 /* FinderSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A1111111111111111111102 /* FinderSync.swift */; };
+		8A1111111111111111111103 /* FinderSync.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8A1111111111111111111104 /* FinderSync.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		8A1111111111111111111102 /* FinderSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderSync.swift; sourceTree = "<group>"; };
+		8A1111111111111111111104 /* FinderSync.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FinderSync.framework; path = System/Library/Frameworks/FinderSync.framework; sourceTree = SDKROOT; };
+		8A1111111111111111111105 /* SortieFinderSync.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SortieFinderSync.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8A1111111111111111111106 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		8A1111111111111111111107 /* SortieFinderSync.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SortieFinderSync.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8A1111111111111111111108 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8A1111111111111111111103 /* FinderSync.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		8A1111111111111111111109 = {
+			isa = PBXGroup;
+			children = (
+				8A1111111111111111111110 /* SortieFinderSync */,
+				8A1111111111111111111111 /* Frameworks */,
+				8A1111111111111111111112 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8A1111111111111111111110 /* SortieFinderSync */ = {
+			isa = PBXGroup;
+			children = (
+				8A1111111111111111111102 /* FinderSync.swift */,
+				8A1111111111111111111106 /* Info.plist */,
+				8A1111111111111111111107 /* SortieFinderSync.entitlements */,
+			);
+			path = SortieFinderSync;
+			sourceTree = "<group>";
+		};
+		8A1111111111111111111111 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8A1111111111111111111104 /* FinderSync.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		8A1111111111111111111112 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8A1111111111111111111105 /* SortieFinderSync.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8A1111111111111111111113 /* SortieFinderSync */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8A1111111111111111111114 /* Build configuration list for PBXNativeTarget "SortieFinderSync" */;
+			buildPhases = (
+				8A1111111111111111111115 /* Sources */,
+				8A1111111111111111111108 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SortieFinderSync;
+			productName = SortieFinderSync;
+			productReference = 8A1111111111111111111105 /* SortieFinderSync.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8A1111111111111111111116 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 1540;
+				TargetAttributes = {
+					8A1111111111111111111113 = {
+						CreatedOnToolsVersion = 15.4;
+					};
+				};
+			};
+			buildConfigurationList = 8A1111111111111111111117 /* Build configuration list for PBXProject "SortieFinderSync" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 8A1111111111111111111109;
+			productRefGroup = 8A1111111111111111111112 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8A1111111111111111111113 /* SortieFinderSync */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8A1111111111111111111115 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8A1111111111111111111101 /* FinderSync.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		8A1111111111111111111118 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		8A1111111111111111111119 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_NO_COMMON_BLOCKS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		8A1111111111111111111120 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = SortieFinderSync/SortieFinderSync.entitlements;
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SortieFinderSync/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MARKETING_VERSION = 0.2.6;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.sortie.app.finder-sync";
+				PRODUCT_NAME = SortieFinderSync;
+				SKIP_INSTALL = NO;
+				SWIFT_VERSION = 5.0;
+				WRAPPER_EXTENSION = appex;
+			};
+			name = Debug;
+		};
+		8A1111111111111111111121 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = SortieFinderSync/SortieFinderSync.entitlements;
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SortieFinderSync/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MARKETING_VERSION = 0.2.6;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.sortie.app.finder-sync";
+				PRODUCT_NAME = SortieFinderSync;
+				SKIP_INSTALL = NO;
+				SWIFT_VERSION = 5.0;
+				WRAPPER_EXTENSION = appex;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		8A1111111111111111111117 /* Build configuration list for PBXProject "SortieFinderSync" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8A1111111111111111111118 /* Debug */,
+				8A1111111111111111111119 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8A1111111111111111111114 /* Build configuration list for PBXNativeTarget "SortieFinderSync" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8A1111111111111111111120 /* Debug */,
+				8A1111111111111111111121 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 8A1111111111111111111116 /* Project object */;
+}

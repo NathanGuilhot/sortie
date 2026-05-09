@@ -19,7 +19,7 @@ Sortie ships unsigned installers. Code signing + notarization are planned follow
 
 ```sh
 yarn build            # full clean compile (icons + code)
-yarn dist:mac         # Sortie-<ver>-arm64.dmg + Sortie-<ver>-x64.dmg
+yarn dist:mac         # builds SortieFinderSync.appex, then Sortie-<ver>-arm64.dmg + Sortie-<ver>-x64.dmg
 yarn dist:win         # Sortie-Setup-<ver>.exe (NSIS)
 yarn dist:linux       # AppImage + .deb
 ```
@@ -35,20 +35,26 @@ For each platform, after install:
 - [ ] `About Sortie` shows the correct version
 - [ ] External links open in the system browser
 - [ ] Add a folder, scan it, verify images + tags + faces pipelines work
+- [ ] macOS: `Sortie.app/Contents/PlugIns/SortieFinderSync.appex` exists
+- [ ] macOS: launch Sortie once, then enable **Sortie Finder Sync** in System Settings if macOS has not enabled it automatically
+- [ ] macOS: right-click images/folders in Finder and verify Sortie actions appear
+- [ ] macOS: Finder `Add Folder to Sortie Gallery` adds a watched folder and scans it
+- [ ] macOS: Finder `Add to Sortie Board` opens Sortie's board picker
 
-## Release-notes boilerplate (unsigned installers)
+## macOS Finder Sync build requirements
 
-### macOS — Gatekeeper warning
+Set these environment variables before `yarn dist:mac` on release machines:
 
-On first launch, macOS blocks the app as "damaged" or "from an unidentified developer".
-
-1. Open **Applications**, right-click **Sortie**, choose **Open**.
-2. Click **Open** in the confirmation dialog.
-
-If macOS still refuses:
 ```sh
-xattr -cr /Applications/Sortie.app
+export SORTIE_MAC_CODE_SIGN_IDENTITY="Developer ID Application: ..."
+export SORTIE_MAC_DEVELOPMENT_TEAM="TEAMID1234"
 ```
+
+`yarn dist:mac` builds the native Finder Sync extension with `xcodebuild`, embeds
+`SortieFinderSync.appex` into `Sortie.app/Contents/PlugIns`, and lets
+electron-builder sign the final app bundle.
+
+## Release-notes boilerplate
 
 ### Windows — SmartScreen warning
 
@@ -56,7 +62,7 @@ SmartScreen may show "Windows protected your PC". Click **More info** → **Run 
 
 ## Future work
 
-- Apple Developer ID code signing + notarization.
+- Script Apple notarization credentials in CI.
 - Windows Authenticode signing.
 - Auto-updates via `electron-updater` (installed, not wired up).
 - Script the dual version bump.

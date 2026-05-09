@@ -4,7 +4,11 @@
   "description": "Picture Tagger & Embedding Electron App",
   "private": true,
   "workspaces": {
-    "packages": ["shared", "pipeline", "electron"],
+    "packages": [
+      "shared",
+      "pipeline",
+      "electron"
+    ],
     "nohoist": [
       "pipeline/@gutenye/**",
       "pipeline/@gutenye/**/**",
@@ -24,6 +28,7 @@
     "electron": "yarn workspace sortie-desktop start",
     "dist": "yarn workspace sortie-desktop run dist",
     "dist:mac": "yarn workspace sortie-desktop run dist:mac",
+    "install:mac-local": "yarn build:code && yarn dist:mac && node electron/scripts/install-mac-local.cjs",
     "dist:win": "yarn workspace sortie-desktop run dist:win",
     "dist:linux": "yarn workspace sortie-desktop run dist:linux",
     "package": "yarn workspace sortie-desktop run package",
