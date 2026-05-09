@@ -12,6 +12,8 @@ export function createBoardApi(): Pick<SortieAPI, 'boards'> {
       reorder: (tagId: number, orderedImageIds: number[]) =>
         invoke('boardsReorder', { tagId, orderedImageIds }),
       addImage: (imageId: number, tagId: number) => invoke('boardsAddImage', { imageId, tagId }),
+      addImages: (imageIds: number[], tagId: number) =>
+        invoke('boardsAddImages', { imageIds, tagId }),
       removeImage: (imageId: number, tagId: number) =>
         invoke('boardsRemoveImage', { imageId, tagId }),
       create: (name: string, color?: string) => invoke('boardsCreate', { name, color }),

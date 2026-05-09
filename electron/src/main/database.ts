@@ -298,6 +298,10 @@ export class DatabaseService {
     return this.boards.addImageToBoard(imageId, tagId);
   }
 
+  async addImagesToBoard(imageIds: number[], tagId: number): Promise<void> {
+    return this.boards.addImagesToBoard(imageIds, tagId);
+  }
+
   async removeImageFromBoard(imageId: number, tagId: number): Promise<void> {
     return this.boards.removeImageFromBoard(imageId, tagId);
   }

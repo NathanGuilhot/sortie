@@ -7,6 +7,7 @@ import { BoardCover } from './BoardCover';
 import { XIcon, PlusIcon, CheckIcon } from './icons';
 
 interface BoardPickerModalProps {
+  title?: string;
   currentBoardIds: Set<number>;
   onAdd: (board: Board) => void;
   onRemove: (board: Board) => void;
@@ -14,6 +15,7 @@ interface BoardPickerModalProps {
 }
 
 export function BoardPickerModal({
+  title = 'Add to board',
   currentBoardIds,
   onAdd,
   onRemove,
@@ -96,7 +98,7 @@ export function BoardPickerModal({
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-ink">Add to board</h2>
+          <h2 className="text-base font-semibold text-ink">{title}</h2>
           <button
             onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100"

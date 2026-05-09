@@ -123,15 +123,25 @@ export class DatabaseBoardsService {
   }
 
   async addImageToBoard(imageId: number, tagId: number): Promise<void> {
+    await this.addImagesToBoard([imageId], tagId);
+  }
+
+  async addImagesToBoard(imageIds: number[], tagId: number): Promise<void> {
+    const uniqueImageIds = Array.from(new Set(imageIds));
+    if (uniqueImageIds.length === 0) return;
+
     const db = this.deps.requireDb().getDatabase();
     const txn = db.transaction(() => {
       const { next } = db
         .prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS next FROM image_tags WHERE tag_id = ?`)
         .get(tagId) as { next: number };
-      db.prepare(
+      const stmt = db.prepare(
         `INSERT OR IGNORE INTO image_tags (image_id, tag_id, source, position)
          VALUES (?, ?, 'user', ?)`,
-      ).run(imageId, tagId, next);
+      );
+      uniqueImageIds.forEach((imageId, index) => {
+        stmt.run(imageId, tagId, next + index);
+      });
     });
     txn();
     this.deps.invalidateMetadataCaches();

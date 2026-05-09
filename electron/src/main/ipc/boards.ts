@@ -28,6 +28,11 @@ export function registerBoardHandlers({ dbService }: MainIpcContext): void {
     return { success: true };
   });
 
+  handleInvoke('boardsAddImages', async (_event, { imageIds, tagId }) => {
+    await dbService.boards.addImagesToBoard(imageIds, tagId);
+    return { success: true };
+  });
+
   handleInvoke('boardsRemoveImage', async (_event, { imageId, tagId }) => {
     await dbService.boards.removeImageFromBoard(imageId, tagId);
     return { success: true };

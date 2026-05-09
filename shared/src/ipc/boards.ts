@@ -9,6 +9,7 @@ export interface BoardsApi {
     getImageSuggestions: (tagId: number) => Promise<Image[]>;
     reorder: (tagId: number, orderedImageIds: number[]) => Promise<{ success: boolean }>;
     addImage: (imageId: number, tagId: number) => Promise<{ success: boolean }>;
+    addImages: (imageIds: number[], tagId: number) => Promise<{ success: boolean }>;
     removeImage: (imageId: number, tagId: number) => Promise<{ success: boolean }>;
     create: (name: string, color?: string) => Promise<Board>;
     rename: (tagId: number, name: string) => Promise<{ success: boolean }>;
@@ -24,6 +25,7 @@ export const boardInvokeChannels = {
   boardsGetImageSuggestions: IPC_CHANNELS.boards.getImageSuggestions,
   boardsReorder: IPC_CHANNELS.boards.reorder,
   boardsAddImage: IPC_CHANNELS.boards.addImage,
+  boardsAddImages: IPC_CHANNELS.boards.addImages,
   boardsRemoveImage: IPC_CHANNELS.boards.removeImage,
   boardsCreate: IPC_CHANNELS.boards.create,
   boardsRename: IPC_CHANNELS.boards.rename,
@@ -38,6 +40,7 @@ export interface BoardInvokeArgsByKey {
   boardsGetImageSuggestions: { tagId: number };
   boardsReorder: { tagId: number; orderedImageIds: number[] };
   boardsAddImage: { imageId: number; tagId: number };
+  boardsAddImages: { imageIds: number[]; tagId: number };
   boardsRemoveImage: { imageId: number; tagId: number };
   boardsCreate: { name: string; color?: string };
   boardsRename: { tagId: number; name: string };
@@ -52,6 +55,7 @@ export interface BoardInvokeResultByKey {
   boardsGetImageSuggestions: Image[];
   boardsReorder: { success: boolean };
   boardsAddImage: { success: boolean };
+  boardsAddImages: { success: boolean };
   boardsRemoveImage: { success: boolean };
   boardsCreate: Board;
   boardsRename: { success: boolean };

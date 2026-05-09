@@ -56,6 +56,7 @@ export const IPC_CHANNELS = {
     getImageSuggestions: 'boards:get-image-suggestions',
     reorder: 'boards:reorder',
     addImage: 'boards:add-image',
+    addImages: 'boards:add-images',
     removeImage: 'boards:remove-image',
     create: 'boards:create',
     rename: 'boards:rename',
