@@ -16,7 +16,8 @@ interface DatabaseFoldersDeps {
 
 const cpuCount = Math.max(1, os.cpus().length);
 const WALK_CONCURRENCY = Math.min(32, Math.max(8, cpuCount * 4));
-const IMAGE_PROCESSING_CONCURRENCY = Math.min(4, Math.max(2, Math.floor(cpuCount / 2)));
+const IMAGE_PROCESSING_CONCURRENCY =
+  process.platform === 'linux' ? 1 : Math.min(4, Math.max(2, Math.floor(cpuCount / 2)));
 
 export class DatabaseFoldersService {
   constructor(private readonly deps: DatabaseFoldersDeps) {}
