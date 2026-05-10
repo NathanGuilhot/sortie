@@ -148,7 +148,12 @@ export function AppLayout() {
                 <span>{STATUS_COPY[location.pathname] ?? ''}</span>
               )}
             </div>
-            <div />
+            <a
+              href="mailto:contact@nighten.fr?subject=Sortie%20feedback"
+              className="rounded px-2 py-1 text-xs font-medium text-gray-400 transition-colors hover:bg-gray-100/70 hover:text-gray-600"
+            >
+              Send feedback
+            </a>
           </div>
         </footer>
 
