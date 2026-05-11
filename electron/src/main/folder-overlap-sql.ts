@@ -5,15 +5,19 @@
 // that are NOT covered by any other folder — used to scope folder removal and
 // availability flips so sibling folders' files are left alone.
 
+import { sqlPath } from 'pipeline';
+
+export { normalizePathForSqlLike, pathPrefixLikePattern, sqlPath } from 'pipeline';
+
 export const OVERLAP_EXCLUDE_CLAUSE = `NOT EXISTS (
   SELECT 1 FROM folders f2
   WHERE f2.path <> ?
-    AND images.file_path LIKE f2.path || '/%'
+    AND ${sqlPath('images.file_path')} LIKE ${sqlPath('f2.path')} || '/%'
 )`;
 
 export const OVERLAP_EXCLUDE_AVAILABLE_CLAUSE = `NOT EXISTS (
   SELECT 1 FROM folders f2
   WHERE f2.path <> ?
     AND f2.available = 1
-    AND images.file_path LIKE f2.path || '/%'
+    AND ${sqlPath('images.file_path')} LIKE ${sqlPath('f2.path')} || '/%'
 )`;

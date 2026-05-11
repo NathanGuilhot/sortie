@@ -11,6 +11,7 @@ import {
 import type { Folder, Image, LinkPreview, Tag } from 'shared';
 import { fetchLinkPreview, hashUrl } from '../linkPreview';
 import { MIME_TYPES } from '../database-helpers';
+import { sqlPath } from '../folder-overlap-sql';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -302,7 +303,8 @@ export class DatabaseImagesService {
          WHERE i.hidden = 0
            AND NOT EXISTS (
              SELECT 1 FROM folders f
-             WHERE i.file_path = f.path OR i.file_path LIKE f.path || '/%'
+             WHERE ${sqlPath('i.file_path')} = ${sqlPath('f.path')}
+               OR ${sqlPath('i.file_path')} LIKE ${sqlPath('f.path')} || '/%'
            )`,
       )
       .all() as Array<{ id: number; file_path: string; missing: number }>;

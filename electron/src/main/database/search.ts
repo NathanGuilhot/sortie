@@ -1,5 +1,6 @@
 import { type ClipEmbedder, type DatabaseManager, hexToOklab } from 'pipeline';
 import type { Query, SearchResult } from 'shared';
+import { sqlPath } from '../folder-overlap-sql';
 
 type SqlBinding = string | number | bigint | Uint8Array | null;
 
@@ -64,7 +65,7 @@ export class DatabaseSearchService {
 
     if (query.folderId != null) {
       where.push(
-        "EXISTS (SELECT 1 FROM folders fo WHERE fo.id = ? AND i.file_path LIKE fo.path || '/%')",
+        `EXISTS (SELECT 1 FROM folders fo WHERE fo.id = ? AND ${sqlPath('i.file_path')} LIKE ${sqlPath('fo.path')} || '/%')`,
       );
       params.push(query.folderId);
       active = true;

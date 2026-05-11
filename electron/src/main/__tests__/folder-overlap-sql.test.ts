@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
 import type { Database as DB } from 'better-sqlite3';
-import { OVERLAP_EXCLUDE_CLAUSE, OVERLAP_EXCLUDE_AVAILABLE_CLAUSE } from '../folder-overlap-sql';
+import {
+  OVERLAP_EXCLUDE_AVAILABLE_CLAUSE,
+  OVERLAP_EXCLUDE_CLAUSE,
+  pathPrefixLikePattern,
+  sqlPath,
+} from '../folder-overlap-sql';
 
 // Regression tests for the NOT EXISTS clauses that scope folder removal and
 // availability flips so overlapping folder registrations don't collateral-
@@ -42,7 +47,9 @@ describe('folder-overlap SQL', () => {
     seed();
     // Removing /foo: only delete images not covered by another folder.
     const rows = db
-      .prepare(`SELECT file_path FROM images WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`)
+      .prepare(
+        `SELECT file_path FROM images WHERE ${sqlPath('file_path')} LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`,
+      )
       .all('/foo/%', '/foo') as { file_path: string }[];
     expect(rows.map((r) => r.file_path)).toEqual(['/foo/a.jpg']);
   });
@@ -99,5 +106,18 @@ describe('folder-overlap SQL', () => {
       .prepare(`SELECT file_path FROM images WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`)
       .all('/a/%', '/a') as { file_path: string }[];
     expect(rows.map((r) => r.file_path)).toEqual(['/a/x.jpg']);
+  });
+
+  it('removeFolder selection matches Windows-style paths', () => {
+    db.prepare('INSERT INTO folders (path) VALUES (?)').run('C:\\Photos');
+    db.prepare('INSERT INTO images (file_path) VALUES (?)').run('C:\\Photos\\a.jpg');
+
+    const rows = db
+      .prepare(
+        `SELECT file_path FROM images WHERE ${sqlPath('file_path')} LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`,
+      )
+      .all(pathPrefixLikePattern('C:\\Photos'), 'C:\\Photos') as { file_path: string }[];
+
+    expect(rows.map((r) => r.file_path)).toEqual(['C:\\Photos\\a.jpg']);
   });
 });

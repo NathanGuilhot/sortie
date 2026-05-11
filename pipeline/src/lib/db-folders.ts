@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import path from 'path';
 import type { Folder, FolderWithStats } from 'shared';
+import { normalizePathForSqlLike, sqlPath } from './db-path-sql';
 
 export class DatabaseFolderRepository {
   constructor(private readonly db: Database.Database) {}
@@ -21,7 +22,7 @@ export class DatabaseFolderRepository {
              COUNT(i.id) AS image_count,
              SUM(i.file_size) AS total_size
            FROM folders fo
-           LEFT JOIN images i ON i.file_path LIKE fo.path || '/%' AND i.hidden = 0 AND i.missing = 0
+           LEFT JOIN images i ON ${sqlPath('i.file_path')} LIKE ${sqlPath('fo.path')} || '/%' AND i.hidden = 0 AND i.missing = 0
            GROUP BY fo.id
          ) s ON s.folder_id = f.id
          ORDER BY f.created_at DESC`,
@@ -39,11 +40,13 @@ export class DatabaseFolderRepository {
       (this.db
         .prepare(
           `SELECT * FROM folders
-           WHERE ? LIKE path || '/%' OR ? = path
+           WHERE ? LIKE ${sqlPath('path')} || '/%' OR ? = ${sqlPath('path')}
            ORDER BY length(path) DESC
            LIMIT 1`,
         )
-        .get(filePath, filePath) as Folder | undefined) ?? null
+        .get(normalizePathForSqlLike(filePath), normalizePathForSqlLike(filePath)) as
+        | Folder
+        | undefined) ?? null
     );
   }
 
@@ -75,20 +78,22 @@ export class DatabaseFolderRepository {
   }
 
   clearMissingByPathPrefix(pathPrefix: string): void {
-    this.db.prepare('UPDATE images SET missing = 0 WHERE file_path LIKE ?').run(pathPrefix);
+    this.db
+      .prepare(`UPDATE images SET missing = 0 WHERE ${sqlPath('file_path')} LIKE ?`)
+      .run(pathPrefix);
   }
 
   markMissingByPathPrefix(pathPrefix: string, excludedFolderPath: string): void {
     this.db
       .prepare(
         `UPDATE images SET missing = 1
-         WHERE file_path LIKE ? AND NOT EXISTS (
+         WHERE ${sqlPath('file_path')} LIKE ? AND NOT EXISTS (
            SELECT 1 FROM folders f
            WHERE f.path != ?
              AND f.available = 1
              AND (
-               images.file_path = f.path
-               OR images.file_path LIKE f.path || '/%'
+               ${sqlPath('images.file_path')} = ${sqlPath('f.path')}
+               OR ${sqlPath('images.file_path')} LIKE ${sqlPath('f.path')} || '/%'
              )
          )`,
       )
@@ -99,14 +104,16 @@ export class DatabaseFolderRepository {
     this.db
       .prepare(
         `DELETE FROM faces WHERE image_id IN (
-           SELECT id FROM images WHERE file_path LIKE ?
+           SELECT id FROM images WHERE ${sqlPath('file_path')} LIKE ?
          )`,
       )
       .run(pathPrefix);
   }
 
   markFacesUnscannedByPathPrefix(pathPrefix: string): void {
-    this.db.prepare('UPDATE images SET faces_scanned = 0 WHERE file_path LIKE ?').run(pathPrefix);
+    this.db
+      .prepare(`UPDATE images SET faces_scanned = 0 WHERE ${sqlPath('file_path')} LIKE ?`)
+      .run(pathPrefix);
   }
 
   setImageHidden(imageId: number): void {

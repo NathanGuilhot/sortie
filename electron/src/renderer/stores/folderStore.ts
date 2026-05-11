@@ -13,6 +13,10 @@ interface FolderStore {
 
 let availabilityUnsub: (() => void) | null = null;
 
+function normalizePathForPrefix(filePath: string): string {
+  return filePath.replace(/\\/g, '/');
+}
+
 export const useFolderStore = create<FolderStore>((set, get) => ({
   folders: [],
   folderStats: [],
@@ -33,9 +37,14 @@ export const useFolderStore = create<FolderStore>((set, get) => ({
 
   isWritable: (filePath: string) => {
     const folders = get().folders;
+    const normalizedFilePath = normalizePathForPrefix(filePath);
     let best: Folder | null = null;
     for (const folder of folders) {
-      if (filePath === folder.path || filePath.startsWith(folder.path + '/')) {
+      const normalizedFolderPath = normalizePathForPrefix(folder.path);
+      if (
+        normalizedFilePath === normalizedFolderPath ||
+        normalizedFilePath.startsWith(`${normalizedFolderPath}/`)
+      ) {
         if (!best || folder.path.length > best.path.length) best = folder;
       }
     }

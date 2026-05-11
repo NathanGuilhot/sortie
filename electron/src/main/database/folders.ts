@@ -5,7 +5,13 @@ import type { AddImageResult } from './images';
 import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
-import { OVERLAP_EXCLUDE_AVAILABLE_CLAUSE, OVERLAP_EXCLUDE_CLAUSE } from '../folder-overlap-sql';
+import {
+  normalizePathForSqlLike,
+  OVERLAP_EXCLUDE_AVAILABLE_CLAUSE,
+  OVERLAP_EXCLUDE_CLAUSE,
+  pathPrefixLikePattern,
+  sqlPath,
+} from '../folder-overlap-sql';
 import { IMAGE_EXTENSIONS } from '../database-helpers';
 
 interface DatabaseFoldersDeps {
@@ -148,8 +154,8 @@ export class DatabaseFoldersService {
     if (!available) {
       db.prepare(
         `UPDATE images SET missing = 1
-         WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_AVAILABLE_CLAUSE}`,
-      ).run(`${normalized}/%`, normalized);
+         WHERE ${sqlPath('file_path')} LIKE ? AND ${OVERLAP_EXCLUDE_AVAILABLE_CLAUSE}`,
+      ).run(pathPrefixLikePattern(normalized), normalized);
     }
 
     this.deps.invalidateImageCache();
@@ -161,19 +167,21 @@ export class DatabaseFoldersService {
   ): Promise<{ parents: string[]; children: string[] }> {
     const db = this.deps.requireDb().getDatabase();
     const normalized = path.resolve(folderPath);
+    const normalizedForSql = normalizePathForSqlLike(normalized);
+    const childPrefix = `${normalizedForSql}/`;
+
     const rows = db
       .prepare(
         `SELECT path FROM folders
          WHERE path <> ?
-           AND (? LIKE path || '/%' OR path LIKE ? || '/%')`,
+           AND (? LIKE ${sqlPath('path')} || '/%' OR ${sqlPath('path')} LIKE ?)`,
       )
-      .all(normalized, normalized, normalized) as Array<{ path: string }>;
+      .all(normalized, normalizedForSql, `${childPrefix}%`) as Array<{ path: string }>;
 
     const parents: string[] = [];
     const children: string[] = [];
-    const childPrefix = `${normalized}/`;
     for (const { path: folder } of rows) {
-      if (folder.startsWith(childPrefix)) {
+      if (normalizePathForSqlLike(folder).startsWith(childPrefix)) {
         children.push(folder);
       } else {
         parents.push(folder);
@@ -230,13 +238,13 @@ export class DatabaseFoldersService {
   async removeFolder(folderPath: string): Promise<void> {
     const db = this.deps.requireDb().getDatabase();
     const normalized = path.resolve(folderPath);
-    const pattern = `${normalized}/%`;
+    const pattern = pathPrefixLikePattern(normalized);
 
     const txn = db.transaction(() => {
       const imageIds = db
         .prepare(
           `SELECT id FROM images
-           WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`,
+           WHERE ${sqlPath('file_path')} LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`,
         )
         .all(pattern, normalized) as Array<{ id: number }>;
 
@@ -289,7 +297,7 @@ export class DatabaseFoldersService {
     const txn = db.getDatabase().transaction(() => {
       db.updateFolderAvailabilityState(normalized, available, writable);
       if (availableChanged) {
-        const pattern = `${normalized}/%`;
+        const pattern = pathPrefixLikePattern(normalized);
         if (available) {
           db.clearMissingByPathPrefix(pattern);
         } else {
@@ -316,7 +324,7 @@ export class DatabaseFoldersService {
     if (current === null) return { changed: false };
     if (current === excluded) return { changed: false };
 
-    const pattern = `${normalized}/%`;
+    const pattern = pathPrefixLikePattern(normalized);
     const txn = db.getDatabase().transaction(() => {
       db.setFolderFaceScanExclusionFlag(normalized, excluded);
       if (excluded) {

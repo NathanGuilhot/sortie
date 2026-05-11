@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { normalizeVector, type Face, type Person } from 'shared';
+import { normalizePathForSqlLike, sqlPath } from './db-path-sql';
 import { decodeEmbeddingValue } from './embedding';
 
 export interface VecMatchRow {
@@ -232,13 +233,18 @@ export class DatabasePeopleRepository {
         .prepare('SELECT id, file_path FROM images WHERE faces_scanned = 0 AND hidden = 0')
         .all() as Array<{ id: number; file_path: string }>;
     }
-    const likeClauses = excluded.map(() => "file_path NOT LIKE ? || '/%'").join(' AND ');
+    const likeClauses = excluded
+      .map(() => `${sqlPath('file_path')} NOT LIKE ? || '/%'`)
+      .join(' AND ');
     return this.db
       .prepare(
         `SELECT id, file_path FROM images
          WHERE faces_scanned = 0 AND hidden = 0 AND ${likeClauses}`,
       )
-      .all(...excluded.map((entry) => entry.path)) as Array<{ id: number; file_path: string }>;
+      .all(...excluded.map((entry) => normalizePathForSqlLike(entry.path))) as Array<{
+      id: number;
+      file_path: string;
+    }>;
   }
 
   cleanupOrphanedPersons(): void {
