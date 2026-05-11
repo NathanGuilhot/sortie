@@ -6,6 +6,7 @@ import { IPC_EVENTS } from 'shared';
 import {
   collectImagePaths,
   ExternalImportService,
+  normalizeExternalImportPath,
   parseExternalImportArgs,
 } from '../externalImport';
 
@@ -83,6 +84,11 @@ describe('external import parsing', () => {
         '/Users/nathanguilhot/Desktop/Second Image.jpg',
       ],
     });
+  });
+
+  it('normalizes file URLs with platform path semantics', () => {
+    const filePath = path.join(os.tmpdir(), 'Sortie Import Test.jpg');
+    expect(normalizeExternalImportPath(new URL(`file://${filePath}`).toString())).toBe(filePath);
   });
 });
 

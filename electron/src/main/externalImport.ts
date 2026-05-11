@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron';
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { IPC_EVENTS, SUPPORTED_IMAGE_EXTENSIONS } from 'shared';
 import type {
   ExternalBoardImportRequest,
@@ -92,9 +93,9 @@ function parseExternalImportUrl(value: string): ExternalImportInvocation | null 
   }
 }
 
-function normalizePath(filePath: string): string {
+export function normalizeExternalImportPath(filePath: string): string {
   if (filePath.startsWith('file://')) {
-    return decodeURIComponent(new URL(filePath).pathname);
+    return fileURLToPath(filePath);
   }
   return path.resolve(filePath);
 }
@@ -133,7 +134,7 @@ export class ExternalImportService {
 
   async run(invocation: ExternalImportInvocation): Promise<void> {
     const jobId = crypto.randomUUID();
-    const paths = Array.from(new Set(invocation.paths.map(normalizePath)));
+    const paths = Array.from(new Set(invocation.paths.map(normalizeExternalImportPath)));
 
     if (invocation.action === 'add-folders-to-gallery') {
       await this.importFoldersToGallery(jobId, paths);
