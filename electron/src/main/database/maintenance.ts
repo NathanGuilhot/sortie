@@ -32,12 +32,23 @@ export class DatabaseMaintenanceService {
 
   async resetDatabase(): Promise<void> {
     const db = this.deps.requireDb().getDatabase();
-    const rows = db
-      .prepare(
-        `SELECT name FROM sqlite_master
-         WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`,
-      )
-      .all() as Array<{ name: string }>;
+    const tableRows = db.prepare('PRAGMA table_list').all() as Array<{
+      name: string;
+      type: string;
+      schema: string;
+    }>;
+    const mainTables = tableRows.filter(
+      (row) => row.schema === 'main' && !row.name.startsWith('sqlite_'),
+    );
+    const virtualTableNames = mainTables
+      .filter((row) => row.type === 'virtual')
+      .map((row) => row.name);
+    const isVecShadow = (name: string): boolean =>
+      virtualTableNames.some((virtualTable) => name.startsWith(`${virtualTable}_`));
+
+    const rows = mainTables.filter(
+      (row) => (row.type === 'table' || row.type === 'virtual') && !isVecShadow(row.name),
+    );
 
     db.pragma('foreign_keys = OFF');
     try {
