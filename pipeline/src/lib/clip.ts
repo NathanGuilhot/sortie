@@ -5,6 +5,7 @@ import { resolveImageInput } from './raw';
 
 const MODEL_ID = 'Xenova/clip-vit-base-patch32';
 const FETCH_TIMEOUT_MS = 60_000;
+type DisposableModel = { dispose?: () => Promise<unknown> };
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -85,6 +86,30 @@ export class ClipEmbedder {
     );
 
     this.isInitialized = true;
+  }
+
+  async dispose(): Promise<void> {
+    if (this.initializePromise) {
+      try {
+        await this.initializePromise;
+      } catch {
+        // Dispose any partially initialized model below.
+      }
+    }
+
+    try {
+      const visionModel = this.visionModel as DisposableModel | null;
+      const textModel = this.textModel as DisposableModel | null;
+      await Promise.all([visionModel?.dispose?.(), textModel?.dispose?.()]);
+    } finally {
+      this.visionModel = null;
+      this.textModel = null;
+      this.processor = null;
+      this.tokenizer = null;
+      this.transformersModule = null;
+      this.isInitialized = false;
+      this.initializePromise = null;
+    }
   }
 
   /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */

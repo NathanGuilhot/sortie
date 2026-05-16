@@ -31,6 +31,8 @@ let dbService: DatabaseService | null = null;
 let watcherService: WatcherService | null = null;
 let availabilityMonitor: FolderAvailabilityMonitor | null = null;
 let externalImportService: ExternalImportService | null = null;
+let hasRunQuitCleanup = false;
+let quitCleanupPromise: Promise<void> | null = null;
 const pendingExternalImports: ExternalImportInvocation[] = [];
 
 const initialExternalImport = parseExternalImportArgs(process.argv);
@@ -90,6 +92,19 @@ function showMainWindow(): void {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+}
+
+async function cleanupBeforeQuit(): Promise<void> {
+  if (quitCleanupPromise) return quitCleanupPromise;
+
+  quitCleanupPromise = (async () => {
+    availabilityMonitor?.stop();
+    watcherService?.stopAll();
+    await dbService?.close();
+    await shutdownRawLoader();
+  })();
+
+  return quitCleanupPromise;
 }
 
 function migrateLegacyClipCache(targetDir: string) {
@@ -293,9 +308,16 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', () => {
-  availabilityMonitor?.stop();
-  watcherService?.stopAll();
-  dbService?.close();
-  void shutdownRawLoader();
+app.on('before-quit', (event) => {
+  if (hasRunQuitCleanup) return;
+
+  event.preventDefault();
+  void cleanupBeforeQuit()
+    .catch((error) => {
+      console.error('[shutdown] cleanup failed:', error);
+    })
+    .finally(() => {
+      hasRunQuitCleanup = true;
+      app.quit();
+    });
 });

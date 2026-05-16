@@ -207,7 +207,8 @@ export class DatabaseService {
     }
   }
 
-  close() {
+  async close(): Promise<void> {
+    await this.embedder?.dispose();
     this.db?.close();
     this.suggestionEngine?.close();
   }
