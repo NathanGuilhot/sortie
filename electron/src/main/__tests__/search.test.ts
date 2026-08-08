@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import Database from 'better-sqlite3';
-import type { DatabaseManager } from 'pipeline';
+import { createTestDb, seedImage } from 'pipeline';
+import { CLIP_EMBEDDING_DIM } from 'shared';
 import type { Image, SearchResult } from 'shared';
 import { DatabaseSearchService } from '../database/search';
 
@@ -27,35 +27,31 @@ function image(id: number): Image {
   };
 }
 
+// Unit vector rotated by theta in the first two dimensions: distance from
+// clipVector(0) grows monotonically with theta, giving a deterministic ranking.
+function clipVector(theta: number): number[] {
+  const vector = new Array<number>(CLIP_EMBEDDING_DIM).fill(0);
+  vector[0] = Math.cos(theta);
+  vector[1] = Math.sin(theta);
+  return vector;
+}
+
 describe('DatabaseSearchService.findSimilarImages', () => {
   it('excludes hidden and missing vector matches', async () => {
-    const sqlite = new Database(':memory:');
+    const t = createTestDb();
     try {
-      sqlite.exec(`
-        CREATE TABLE images (
-          id INTEGER PRIMARY KEY,
-          hidden INTEGER DEFAULT 0,
-          missing INTEGER DEFAULT 0
-        );
-      `);
-      sqlite.prepare('INSERT INTO images (id, hidden, missing) VALUES (?, ?, ?)').run(1, 0, 0);
-      sqlite.prepare('INSERT INTO images (id, hidden, missing) VALUES (?, ?, ?)').run(2, 1, 0);
-      sqlite.prepare('INSERT INTO images (id, hidden, missing) VALUES (?, ?, ?)').run(3, 0, 1);
-      sqlite.prepare('INSERT INTO images (id, hidden, missing) VALUES (?, ?, ?)').run(4, 0, 0);
+      const queryId = seedImage(t, '/photos/1.jpg');
+      const hiddenId = seedImage(t, '/photos/2.jpg', { hidden: true });
+      const missingId = seedImage(t, '/photos/3.jpg', { missing: true });
+      const visibleId = seedImage(t, '/photos/4.jpg');
 
-      const manager = {
-        getDatabase: () => sqlite,
-        getEmbedding: (imageId: number) => (imageId === 1 ? [1, 0] : null),
-        findNearestImageMatches: () => [
-          { rowid: 1, distance: 0 },
-          { rowid: 2, distance: 0.1 },
-          { rowid: 3, distance: 0.2 },
-          { rowid: 4, distance: 0.3 },
-        ],
-      } as unknown as DatabaseManager;
+      t.manager.insertEmbedding(queryId, clipVector(0));
+      t.manager.insertEmbedding(hiddenId, clipVector(0.1));
+      t.manager.insertEmbedding(missingId, clipVector(0.2));
+      t.manager.insertEmbedding(visibleId, clipVector(0.3));
 
       const service = new DatabaseSearchService({
-        requireDb: () => manager,
+        requireDb: () => t.manager,
         getEmbedder: () => {
           throw new Error('embedder should not be used');
         },
@@ -63,11 +59,11 @@ describe('DatabaseSearchService.findSimilarImages', () => {
         fetchImagesByIdsInOrder: (ids) => ids.map((id) => image(id)) as SearchResult[],
       });
 
-      const results = await service.findSimilarImages(1, 20);
+      const results = await service.findSimilarImages(queryId, 20);
 
-      expect(results.map((result) => result.id)).toEqual([4]);
+      expect(results.map((result) => result.id)).toEqual([visibleId]);
     } finally {
-      sqlite.close();
+      t.close();
     }
   });
 });

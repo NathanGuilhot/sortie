@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import Database from 'better-sqlite3';
-import type { Database as DB } from 'better-sqlite3';
+import { createTestDb, seedFolder, seedImage, type TestDb } from 'pipeline';
 import {
   OVERLAP_EXCLUDE_AVAILABLE_CLAUSE,
   OVERLAP_EXCLUDE_CLAUSE,
@@ -14,39 +13,27 @@ import {
 // constants; importing them here keeps test and implementation in lockstep.
 
 describe('folder-overlap SQL', () => {
-  let db: DB;
+  let t: TestDb;
 
   beforeEach(() => {
-    db = new Database(':memory:');
-    db.exec(`
-      CREATE TABLE folders (
-        id INTEGER PRIMARY KEY,
-        path TEXT UNIQUE NOT NULL,
-        available INTEGER DEFAULT 1
-      );
-      CREATE TABLE images (
-        id INTEGER PRIMARY KEY,
-        file_path TEXT UNIQUE NOT NULL,
-        missing INTEGER DEFAULT 0
-      );
-    `);
+    t = createTestDb();
   });
 
   afterEach(() => {
-    db.close();
+    t.close();
   });
 
   const seed = () => {
-    db.prepare('INSERT INTO folders (path) VALUES (?)').run('/foo');
-    db.prepare('INSERT INTO folders (path) VALUES (?)').run('/foo/bar');
-    db.prepare('INSERT INTO images (file_path) VALUES (?)').run('/foo/a.jpg');
-    db.prepare('INSERT INTO images (file_path) VALUES (?)').run('/foo/bar/b.jpg');
+    seedFolder(t, '/foo');
+    seedFolder(t, '/foo/bar');
+    seedImage(t, '/foo/a.jpg');
+    seedImage(t, '/foo/bar/b.jpg');
   };
 
   it('removeFolder selection keeps images that another folder still covers', () => {
     seed();
     // Removing /foo: only delete images not covered by another folder.
-    const rows = db
+    const rows = t.raw
       .prepare(
         `SELECT file_path FROM images WHERE ${sqlPath('file_path')} LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`,
       )
@@ -57,7 +44,7 @@ describe('folder-overlap SQL', () => {
   it('removing the child folder leaves ALL images in place (parent still covers them)', () => {
     seed();
     // Removing /foo/bar: every image under /foo/bar/% is also under /foo/% via /foo.
-    const rows = db
+    const rows = t.raw
       .prepare(`SELECT file_path FROM images WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`)
       .all('/foo/bar/%', '/foo/bar') as { file_path: string }[];
     expect(rows).toEqual([]);
@@ -67,15 +54,19 @@ describe('folder-overlap SQL', () => {
     seed();
     // /foo goes offline; /foo/bar stays available. Images under /foo/bar must
     // stay missing=0.
-    db.prepare(
-      `UPDATE images SET missing = 1
-       WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_AVAILABLE_CLAUSE}`,
-    ).run('/foo/%', '/foo');
+    t.raw
+      .prepare(
+        `UPDATE images SET missing = 1
+         WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_AVAILABLE_CLAUSE}`,
+      )
+      .run('/foo/%', '/foo');
 
-    const a = db.prepare('SELECT missing FROM images WHERE file_path=?').get('/foo/a.jpg') as {
+    const a = t.raw.prepare('SELECT missing FROM images WHERE file_path=?').get('/foo/a.jpg') as {
       missing: number;
     };
-    const b = db.prepare('SELECT missing FROM images WHERE file_path=?').get('/foo/bar/b.jpg') as {
+    const b = t.raw
+      .prepare('SELECT missing FROM images WHERE file_path=?')
+      .get('/foo/bar/b.jpg') as {
       missing: number;
     };
     expect(a.missing).toBe(1);
@@ -84,35 +75,39 @@ describe('folder-overlap SQL', () => {
 
   it('availability flip marks images missing when the overlapping folder is ALSO unavailable', () => {
     seed();
-    db.prepare('UPDATE folders SET available = 0 WHERE path = ?').run('/foo/bar');
-    db.prepare(
-      `UPDATE images SET missing = 1
-       WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_AVAILABLE_CLAUSE}`,
-    ).run('/foo/%', '/foo');
+    t.raw.prepare('UPDATE folders SET available = 0 WHERE path = ?').run('/foo/bar');
+    t.raw
+      .prepare(
+        `UPDATE images SET missing = 1
+         WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_AVAILABLE_CLAUSE}`,
+      )
+      .run('/foo/%', '/foo');
 
-    const b = db.prepare('SELECT missing FROM images WHERE file_path=?').get('/foo/bar/b.jpg') as {
+    const b = t.raw
+      .prepare('SELECT missing FROM images WHERE file_path=?')
+      .get('/foo/bar/b.jpg') as {
       missing: number;
     };
     expect(b.missing).toBe(1);
   });
 
   it('non-overlapping folders behave as plain LIKE would', () => {
-    db.prepare('INSERT INTO folders (path) VALUES (?)').run('/a');
-    db.prepare('INSERT INTO folders (path) VALUES (?)').run('/b');
-    db.prepare('INSERT INTO images (file_path) VALUES (?)').run('/a/x.jpg');
-    db.prepare('INSERT INTO images (file_path) VALUES (?)').run('/b/y.jpg');
+    seedFolder(t, '/a');
+    seedFolder(t, '/b');
+    seedImage(t, '/a/x.jpg');
+    seedImage(t, '/b/y.jpg');
 
-    const rows = db
+    const rows = t.raw
       .prepare(`SELECT file_path FROM images WHERE file_path LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`)
       .all('/a/%', '/a') as { file_path: string }[];
     expect(rows.map((r) => r.file_path)).toEqual(['/a/x.jpg']);
   });
 
   it('removeFolder selection matches Windows-style paths', () => {
-    db.prepare('INSERT INTO folders (path) VALUES (?)').run('C:\\Photos');
-    db.prepare('INSERT INTO images (file_path) VALUES (?)').run('C:\\Photos\\a.jpg');
+    seedFolder(t, 'C:\\Photos');
+    seedImage(t, 'C:\\Photos\\a.jpg');
 
-    const rows = db
+    const rows = t.raw
       .prepare(
         `SELECT file_path FROM images WHERE ${sqlPath('file_path')} LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`,
       )

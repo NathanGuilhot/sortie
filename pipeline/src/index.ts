@@ -13,4 +13,5 @@ export { isRawPath, loadImageInput, shutdownRawLoader } from './lib/raw';
 export { runWithConcurrency } from './lib/worker-pool';
 export { normalizePathForSqlLike, pathPrefixLikePattern, sqlPath } from './lib/db-path-sql';
 export { createOcrEngine, type OcrEngine, type OcrEngineOptions, type OcrBlock } from './lib/ocr';
+export { createTestDb, seedFolder, seedImage, seedFace, type TestDb } from './lib/testing/test-db';
 export type { TagSuggestion } from 'shared';
