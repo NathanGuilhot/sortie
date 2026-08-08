@@ -240,6 +240,10 @@ export class DatabaseManager {
 
   // --- Face / Person methods ---
 
+  resetFaceData(): void {
+    this.people.clearAllFaceData();
+  }
+
   insertFace(face: {
     image_id: number;
     person_id: number | null;

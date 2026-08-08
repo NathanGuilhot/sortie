@@ -23,7 +23,7 @@ export class WatcherService {
 
   async watchFolder(folderPath: string) {
     const normalized = path.resolve(folderPath);
-    if (this.watchers.has(folderPath) || this.linuxPollers.has(normalized)) {
+    if (this.watchers.has(normalized) || this.linuxPollers.has(normalized)) {
       return;
     }
 
@@ -32,7 +32,7 @@ export class WatcherService {
       return;
     }
 
-    const watcher = chokidar.watch(folderPath, {
+    const watcher = chokidar.watch(normalized, {
       ignored: /(^|[\\/\\\\])\\./,
       persistent: true,
       ignoreInitial: true,
@@ -51,7 +51,7 @@ export class WatcherService {
       })
       .on('error', (error) => console.error('Watcher error:', error));
 
-    this.watchers.set(folderPath, watcher);
+    this.watchers.set(normalized, watcher);
   }
 
   stopWatching(folderPath: string) {
@@ -63,10 +63,10 @@ export class WatcherService {
       this.linuxSnapshots.delete(normalized);
     }
 
-    const watcher = this.watchers.get(folderPath);
+    const watcher = this.watchers.get(normalized);
     if (watcher) {
       void watcher.close();
-      this.watchers.delete(folderPath);
+      this.watchers.delete(normalized);
     }
   }
 

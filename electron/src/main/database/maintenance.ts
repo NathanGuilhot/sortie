@@ -19,15 +19,7 @@ export class DatabaseMaintenanceService {
   constructor(private readonly deps: DatabaseMaintenanceDeps) {}
 
   async resetFaceData(): Promise<void> {
-    const db = this.deps.requireDb().getDatabase();
-    const txn = db.transaction(() => {
-      db.prepare('DELETE FROM vec_faces').run();
-      db.prepare('DELETE FROM vec_persons').run();
-      db.prepare('DELETE FROM faces').run();
-      db.prepare('DELETE FROM persons').run();
-      db.prepare('UPDATE images SET faces_scanned = 0').run();
-    });
-    txn();
+    this.deps.requireDb().resetFaceData();
   }
 
   async resetDatabase(): Promise<void> {

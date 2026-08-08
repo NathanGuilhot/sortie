@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { normalizeVector, type Face, type Person } from 'shared';
+import { clearAllFaceData } from './db-face-reset';
 import { normalizePathForSqlLike, sqlPath } from './db-path-sql';
 import { decodeEmbeddingValue } from './embedding';
 
@@ -13,6 +14,10 @@ export class DatabasePeopleRepository {
     private readonly db: Database.Database,
     private readonly vecLoaded: boolean,
   ) {}
+
+  clearAllFaceData(): void {
+    clearAllFaceData(this.db, this.vecLoaded);
+  }
 
   insertFace(face: {
     image_id: number;

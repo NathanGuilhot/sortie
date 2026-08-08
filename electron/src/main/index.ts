@@ -15,6 +15,7 @@ import {
 import { buildMenu } from './menu';
 import { ensureImportFolder } from './pinterest/import';
 import { registerSortieProtocols, registerSortieSchemes } from './protocols';
+import { createProtocolPathGuard } from './protocol-guard';
 import { registerExternalImportEntrypoints } from './shellContextMenu';
 import { getSortieUserDataPaths } from './userDataPaths';
 
@@ -259,7 +260,22 @@ void app.whenReady().then(async () => {
       console.warn('Dock icon load failed:', error);
     }
   }
-  registerSortieProtocols(app.getPath('userData'));
+  registerSortieProtocols(
+    app.getPath('userData'),
+    createProtocolPathGuard({
+      allowedRoots: [app.getPath('userData')],
+      getLibraryFolderPaths: async () => {
+        if (!dbService) throw new Error('database not ready');
+        const folders = await dbService.getFolders();
+        return folders.map((folder) => folder.path);
+      },
+      isKnownImagePath: (requestedPath) => {
+        const db = dbService?.getDatabase();
+        if (!db) return false;
+        return db.getImageScanState(requestedPath) !== null;
+      },
+    }),
+  );
   await registerExternalImportEntrypoints();
 
   try {

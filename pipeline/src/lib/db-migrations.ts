@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { CLIP_EMBEDDING_DIM, FACE_EMBEDDING_DIM } from 'shared';
+import { clearAllFaceData } from './db-face-reset';
 
 function getColumnNames(db: Database.Database, table: string): Set<string> {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
@@ -16,17 +17,6 @@ function addColumnIfMissing(
   if (columnNames.has(column)) return;
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   columnNames.add(column);
-}
-
-function clearFaceClusters(db: Database.Database, vecLoaded: boolean): void {
-  if (vecLoaded) {
-    db.exec('DELETE FROM vec_face_clips');
-    db.exec('DELETE FROM vec_faces');
-    db.exec('DELETE FROM vec_persons');
-  }
-  db.exec('DELETE FROM faces');
-  db.exec('DELETE FROM persons');
-  db.exec('UPDATE images SET faces_scanned = 0');
 }
 
 // Migrations `user_version` : inchrémental, idempotent par version.
@@ -276,13 +266,13 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
           )
         `);
     }
-    clearFaceClusters(db, vecLoaded);
+    clearAllFaceData(db, vecLoaded);
 
     db.pragma('user_version = 16');
   }
 
   if (version < 19) {
-    clearFaceClusters(db, vecLoaded);
+    clearAllFaceData(db, vecLoaded);
     db.pragma('user_version = 19');
   }
 

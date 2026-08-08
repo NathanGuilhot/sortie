@@ -90,7 +90,10 @@ async function getCachedRawPreview(rawPreviewDir: string, filePath: string): Pro
   return cachePath;
 }
 
-export function registerSortieProtocols(userDataPath: string): void {
+export function registerSortieProtocols(
+  userDataPath: string,
+  isServable: (requestedPath: string) => Promise<boolean>,
+): void {
   const paths = getSortieUserDataPaths(userDataPath);
   ensureDir(paths.thumbs);
   ensureDir(paths.rawPreviews);
@@ -99,6 +102,9 @@ export function registerSortieProtocols(userDataPath: string): void {
 
   protocol.handle('sortie-file', async (request) => {
     const filePath = getFilePathFromUrl(new URL(request.url));
+    if (!(await isServable(filePath))) {
+      return new Response(null, { status: 403 });
+    }
     if (!isRawPath(filePath)) {
       return fetchLocalFile(filePath);
     }
@@ -115,6 +121,9 @@ export function registerSortieProtocols(userDataPath: string): void {
   protocol.handle('sortie-thumb', async (request) => {
     const url = new URL(request.url);
     const filePath = getFilePathFromUrl(url);
+    if (!(await isServable(filePath))) {
+      return new Response(null, { status: 403 });
+    }
     const width = parseInt(url.searchParams.get('w') || '400', 10);
     const cachePath = path.join(paths.thumbs, `${buildHash(filePath)}_${width}.webp`);
 
@@ -168,6 +177,9 @@ export function registerSortieProtocols(userDataPath: string): void {
     const url = new URL(request.url);
     const faceId = url.hostname;
     const filePath = decodeURIComponent(url.searchParams.get('path') || '');
+    if (!(await isServable(filePath))) {
+      return new Response(null, { status: 403 });
+    }
     const bboxX = parseFloat(url.searchParams.get('x') || '0');
     const bboxY = parseFloat(url.searchParams.get('y') || '0');
     const bboxWidth = parseFloat(url.searchParams.get('w') || '0');
