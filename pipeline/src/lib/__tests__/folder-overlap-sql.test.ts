@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createTestDb, seedFolder, seedImage, type TestDb } from 'pipeline';
+import { createTestDb, seedFolder, seedImage, type TestDb } from '../testing/test-db';
 import {
   OVERLAP_EXCLUDE_AVAILABLE_CLAUSE,
   OVERLAP_EXCLUDE_CLAUSE,
   pathPrefixLikePattern,
   sqlPath,
-} from '../folder-overlap-sql';
+} from '../db-path-sql';
 
 // Regression tests for the NOT EXISTS clauses that scope folder removal and
 // availability flips so overlapping folder registrations don't collateral-

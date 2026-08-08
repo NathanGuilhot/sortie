@@ -1,7 +1,8 @@
 import type Database from 'better-sqlite3';
 import path from 'path';
 import type { Folder, FolderWithStats } from 'shared';
-import { normalizePathForSqlLike, sqlPath } from './db-path-sql';
+import { folderCoversPath } from 'shared';
+import { normalizePathForSqlLike, pathPrefixLikePattern, sqlPath } from './db-path-sql';
 
 export class DatabaseFolderRepository {
   constructor(private readonly db: Database.Database) {}
@@ -77,13 +78,13 @@ export class DatabaseFolderRepository {
       .run(excluded ? 1 : 0, folderPath);
   }
 
-  clearMissingByPathPrefix(pathPrefix: string): void {
+  clearMissingUnderFolder(folderPath: string): void {
     this.db
       .prepare(`UPDATE images SET missing = 0 WHERE ${sqlPath('file_path')} LIKE ?`)
-      .run(pathPrefix);
+      .run(pathPrefixLikePattern(folderPath));
   }
 
-  markMissingByPathPrefix(pathPrefix: string, excludedFolderPath: string): void {
+  markMissingUnderFolder(folderPath: string): void {
     this.db
       .prepare(
         `UPDATE images SET missing = 1
@@ -97,23 +98,47 @@ export class DatabaseFolderRepository {
              )
          )`,
       )
-      .run(pathPrefix, excludedFolderPath);
+      .run(pathPrefixLikePattern(folderPath), folderPath);
   }
 
-  deleteFacesByImagePathPrefix(pathPrefix: string): void {
+  deleteFacesUnderFolder(folderPath: string): void {
     this.db
       .prepare(
         `DELETE FROM faces WHERE image_id IN (
            SELECT id FROM images WHERE ${sqlPath('file_path')} LIKE ?
          )`,
       )
-      .run(pathPrefix);
+      .run(pathPrefixLikePattern(folderPath));
   }
 
-  markFacesUnscannedByPathPrefix(pathPrefix: string): void {
+  markFacesUnscannedUnderFolder(folderPath: string): void {
     this.db
       .prepare(`UPDATE images SET faces_scanned = 0 WHERE ${sqlPath('file_path')} LIKE ?`)
-      .run(pathPrefix);
+      .run(pathPrefixLikePattern(folderPath));
+  }
+
+  findOverlappingFolders(folderPath: string): { parents: string[]; children: string[] } {
+    const normalizedForSql = normalizePathForSqlLike(folderPath);
+
+    const rows = this.db
+      .prepare(
+        `SELECT path FROM folders
+         WHERE path <> ?
+           AND (? LIKE ${sqlPath('path')} || '/%' OR ${sqlPath('path')} LIKE ?)`,
+      )
+      .all(folderPath, normalizedForSql, `${normalizedForSql}/%`) as Array<{ path: string }>;
+
+    const parents: string[] = [];
+    const children: string[] = [];
+    for (const { path: other } of rows) {
+      if (folderCoversPath(folderPath, other)) {
+        children.push(other);
+      } else {
+        parents.push(other);
+      }
+    }
+
+    return { parents, children };
   }
 
   setImageHidden(imageId: number): void {

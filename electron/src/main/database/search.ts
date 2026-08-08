@@ -1,6 +1,6 @@
 import { type ClipEmbedder, type DatabaseManager, hexToOklab } from 'pipeline';
 import type { Query, SearchResult } from 'shared';
-import { sqlPath } from '../folder-overlap-sql';
+import { sqlPath } from 'pipeline';
 
 type SqlBinding = string | number | bigint | Uint8Array | null;
 

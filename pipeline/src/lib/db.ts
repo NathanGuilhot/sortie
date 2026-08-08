@@ -419,20 +419,24 @@ export class DatabaseManager {
     this.folders.setFolderFaceScanExclusionFlag(folderPath, excluded);
   }
 
-  clearMissingByPathPrefix(pathPrefix: string): void {
-    this.folders.clearMissingByPathPrefix(pathPrefix);
+  clearMissingUnderFolder(folderPath: string): void {
+    this.folders.clearMissingUnderFolder(folderPath);
   }
 
-  markMissingByPathPrefix(pathPrefix: string, excludedFolderPath: string): void {
-    this.folders.markMissingByPathPrefix(pathPrefix, excludedFolderPath);
+  markMissingUnderFolder(folderPath: string): void {
+    this.folders.markMissingUnderFolder(folderPath);
   }
 
-  deleteFacesByImagePathPrefix(pathPrefix: string): void {
-    this.folders.deleteFacesByImagePathPrefix(pathPrefix);
+  deleteFacesUnderFolder(folderPath: string): void {
+    this.folders.deleteFacesUnderFolder(folderPath);
   }
 
-  markFacesUnscannedByPathPrefix(pathPrefix: string): void {
-    this.folders.markFacesUnscannedByPathPrefix(pathPrefix);
+  markFacesUnscannedUnderFolder(folderPath: string): void {
+    this.folders.markFacesUnscannedUnderFolder(folderPath);
+  }
+
+  findOverlappingFolders(folderPath: string): { parents: string[]; children: string[] } {
+    return this.folders.findOverlappingFolders(folderPath);
   }
 
   setImageHidden(imageId: number): void {

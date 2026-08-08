@@ -4,3 +4,4 @@ export * from './ipc-channels';
 export * from './constants';
 export * from './search-query';
 export * from './utils';
+export * from './library-paths';

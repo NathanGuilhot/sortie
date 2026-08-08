@@ -5,13 +5,7 @@ import type { AddImageResult } from './images';
 import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
-import {
-  normalizePathForSqlLike,
-  OVERLAP_EXCLUDE_AVAILABLE_CLAUSE,
-  OVERLAP_EXCLUDE_CLAUSE,
-  pathPrefixLikePattern,
-  sqlPath,
-} from '../folder-overlap-sql';
+import { OVERLAP_EXCLUDE_CLAUSE, pathPrefixLikePattern, sqlPath } from 'pipeline';
 import { IMAGE_EXTENSIONS } from '../database-helpers';
 
 interface DatabaseFoldersDeps {
@@ -152,10 +146,7 @@ export class DatabaseFoldersService {
     if (!row) throw new Error('Folder insert failed');
 
     if (!available) {
-      db.prepare(
-        `UPDATE images SET missing = 1
-         WHERE ${sqlPath('file_path')} LIKE ? AND ${OVERLAP_EXCLUDE_AVAILABLE_CLAUSE}`,
-      ).run(pathPrefixLikePattern(normalized), normalized);
+      this.deps.requireDb().markMissingUnderFolder(normalized);
     }
 
     this.deps.invalidateImageCache();
@@ -165,30 +156,7 @@ export class DatabaseFoldersService {
   async findOverlappingFolders(
     folderPath: string,
   ): Promise<{ parents: string[]; children: string[] }> {
-    const db = this.deps.requireDb().getDatabase();
-    const normalized = path.resolve(folderPath);
-    const normalizedForSql = normalizePathForSqlLike(normalized);
-    const childPrefix = `${normalizedForSql}/`;
-
-    const rows = db
-      .prepare(
-        `SELECT path FROM folders
-         WHERE path <> ?
-           AND (? LIKE ${sqlPath('path')} || '/%' OR ${sqlPath('path')} LIKE ?)`,
-      )
-      .all(normalized, normalizedForSql, `${childPrefix}%`) as Array<{ path: string }>;
-
-    const parents: string[] = [];
-    const children: string[] = [];
-    for (const { path: folder } of rows) {
-      if (normalizePathForSqlLike(folder).startsWith(childPrefix)) {
-        children.push(folder);
-      } else {
-        parents.push(folder);
-      }
-    }
-
-    return { parents, children };
+    return this.deps.requireDb().findOverlappingFolders(path.resolve(folderPath));
   }
 
   async scanFolder(
@@ -297,11 +265,10 @@ export class DatabaseFoldersService {
     const txn = db.getDatabase().transaction(() => {
       db.updateFolderAvailabilityState(normalized, available, writable);
       if (availableChanged) {
-        const pattern = pathPrefixLikePattern(normalized);
         if (available) {
-          db.clearMissingByPathPrefix(pattern);
+          db.clearMissingUnderFolder(normalized);
         } else {
-          db.markMissingByPathPrefix(pattern, normalized);
+          db.markMissingUnderFolder(normalized);
         }
       }
     });
@@ -324,12 +291,11 @@ export class DatabaseFoldersService {
     if (current === null) return { changed: false };
     if (current === excluded) return { changed: false };
 
-    const pattern = pathPrefixLikePattern(normalized);
     const txn = db.getDatabase().transaction(() => {
       db.setFolderFaceScanExclusionFlag(normalized, excluded);
       if (excluded) {
-        db.deleteFacesByImagePathPrefix(pattern);
-        db.markFacesUnscannedByPathPrefix(pattern);
+        db.deleteFacesUnderFolder(normalized);
+        db.markFacesUnscannedUnderFolder(normalized);
       }
     });
     txn();

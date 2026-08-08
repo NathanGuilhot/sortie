@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Folder, FolderWithStats } from 'shared';
+import { Folder, FolderWithStats, mostSpecificFolderForPath } from 'shared';
 
 interface FolderStore {
   folders: Folder[];
@@ -12,10 +12,6 @@ interface FolderStore {
 }
 
 let availabilityUnsub: (() => void) | null = null;
-
-function normalizePathForPrefix(filePath: string): string {
-  return filePath.replace(/\\/g, '/');
-}
 
 export const useFolderStore = create<FolderStore>((set, get) => ({
   folders: [],
@@ -36,18 +32,7 @@ export const useFolderStore = create<FolderStore>((set, get) => ({
   },
 
   isWritable: (filePath: string) => {
-    const folders = get().folders;
-    const normalizedFilePath = normalizePathForPrefix(filePath);
-    let best: Folder | null = null;
-    for (const folder of folders) {
-      const normalizedFolderPath = normalizePathForPrefix(folder.path);
-      if (
-        normalizedFilePath === normalizedFolderPath ||
-        normalizedFilePath.startsWith(`${normalizedFolderPath}/`)
-      ) {
-        if (!best || folder.path.length > best.path.length) best = folder;
-      }
-    }
+    const best = mostSpecificFolderForPath(get().folders, filePath);
     if (!best) return true;
     return best.writable && best.available;
   },

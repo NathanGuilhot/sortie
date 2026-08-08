@@ -11,7 +11,7 @@ import {
 import type { Folder, Image, LinkPreview, Tag } from 'shared';
 import { fetchLinkPreview, hashUrl } from '../linkPreview';
 import { MIME_TYPES } from '../database-helpers';
-import { sqlPath } from '../folder-overlap-sql';
+import { sqlPath } from 'pipeline';
 import fs from 'fs/promises';
 import path from 'path';
 

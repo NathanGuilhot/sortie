@@ -38,9 +38,9 @@ describe('DatabaseFolderRepository path handling', () => {
     const imageId = seedImage(t, 'C:\\Photos\\a.jpg', { facesScanned: true });
     seedFace(t, imageId);
 
-    folders.markMissingByPathPrefix('C:/Photos/%', 'C:\\Photos');
-    folders.markFacesUnscannedByPathPrefix('C:/Photos/%');
-    folders.deleteFacesByImagePathPrefix('C:/Photos/%');
+    folders.markMissingUnderFolder('C:\\Photos');
+    folders.markFacesUnscannedUnderFolder('C:\\Photos');
+    folders.deleteFacesUnderFolder('C:\\Photos');
 
     expect(
       t.raw.prepare('SELECT missing, faces_scanned FROM images WHERE id = ?').get(imageId),
@@ -49,5 +49,44 @@ describe('DatabaseFolderRepository path handling', () => {
       faces_scanned: 0,
     });
     expect(t.raw.prepare('SELECT COUNT(*) AS count FROM faces').get()).toEqual({ count: 0 });
+  });
+
+  it('clears missing rows under a folder given the folder path', () => {
+    seedFolder(t, 'C:\\Photos');
+    const imageId = seedImage(t, 'C:\\Photos\\a.jpg', { missing: true });
+
+    folders.clearMissingUnderFolder('C:\\Photos');
+
+    expect(t.raw.prepare('SELECT missing FROM images WHERE id = ?').get(imageId)).toEqual({
+      missing: 0,
+    });
+  });
+
+  it('does not mark images missing when another available folder still covers them', () => {
+    seedFolder(t, '/foo');
+    seedFolder(t, '/foo/bar');
+    const outer = seedImage(t, '/foo/a.jpg');
+    const inner = seedImage(t, '/foo/bar/b.jpg');
+
+    folders.markMissingUnderFolder('/foo');
+
+    expect(t.raw.prepare('SELECT missing FROM images WHERE id = ?').get(outer)).toEqual({
+      missing: 1,
+    });
+    expect(t.raw.prepare('SELECT missing FROM images WHERE id = ?').get(inner)).toEqual({
+      missing: 0,
+    });
+  });
+
+  it('classifies overlapping folders into parents and children', () => {
+    seedFolder(t, '/foo');
+    seedFolder(t, '/foo/bar');
+    seedFolder(t, '/foo/bar/baz');
+    seedFolder(t, '/unrelated');
+
+    expect(folders.findOverlappingFolders('/foo/bar')).toEqual({
+      parents: ['/foo'],
+      children: ['/foo/bar/baz'],
+    });
   });
 });
