@@ -261,7 +261,7 @@ export const usePinterestImportStore = create<PinterestImportStore>()((set, get)
               },
             };
           }
-        } else if (existing?.status !== 'error') {
+        } else if (existing?.status !== 'error' && existing?.status !== 'imported') {
           imports = {
             ...imports,
             [progress.currentPinId]: { status: 'error', error: 'Import failed' },
