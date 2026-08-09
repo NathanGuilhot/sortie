@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { DuplicateGroup, DuplicateScanProgress } from 'shared';
+import { DuplicateGroup, DuplicateScanProgress, HashScanResult } from 'shared';
 import { getIpcErrorMessage, runIpcTask } from '../ipc';
+import { type OperationHandle, runOperation } from '../operations/runOperation';
 
 interface CleanupStore {
   duplicateGroups: DuplicateGroup[];
@@ -8,7 +9,7 @@ interface CleanupStore {
   error: string | null;
   scanning: boolean;
   scanProgress: DuplicateScanProgress | null;
-  currentOpId: string | null;
+  scanHandle: OperationHandle<HashScanResult> | null;
 
   setError: (error: string | null) => void;
   scanForDuplicates: () => Promise<void>;
@@ -24,26 +25,27 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
   error: null,
   scanning: false,
   scanProgress: null,
-  currentOpId: null,
+  scanHandle: null,
 
   setError: (error) => set({ error }),
 
   scanForDuplicates: async () => {
-    const opId = crypto.randomUUID();
     set({
       scanning: true,
       error: null,
       scanProgress: { phase: 'hashing', current: 0, total: 0 },
-      currentOpId: opId,
+      scanHandle: null,
     });
-
-    const unsubscribe = window.sortieAPI.onHashProgress((progress) => {
-      set({ scanProgress: { phase: 'hashing', ...progress } });
+    const handle = runOperation({
+      subscribe: window.sortieAPI.onHashProgress,
+      start: window.sortieAPI.computeMissingHashes,
+      onProgress: (progress) => set({ scanProgress: { phase: 'hashing', ...progress } }),
     });
+    set({ scanHandle: handle });
 
     await runIpcTask({
       run: async () => {
-        const hashResult = await window.sortieAPI.computeMissingHashes(opId);
+        const hashResult = await handle.result;
         if (hashResult.cancelled) {
           return null;
         }
@@ -53,7 +55,7 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
       },
       onSuccess: (groups) => {
         if (groups === null) {
-          set({ scanning: false, scanProgress: null, currentOpId: null });
+          set({ scanning: false, scanProgress: null, scanHandle: null });
           return;
         }
 
@@ -61,21 +63,20 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
           duplicateGroups: groups,
           scanning: false,
           scanProgress: { phase: 'done', current: 0, total: 0 },
-          currentOpId: null,
+          scanHandle: null,
         });
       },
       onError: (message) => {
-        set({ error: message, scanning: false, scanProgress: null, currentOpId: null });
+        set({ error: message, scanning: false, scanProgress: null, scanHandle: null });
       },
-      onFinally: unsubscribe,
     });
   },
 
   cancelScan: async () => {
-    const opId = get().currentOpId;
-    if (!opId) return;
+    const handle = get().scanHandle;
+    if (!handle) return;
     await runIpcTask({
-      run: () => window.sortieAPI.cancelOperation(opId),
+      run: handle.cancel,
       onError: (message) => set({ error: message }),
     });
   },

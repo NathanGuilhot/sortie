@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { SortieProgress } from 'shared';
 import { ScreenShell, StatHeader, EmptyState, PrimaryButton } from './screen';
-import { toast } from '../stores/toastStore';
 import { useFolderStore } from '../stores/folderStore';
 import { useOnboardingStore } from '../stores/onboardingStore';
+import { useFolderScanStore } from '../stores/folderScanStore';
 import { showIpcError } from '../ipc';
 import { FolderScannerCard } from './FolderScannerCard';
 import { PlusIcon as PlusIconSvg, FolderPlusIcon as FolderPlusIconSvg } from './icons';
@@ -17,9 +16,11 @@ export function FolderScanner() {
   const folders = useFolderStore((s) => s.folderStats);
   const refreshFolderStats = useFolderStore((s) => s.loadStats);
   const [loading, setLoading] = useState(true);
-  const [scanningFolder, setScanningFolder] = useState<string | null>(null);
-  const [scanOpId, setScanOpId] = useState<string | null>(null);
-  const [scanProgress, setScanProgress] = useState<SortieProgress | null>(null);
+  const scanningFolder = useFolderScanStore((s) => s.scanningFolder);
+  const scanProgress = useFolderScanStore((s) => s.scanProgress);
+  const addFolderAndScan = useFolderScanStore((s) => s.addFolderAndScan);
+  const scanFolder = useFolderScanStore((s) => s.scanFolder);
+  const cancelScan = useFolderScanStore((s) => s.cancelScan);
   const [removingFolder, setRemovingFolder] = useState<string | null>(null);
   const [resettingDb, setResettingDb] = useState(false);
 
@@ -38,72 +39,6 @@ export function FolderScanner() {
   useEffect(() => {
     void loadFolders();
   }, [loadFolders]);
-
-  const handleAddFolder = async () => {
-    try {
-      const selected = await window.sortieAPI.pickFolder();
-      if (!selected) return;
-      const { overlap } = await window.sortieAPI.addFolder(selected);
-      if (overlap.parents.length > 0 || overlap.children.length > 0) {
-        toast.info(
-          'This folder overlaps with another watched folder — Sortie deduplicates events and preserves metadata.',
-        );
-      }
-      await loadFolders();
-
-      const opId = crypto.randomUUID();
-      setScanningFolder(selected);
-      setScanOpId(opId);
-      setScanProgress(null);
-      const unsubscribe = window.sortieAPI.onScanProgress((progress) => {
-        setScanProgress(progress);
-      });
-      try {
-        await window.sortieAPI.scanFolder(selected, opId);
-      } finally {
-        unsubscribe();
-      }
-      setScanningFolder(null);
-      setScanOpId(null);
-      setScanProgress(null);
-      await loadFolders();
-    } catch (error) {
-      showIpcError(error);
-      setScanningFolder(null);
-      setScanOpId(null);
-      setScanProgress(null);
-    }
-  };
-
-  const handleScanFolder = async (path: string) => {
-    const opId = crypto.randomUUID();
-    setScanningFolder(path);
-    setScanOpId(opId);
-    setScanProgress(null);
-    const unsubscribe = window.sortieAPI.onScanProgress((progress) => {
-      setScanProgress(progress);
-    });
-    try {
-      await window.sortieAPI.scanFolder(path, opId);
-      await loadFolders();
-    } catch (error) {
-      showIpcError(error);
-    } finally {
-      unsubscribe();
-      setScanningFolder(null);
-      setScanOpId(null);
-      setScanProgress(null);
-    }
-  };
-
-  const handleCancelScan = async () => {
-    if (!scanOpId) return;
-    try {
-      await window.sortieAPI.cancelOperation(scanOpId);
-    } catch (error) {
-      showIpcError(error);
-    }
-  };
 
   const handleWatchToggle = async (path: string, currentlyWatched: boolean) => {
     try {
@@ -177,7 +112,7 @@ export function FolderScanner() {
           { value: formatSize(totalSize), label: 'Total Size' },
         ]}
         action={
-          <PrimaryButton icon={PlusIcon} onClick={() => void handleAddFolder()}>
+          <PrimaryButton icon={PlusIcon} onClick={() => void addFolderAndScan()}>
             Add Folder
           </PrimaryButton>
         }
@@ -199,7 +134,7 @@ export function FolderScanner() {
           title="No folders yet"
           description="Add a folder to get started."
           action={
-            <PrimaryButton icon={PlusIcon} size="lg" onClick={() => void handleAddFolder()}>
+            <PrimaryButton icon={PlusIcon} size="lg" onClick={() => void addFolderAndScan()}>
               Add Your First Folder
             </PrimaryButton>
           }
@@ -217,8 +152,8 @@ export function FolderScanner() {
               onRemoveFolder={(folderPath) => void handleRemoveFolder(folderPath)}
               onCancelRemove={() => setRemovingFolder(null)}
               onWatchToggle={(folderPath, watched) => void handleWatchToggle(folderPath, watched)}
-              onScanFolder={(folderPath) => void handleScanFolder(folderPath)}
-              onCancelScan={() => void handleCancelScan()}
+              onScanFolder={(folderPath) => void scanFolder(folderPath)}
+              onCancelScan={() => void cancelScan()}
               onFaceScanToggle={(folderPath, excluded) =>
                 void handleFaceScanExclusionToggle(folderPath, excluded)
               }

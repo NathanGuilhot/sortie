@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Person, Image, FaceScanProgress, FaceScanResult } from 'shared';
 import { runIpcTask } from '../ipc';
+import { type OperationHandle, runOperation } from '../operations/runOperation';
 
 interface PeopleStore {
   persons: Person[];
@@ -11,7 +12,7 @@ interface PeopleStore {
   scanning: boolean;
   scanProgress: FaceScanProgress | null;
   scanResult: FaceScanResult | null;
-  currentOpId: string | null;
+  scanHandle: OperationHandle<FaceScanResult> | null;
 
   fetchPersons: () => Promise<void>;
   selectPerson: (person: Person | null) => void;
@@ -36,7 +37,7 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
   scanning: false,
   scanProgress: null,
   scanResult: null,
-  currentOpId: null,
+  scanHandle: null,
 
   setError: (error) => set({ error }),
   clearScanResult: () => set({ scanResult: null }),
@@ -111,45 +112,47 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
   },
 
   scanFaces: async () => {
-    const opId = crypto.randomUUID();
     set({
       scanning: true,
       error: null,
       scanResult: null,
       scanProgress: { current: 0, total: 0, currentFile: '' },
-      currentOpId: opId,
+      scanHandle: null,
     });
-
-    const unsubscribe = window.sortieAPI.onFaceScanProgress((progress) => {
-      set((state) => {
-        if (!progress.personUpdates?.length) {
-          return { scanProgress: progress };
-        }
-        const byId = new Map(state.persons.map((p) => [p.id, p]));
-        for (const updated of progress.personUpdates) {
-          byId.set(updated.id, updated);
-        }
-        return { scanProgress: progress, persons: [...byId.values()] };
-      });
+    const handle = runOperation({
+      subscribe: window.sortieAPI.onFaceScanProgress,
+      start: window.sortieAPI.processFaces,
+      onProgress: (progress) => {
+        set((state) => {
+          if (!progress.personUpdates?.length) {
+            return { scanProgress: progress };
+          }
+          const byId = new Map(state.persons.map((p) => [p.id, p]));
+          for (const updated of progress.personUpdates) {
+            byId.set(updated.id, updated);
+          }
+          return { scanProgress: progress, persons: [...byId.values()] };
+        });
+      },
     });
+    set({ scanHandle: handle });
 
     await runIpcTask({
-      run: () => window.sortieAPI.processFaces(opId),
+      run: () => handle.result,
       onSuccess: async (result) => {
-        set({ scanning: false, scanProgress: null, scanResult: result, currentOpId: null });
+        set({ scanning: false, scanProgress: null, scanResult: result, scanHandle: null });
         await get().fetchPersons();
       },
       onError: (message) =>
-        set({ error: message, scanning: false, scanProgress: null, currentOpId: null }),
-      onFinally: unsubscribe,
+        set({ error: message, scanning: false, scanProgress: null, scanHandle: null }),
     });
   },
 
   cancelScan: async () => {
-    const opId = get().currentOpId;
-    if (!opId) return;
+    const handle = get().scanHandle;
+    if (!handle) return;
     await runIpcTask({
-      run: () => window.sortieAPI.cancelOperation(opId),
+      run: handle.cancel,
       onError: (message) => set({ error: message }),
     });
   },

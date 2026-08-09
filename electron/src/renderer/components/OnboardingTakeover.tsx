@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import type { SortieProgress } from 'shared';
 import { useFolderStore } from '../stores/folderStore';
 import { useImageStore } from '../stores/imageStore';
 import { useOnboardingStore } from '../stores/onboardingStore';
+import { useFolderScanStore } from '../stores/folderScanStore';
 import { toast } from '../stores/toastStore';
 import { OnboardingFeaturesStep } from './OnboardingFeaturesStep';
 import { OnboardingFolderStep, type SuggestedFolder } from './OnboardingFolderStep';
@@ -20,9 +20,10 @@ export function OnboardingTakeover() {
   const [step, setStep] = useState<'features' | 'folders'>('features');
   const [suggestion, setSuggestion] = useState<SuggestedFolder | null>(null);
   const [working, setWorking] = useState<null | 'pictures' | 'custom'>(null);
-  const [scanProgress, setScanProgress] = useState<SortieProgress | null>(null);
-  const [scanningPath, setScanningPath] = useState<string | null>(null);
-  const [scanOpId, setScanOpId] = useState<string | null>(null);
+  const scanningPath = useFolderScanStore((s) => s.scanningFolder);
+  const scanProgress = useFolderScanStore((s) => s.scanProgress);
+  const scanFolder = useFolderScanStore((s) => s.scanFolder);
+  const cancelScan = useFolderScanStore((s) => s.cancelScan);
   const refreshInFlightRef = useRef(false);
 
   const visible = loaded && hasImages === false && !completed;
@@ -61,48 +62,22 @@ export function OnboardingTakeover() {
     }
   }, [loaded, completed, hasImages, setCompleted, markHint]);
 
-  const kickScan = async (folderPath: string) => {
-    const opId = crypto.randomUUID();
-    setScanningPath(folderPath);
-    setScanOpId(opId);
-    setScanProgress(null);
-    const unsubscribe = window.sortieAPI.onScanProgress((p) => {
-      setScanProgress(p);
-      const isMilestone = p.current > 0 && (p.current % 100 === 0 || p.current === p.total);
-      if (isMilestone && !refreshInFlightRef.current) {
+  const kickScan = (folderPath: string) =>
+    scanFolder(folderPath, {
+      onMilestone: async () => {
+        if (refreshInFlightRef.current) return;
         refreshInFlightRef.current = true;
-        void (async () => {
-          try {
-            await window.sortieAPI.reshuffleImages();
-            const { lastQuery, runQuery } = useImageStore.getState();
-            await runQuery(lastQuery ?? {});
-          } catch {
-            // best-effort; pull-to-refresh remains available.
-          } finally {
-            refreshInFlightRef.current = false;
-          }
-        })();
-      }
+        try {
+          await window.sortieAPI.reshuffleImages();
+          const { lastQuery, runQuery } = useImageStore.getState();
+          await runQuery(lastQuery ?? {});
+        } catch {
+          // best-effort; pull-to-refresh remains available.
+        } finally {
+          refreshInFlightRef.current = false;
+        }
+      },
     });
-    try {
-      await window.sortieAPI.scanFolder(folderPath, opId);
-    } finally {
-      unsubscribe();
-      setScanProgress(null);
-      setScanningPath(null);
-      setScanOpId(null);
-    }
-  };
-
-  const handleCancelScan = async () => {
-    if (!scanOpId) return;
-    try {
-      await window.sortieAPI.cancelOperation(scanOpId);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message);
-    }
-  };
 
   const handleAdd = async (mode: 'pictures' | 'custom') => {
     if (working) return;
@@ -122,10 +97,7 @@ export function OnboardingTakeover() {
       await refreshFolders();
       await setCompleted();
       // Un-awaited so the user watches the gallery fill in.
-      void kickScan(target).catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        toast.error(message);
-      });
+      void kickScan(target);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(message);
@@ -141,10 +113,7 @@ export function OnboardingTakeover() {
     // Keep the pill alive after dismissal while our scan is still running.
     if (scanningPath && scanProgress) {
       return (
-        <OnboardingScanProgressPill
-          progress={scanProgress}
-          onCancel={() => void handleCancelScan()}
-        />
+        <OnboardingScanProgressPill progress={scanProgress} onCancel={() => void cancelScan()} />
       );
     }
     return null;
