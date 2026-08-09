@@ -1,21 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import os from 'os';
-import path from 'path';
-import fs from 'fs';
-import { DatabaseManager } from '../db';
+import { createTestDb, type TestDb } from '../testing/test-db';
 
-describe('DatabaseManager.upsertImage', () => {
-  let tmpDir: string;
-  let dbm: DatabaseManager;
+describe('DatabaseImageRepository.upsertImage', () => {
+  let testDb: TestDb;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sortie-test-'));
-    dbm = new DatabaseManager(path.join(tmpDir, 'test.db'));
+    testDb = createTestDb();
   });
 
   afterEach(() => {
-    dbm.close?.();
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    testDb.close();
   });
 
   const baseImage = {
@@ -39,15 +33,15 @@ describe('DatabaseManager.upsertImage', () => {
   };
 
   it('inserts a new row with created=true', () => {
-    const result = dbm.upsertImage(baseImage);
+    const result = testDb.manager.images.upsertImage(baseImage);
     expect(result.created).toBe(true);
     expect(result.fileHashMatched).toBe(false);
     expect(result.id).toBeGreaterThan(0);
   });
 
   it('preserves user-edited metadata and related-table rows on re-upsert', () => {
-    const { id } = dbm.upsertImage(baseImage);
-    const db = dbm.getDatabase();
+    const { id } = testDb.manager.images.upsertImage(baseImage);
+    const { raw: db } = testDb;
 
     db.prepare("UPDATE images SET description='keep', favorite=1 WHERE id=?").run(id);
     db.prepare("INSERT INTO tags (name) VALUES ('sunset')").run();
@@ -63,7 +57,11 @@ describe('DatabaseManager.upsertImage', () => {
       id,
     );
 
-    const result2 = dbm.upsertImage({ ...baseImage, file_size: 2000, file_hash: 'hash-v2' });
+    const result2 = testDb.manager.images.upsertImage({
+      ...baseImage,
+      file_size: 2000,
+      file_hash: 'hash-v2',
+    });
 
     expect(result2.created).toBe(false);
     expect(result2.fileHashMatched).toBe(false);
@@ -91,15 +89,15 @@ describe('DatabaseManager.upsertImage', () => {
   });
 
   it('reports fileHashMatched=true when hash and size are unchanged', () => {
-    dbm.upsertImage(baseImage);
-    const result2 = dbm.upsertImage(baseImage);
+    testDb.manager.images.upsertImage(baseImage);
+    const result2 = testDb.manager.images.upsertImage(baseImage);
     expect(result2.created).toBe(false);
     expect(result2.fileHashMatched).toBe(true);
   });
 
   it('reports fileHashMatched=false when size differs even if hash matches', () => {
-    dbm.upsertImage(baseImage);
-    const result2 = dbm.upsertImage({ ...baseImage, file_size: 9999 });
+    testDb.manager.images.upsertImage(baseImage);
+    const result2 = testDb.manager.images.upsertImage({ ...baseImage, file_size: 9999 });
     expect(result2.fileHashMatched).toBe(false);
   });
 });

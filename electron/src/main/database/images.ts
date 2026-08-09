@@ -5,13 +5,13 @@ import {
   extractExif,
   extractPalette,
   type FaceScanService,
+  type SuggestionEngine,
   loadImageInput,
   runWithConcurrency,
 } from 'pipeline';
-import type { Folder, Image, LinkPreview, Tag } from 'shared';
+import type { Folder, Image, LinkPreview, Tag, TagSuggestion } from 'shared';
 import { fetchLinkPreview, hashUrl } from '../linkPreview';
 import { MIME_TYPES } from '../database-helpers';
-import { sqlPath } from 'pipeline';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -19,6 +19,7 @@ interface DatabaseImagesDeps {
   requireDb(): DatabaseManager;
   getEmbedder(): ClipEmbedder;
   getFaceScan(): FaceScanService;
+  getSuggestionEngine(): SuggestionEngine;
   getFolderForPath(filePath: string): Folder | null;
 }
 
@@ -68,7 +69,15 @@ export class DatabaseImagesService {
   }
 
   fetchImagesByIdsInOrder(ids: number[]): Image[] {
-    return this.deps.requireDb().getImagesByIds(ids);
+    return this.deps.requireDb().images.getImagesByIds(ids);
+  }
+
+  async getSuggestions(imageId: number): Promise<TagSuggestion[]> {
+    return this.deps.getSuggestionEngine().generateSuggestionsForImage(imageId);
+  }
+
+  async dismissSuggestion(imageId: number, tagId: number): Promise<void> {
+    this.deps.getSuggestionEngine().dismissSuggestion(imageId, tagId);
   }
 
   async getImages(limit: number = 100, offset: number = 0): Promise<Image[]> {
@@ -77,7 +86,7 @@ export class DatabaseImagesService {
     const cached = this.imageCache.get(cacheKey);
     if (cached) return cached;
 
-    const allIds = this.getOrBuildShuffledIds('default', () => db.getVisibleImageIds());
+    const allIds = this.getOrBuildShuffledIds('default', () => db.images.getVisibleImageIds());
     const pageIds = allIds.slice(offset, offset + limit);
     const images = this.fetchImagesByIdsInOrder(pageIds);
     this.imageCache.set(cacheKey, images);
@@ -85,7 +94,15 @@ export class DatabaseImagesService {
   }
 
   async getImage(id: number): Promise<Image | null> {
-    return this.deps.requireDb().getImageById(id);
+    return this.deps.requireDb().images.getImageById(id);
+  }
+
+  getImageIdByPath(filePath: string): number | null {
+    return this.deps.requireDb().images.getImageIdByPath(filePath);
+  }
+
+  isKnownImagePath(filePath: string): boolean {
+    return this.deps.requireDb().images.getImageScanState(filePath) !== null;
   }
 
   invalidateImageCache(): void {
@@ -107,38 +124,12 @@ export class DatabaseImagesService {
   }
 
   async hideImage(imageId: number): Promise<void> {
-    this.deps.requireDb().setImageHidden(imageId);
+    this.deps.requireDb().folders.setImageHidden(imageId);
     this.invalidateImageCache();
   }
 
   async updateImageTags(imageId: number, tagNames: string[]): Promise<void> {
-    const db = this.deps.requireDb().getDatabase();
-
-    const transaction = db.transaction(() => {
-      db.prepare(`DELETE FROM image_tags WHERE image_id = ? AND source = 'user'`).run(imageId);
-
-      const insertTag = db.prepare(
-        `INSERT OR IGNORE INTO tags (name, category) VALUES (?, 'user')`,
-      );
-      const getTagId = db.prepare(`SELECT id FROM tags WHERE name = ?`);
-      const nextPosition = db.prepare(
-        `SELECT COALESCE(MAX(position), -1) + 1 AS next FROM image_tags WHERE tag_id = ?`,
-      );
-      const linkTag = db.prepare(
-        `INSERT OR IGNORE INTO image_tags (image_id, tag_id, source, position) VALUES (?, ?, 'user', ?)`,
-      );
-
-      for (const name of tagNames) {
-        insertTag.run(name);
-        const row = getTagId.get(name) as { id: number } | undefined;
-        if (!row) continue;
-
-        const { next } = nextPosition.get(row.id) as { next: number };
-        linkTag.run(imageId, row.id, next);
-      }
-    });
-
-    transaction();
+    this.deps.requireDb().tags.setUserTags(imageId, tagNames);
     this.invalidateMetadataCaches();
   }
 
@@ -153,30 +144,30 @@ export class DatabaseImagesService {
       website_link?: string | null;
     },
   ): Promise<void> {
-    this.deps.requireDb().updateImageMetadata(imageId, metadata);
+    this.deps.requireDb().images.updateImageMetadata(imageId, metadata);
     this.invalidateMetadataCaches();
   }
 
   async getLinkPreview(url: string): Promise<LinkPreview | null> {
-    return this.deps.requireDb().getLinkPreview(hashUrl(url));
+    return this.deps.requireDb().images.getLinkPreview(hashUrl(url));
   }
 
   async fetchAndCacheLinkPreview(url: string): Promise<LinkPreview> {
     const preview = await fetchLinkPreview(url);
-    this.deps.requireDb().saveLinkPreview(hashUrl(preview.url), preview);
+    this.deps.requireDb().images.saveLinkPreview(hashUrl(preview.url), preview);
     return preview;
   }
 
   async getAllTags(): Promise<Tag[]> {
-    return this.deps.requireDb().getAllTags() as Tag[];
+    return this.deps.requireDb().tags.getAllTags() as Tag[];
   }
 
   async getTagsWithCounts(): Promise<Array<Tag & { usage_count: number }>> {
-    return this.deps.requireDb().getTagsWithCounts() as Array<Tag & { usage_count: number }>;
+    return this.deps.requireDb().tags.getTagsWithCounts() as Array<Tag & { usage_count: number }>;
   }
 
   private isUnchangedScanComplete(
-    state: ReturnType<DatabaseManager['getImageScanState']>,
+    state: ReturnType<DatabaseManager['images']['getImageScanState']>,
     stats: Awaited<ReturnType<typeof fs.stat>>,
     faceScanExcluded: boolean,
   ): state is NonNullable<typeof state> {
@@ -200,11 +191,9 @@ export class DatabaseImagesService {
     const fileName = path.basename(filePath);
     const stats = await fs.stat(filePath);
     const folder = this.deps.getFolderForPath(filePath);
-    const existingState = db.getImageScanState(normalizedPath);
+    const existingState = db.images.getImageScanState(normalizedPath);
     if (this.isUnchangedScanComplete(existingState, stats, !!folder?.exclude_from_face_scan)) {
-      db.getDatabase()
-        .prepare('UPDATE images SET missing = 0 WHERE id = ? AND missing <> 0')
-        .run(existingState.id);
+      db.images.clearMissingFlag(existingState.id);
       return { imageId: existingState.id, skipped: true };
     }
 
@@ -244,7 +233,7 @@ export class DatabaseImagesService {
       dhash: null,
     };
 
-    const { id: imageId, created, fileHashMatched } = db.upsertImage(imageData);
+    const { id: imageId, created, fileHashMatched } = db.images.upsertImage(imageData);
     if (!created && fileHashMatched) {
       if (options.invalidateCache !== false) {
         this.invalidateImageCache();
@@ -259,7 +248,7 @@ export class DatabaseImagesService {
 
     if (embeddingResult.status === 'fulfilled') {
       try {
-        db.insertEmbedding(imageId, embeddingResult.value);
+        db.vectors.insertEmbedding(imageId, embeddingResult.value);
       } catch (error) {
         console.error(`Failed to insert embedding for ${filePath}:`, error);
       }
@@ -269,7 +258,7 @@ export class DatabaseImagesService {
 
     if (paletteResult.status === 'fulfilled') {
       try {
-        db.insertPalette(imageId, paletteResult.value);
+        db.palettes.insertPalette(imageId, paletteResult.value);
       } catch (error) {
         console.error(`Failed to insert palette for ${filePath}:`, error);
       }
@@ -295,28 +284,14 @@ export class DatabaseImagesService {
   }
 
   async recheckExternalImageAvailability(): Promise<{ changed: number }> {
-    const db = this.deps.requireDb().getDatabase();
-    const rows = db
-      .prepare(
-        `SELECT i.id, i.file_path, i.missing
-         FROM images i
-         WHERE i.hidden = 0
-           AND NOT EXISTS (
-             SELECT 1 FROM folders f
-             WHERE ${sqlPath('i.file_path')} = ${sqlPath('f.path')}
-               OR ${sqlPath('i.file_path')} LIKE ${sqlPath('f.path')} || '/%'
-           )`,
-      )
-      .all() as Array<{ id: number; file_path: string; missing: number }>;
+    const db = this.deps.requireDb();
+    const rows = db.images.listImagesOutsideAnyFolder();
 
     let changed = 0;
-    const update = db.prepare(
-      "UPDATE images SET missing = ?, modified_at = datetime('now') WHERE id = ?",
-    );
     await runWithConcurrency(rows, 16, async (row) => {
       const nextMissing = (await pathExists(row.file_path)) ? 0 : 1;
       if (row.missing !== nextMissing) {
-        update.run(nextMissing, row.id);
+        db.images.setMissingFlag(row.id, !!nextMissing);
         changed += 1;
       }
     });

@@ -9,8 +9,7 @@ import type {
   PinterestTarget,
   SortieAPI,
 } from 'shared';
-import { IPC_EVENTS } from 'shared';
-import { invoke, invokeNone, subscribe } from '../helpers';
+import { invoke, invokeNone, subscribeEvent } from '../helpers';
 
 export function createPinterestApi(): Pick<SortieAPI, 'pinterest'> {
   return {
@@ -30,9 +29,9 @@ export function createPinterestApi(): Pick<SortieAPI, 'pinterest'> {
       cancelBulkImport: (jobId: string): Promise<PinterestBulkImportCancelResponse> =>
         invoke('pinterestCancelBulkImport', { jobId }),
       onBulkImportProgress: (callback: (progress: PinterestBulkImportProgress) => void) =>
-        subscribe<PinterestBulkImportProgress>(IPC_EVENTS.pinterestBulkImportProgress, callback),
+        subscribeEvent('pinterestBulkImportProgress', callback),
       onBulkImportComplete: (callback: (summary: PinterestBulkImportSummary) => void) =>
-        subscribe<PinterestBulkImportSummary>(IPC_EVENTS.pinterestBulkImportComplete, callback),
+        subscribeEvent('pinterestBulkImportComplete', callback),
       revealImportFolder: () => invokeNone('pinterestRevealImportFolder'),
       getImportFolder: () => invokeNone('pinterestGetImportFolder'),
     },

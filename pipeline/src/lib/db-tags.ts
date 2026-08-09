@@ -88,6 +88,34 @@ export class DatabaseTagRepository {
     this.db.prepare('DELETE FROM tags WHERE id = ?').run(tagId);
   }
 
+  setUserTags(imageId: number, tagNames: string[]): void {
+    const transaction = this.db.transaction(() => {
+      this.db.prepare("DELETE FROM image_tags WHERE image_id = ? AND source = 'user'").run(imageId);
+
+      const insertTag = this.db.prepare(
+        "INSERT OR IGNORE INTO tags (name, category) VALUES (?, 'user')",
+      );
+      const getTagId = this.db.prepare('SELECT id FROM tags WHERE name = ?');
+      const nextPosition = this.db.prepare(
+        'SELECT COALESCE(MAX(position), -1) + 1 AS next FROM image_tags WHERE tag_id = ?',
+      );
+      const linkTag = this.db.prepare(
+        "INSERT OR IGNORE INTO image_tags (image_id, tag_id, source, position) VALUES (?, ?, 'user', ?)",
+      );
+
+      for (const name of tagNames) {
+        insertTag.run(name);
+        const row = getTagId.get(name) as { id: number } | undefined;
+        if (!row) continue;
+
+        const { next } = nextPosition.get(row.id) as { next: number };
+        linkTag.run(imageId, row.id, next);
+      }
+    });
+
+    transaction();
+  }
+
   updateImageMetadata(
     imageId: number,
     metadata: {

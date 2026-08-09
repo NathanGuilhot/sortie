@@ -1,7 +1,7 @@
-import { BrowserWindow } from 'electron';
 import fs from 'fs/promises';
-import { IPC_EVENTS, type FolderAvailabilityChange } from 'shared';
+import { type FolderAvailabilityChange } from 'shared';
 import { DatabaseService } from './database';
+import { emitToRenderer } from './ipc/events';
 
 export class FolderAvailabilityMonitor {
   private dbService: DatabaseService;
@@ -76,8 +76,6 @@ export class FolderAvailabilityMonitor {
   }
 
   private broadcast(change: FolderAvailabilityChange) {
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send(IPC_EVENTS.folderAvailabilityChanged, change);
-    }
+    emitToRenderer('broadcast', 'folderAvailabilityChanged', change);
   }
 }

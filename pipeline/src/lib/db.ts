@@ -1,41 +1,29 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import {
-  Image,
-  Face,
-  Person,
-  Folder,
-  FolderWithStats,
-  LinkPreview,
-  PaletteColor,
-  type AppSettingKey,
-  type OcrStatus,
-} from 'shared';
-import {
-  DatabaseImageRepository,
-  type DatabaseImageMetadataUpdate,
-  type ImageScanState,
-} from './db-images';
+import { type AppSettingKey } from 'shared';
+import { DatabaseImageRepository } from './db-images';
+import { DatabaseBoardRepository } from './db-boards';
 import { extractExif } from './exif';
 import { DatabaseFolderRepository } from './db-folders';
 import { runDatabaseMigrations } from './db-migrations';
 import { DatabaseOcrRepository } from './db-ocr';
 import { DatabasePaletteRepository } from './db-palette';
-import { DatabasePeopleRepository, type VecMatchRow } from './db-people';
+import { DatabasePeopleRepository } from './db-people';
 import { setupDatabaseSchema } from './db-schema';
-import { DatabaseTagRepository, type DismissedDbRow, type TagDbRow } from './db-tags';
+import { DatabaseTagRepository } from './db-tags';
 import { DatabaseVectorRepository } from './db-vectors';
 
 export class DatabaseManager {
   private db: Database.Database;
   private vecLoaded = false;
-  private readonly images: DatabaseImageRepository;
-  private readonly tags: DatabaseTagRepository;
-  private readonly vectors: DatabaseVectorRepository;
-  private readonly palettes: DatabasePaletteRepository;
-  private readonly people: DatabasePeopleRepository;
-  private readonly ocr: DatabaseOcrRepository;
-  private readonly folders: DatabaseFolderRepository;
+  readonly images: DatabaseImageRepository;
+  readonly tags: DatabaseTagRepository;
+  readonly vectors: DatabaseVectorRepository;
+  readonly palettes: DatabasePaletteRepository;
+  readonly people: DatabasePeopleRepository;
+  readonly ocr: DatabaseOcrRepository;
+  readonly folders: DatabaseFolderRepository;
+  readonly boards: DatabaseBoardRepository;
 
   constructor(dbPath: string) {
     this.db = new Database(dbPath);
@@ -44,12 +32,13 @@ export class DatabaseManager {
     this.setupSchema();
     this.runMigrations();
     this.tags = new DatabaseTagRepository(this.db);
-    this.images = new DatabaseImageRepository(this.db, this.tags);
-    this.vectors = new DatabaseVectorRepository(this.db);
+    this.images = new DatabaseImageRepository(this.db, this.tags, this.vecLoaded);
+    this.vectors = new DatabaseVectorRepository(this.db, this.vecLoaded);
     this.palettes = new DatabasePaletteRepository(this.db, this.vecLoaded);
     this.people = new DatabasePeopleRepository(this.db, this.vecLoaded);
     this.ocr = new DatabaseOcrRepository(this.db);
-    this.folders = new DatabaseFolderRepository(this.db);
+    this.folders = new DatabaseFolderRepository(this.db, this.vecLoaded);
+    this.boards = new DatabaseBoardRepository(this.db);
   }
 
   private setupPragmas() {
@@ -85,65 +74,21 @@ export class DatabaseManager {
     runDatabaseMigrations(this.db, this.vecLoaded);
   }
 
-  upsertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): {
-    id: number;
-    created: boolean;
-    fileHashMatched: boolean;
-  } {
-    return this.images.upsertImage(image);
-  }
-
-  insertEmbedding(rowid: number, embedding: number[]) {
-    this.vectors.insertEmbedding(rowid, embedding);
-  }
-
-  insertPalette(imageId: number, palette: PaletteColor[]): void {
-    this.palettes.insertPalette(imageId, palette);
-  }
-
-  getPalette(imageId: number): PaletteColor[] | null {
-    return this.palettes.getPalette(imageId);
-  }
-
-  getImagesMissingPalette(): Array<{ id: number; file_path: string }> {
-    return this.palettes.getImagesMissingPalette();
-  }
-
-  getVisibleImageIds(): number[] {
-    return this.images.getVisibleImageIds();
-  }
-
-  getImagesByIds(ids: number[]): Image[] {
-    return this.images.getImagesByIds(ids);
-  }
-
-  getImageById(imageId: number): Image | null {
-    return this.images.getImageById(imageId);
-  }
-
-  getImageScanState(filePath: string): ImageScanState | null {
-    return this.images.getImageScanState(filePath);
-  }
-
-  /**
-   * Given a set of query colors in Lab space, return the N nearest images.
-   * For each image, we take the minimum distance to any of its palette
-   * colors per query, then aggregate per image by summing those minima
-   * (so "red + blue" favors images that contain both red AND blue).
-   */
-  findImagesByColors(
-    queryLabs: Array<[number, number, number]>,
-    limit: number,
-  ): Array<{ imageId: number; score: number }> {
-    return this.palettes.findImagesByColors(queryLabs, limit);
-  }
-
   close() {
     this.db.close();
   }
 
-  getDatabase(): Database.Database {
-    return this.db;
+  runInTransaction<T>(fn: () => T): T {
+    return this.db.transaction(fn)();
+  }
+
+  /**
+   * Raw database access is intentionally confined to the shared test harness.
+   * Production callers use the namespaced repositories above instead.
+   */
+  static createForTesting(): { manager: DatabaseManager; raw: Database.Database } {
+    const manager = new DatabaseManager(':memory:');
+    return { manager, raw: manager.db };
   }
 
   getSetting(key: AppSettingKey): string | null {
@@ -190,325 +135,37 @@ export class DatabaseManager {
     return { fixedImageDimensions: fixed };
   }
 
-  getVisibleEmbeddings(): Array<{ rowid: number; embedding: number[] }> {
-    return this.vectors.getVisibleEmbeddings();
-  }
-
-  getEmbedding(imageId: number): number[] | null {
-    return this.vectors.getEmbedding(imageId);
-  }
-
-  getImageTags(imageId: number): TagDbRow[] {
-    return this.tags.getImageTags(imageId);
-  }
-
-  getDismissedSuggestions(imageId: number): DismissedDbRow[] {
-    return this.tags.getDismissedSuggestions(imageId);
-  }
-
-  getDismissedSuggestionsByTag(tagId: number): DismissedDbRow[] {
-    return this.tags.getDismissedSuggestionsByTag(tagId);
-  }
-
-  getBoardImageIds(tagId: number): number[] {
-    return this.tags.getBoardImageIds(tagId);
-  }
-
-  dismissSuggestion(imageId: number, tagId: number): void {
-    this.tags.dismissSuggestion(imageId, tagId);
-  }
-
-  getAllTags(): TagDbRow[] {
-    return this.tags.getAllTags();
-  }
-
-  getTagsWithCounts(): Array<TagDbRow & { usage_count: number }> {
-    return this.tags.getTagsWithCounts();
-  }
-
-  renameTag(tagId: number, name: string): void {
-    this.tags.renameTag(tagId, name);
-  }
-
-  setTagColor(tagId: number, color: string): void {
-    this.tags.setTagColor(tagId, color);
-  }
-
-  deleteTag(tagId: number): void {
-    this.tags.deleteTag(tagId);
-  }
-
-  // --- Face / Person methods ---
-
   resetFaceData(): void {
     this.people.clearAllFaceData();
   }
 
-  insertFace(face: {
-    image_id: number;
-    person_id: number | null;
-    bbox_x: number;
-    bbox_y: number;
-    bbox_w: number;
-    bbox_h: number;
-    confidence: number;
-  }): number {
-    return this.people.insertFace(face);
-  }
-
-  insertFaceEmbedding(faceRowid: number, embedding: number[]): void {
-    this.people.insertFaceEmbedding(faceRowid, embedding);
-  }
-
-  insertFaceClipEmbedding(faceRowid: number, embedding: number[]): void {
-    this.people.insertFaceClipEmbedding(faceRowid, embedding);
-  }
-
-  getFaceEmbedding(faceId: number): number[] | null {
-    return this.people.getFaceEmbedding(faceId);
-  }
-
-  insertPerson(name?: string | null): number {
-    return this.people.insertPerson(name);
-  }
-
-  insertPersonEmbedding(personRowid: number, embedding: number[]): void {
-    this.people.insertPersonEmbedding(personRowid, embedding);
-  }
-
-  findNearestPerson(embedding: number[], limit: number = 1): VecMatchRow[] {
-    return this.people.findNearestPerson(embedding, limit);
-  }
-
-  findNearestFace(embedding: number[], limit: number = 1): VecMatchRow[] {
-    return this.people.findNearestFace(embedding, limit);
-  }
-
-  findNearestFaceClip(embedding: number[], limit: number = 1): VecMatchRow[] {
-    return this.people.findNearestFaceClip(embedding, limit);
-  }
-
-  getPersonFaceClipEmbeddings(personId: number): number[][] {
-    return this.people.getPersonFaceClipEmbeddings(personId);
-  }
-
-  getAllPersons(): Person[] {
-    return this.people.getAllPersons();
-  }
-
-  getPersonImageIds(personId: number): number[] {
-    return this.people.getPersonImageIds(personId);
-  }
-
-  getThumbnailFacesForPersons(personIds: number[]): Face[] {
-    return this.people.getThumbnailFacesForPersons(personIds);
-  }
-
-  getPersonById(personId: number): Person | null {
-    return this.people.getPersonById(personId);
-  }
-
-  getImageFaces(imageId: number): Face[] {
-    return this.people.getImageFaces(imageId);
-  }
-
-  getPersonFaces(personId: number): Face[] {
-    return this.people.getPersonFaces(personId);
-  }
-
-  updateFacePerson(faceId: number, personId: number | null): void {
-    this.people.updateFacePerson(faceId, personId);
-  }
-
-  getFacePersonId(faceId: number): number | null {
-    return this.people.getFacePersonId(faceId);
-  }
-
-  updatePersonName(personId: number, name: string): void {
-    this.people.updatePersonName(personId, name);
-  }
-
-  updatePersonThumbnail(personId: number, faceId: number): void {
-    this.people.updatePersonThumbnail(personId, faceId);
-  }
-
-  updatePersonFaceCount(personId: number): void {
-    this.people.updatePersonFaceCount(personId);
-  }
-
-  deletePerson(personId: number): void {
-    this.people.deletePerson(personId);
-  }
-
-  markImageFacesScanned(imageId: number): void {
-    this.people.markImageFacesScanned(imageId);
-  }
-
-  getUnscannedFaceImages(): Array<{ id: number; file_path: string }> {
-    return this.people.getUnscannedFaceImages();
-  }
-
-  // --- OCR methods ---
-
-  getImagePath(imageId: number): string | null {
-    return this.images.getImagePath(imageId);
-  }
-
-  getOcrStatus(imageId: number): { status: OcrStatus; at: number | null } {
-    return this.ocr.getOcrStatus(imageId);
-  }
-
-  getImageOcr(imageId: number): Array<{
-    block_index: number;
-    text: string;
-    bbox_x: number;
-    bbox_y: number;
-    bbox_w: number;
-    bbox_h: number;
-    polygon_json: string | null;
-    confidence: number;
-  }> {
-    return this.ocr.getImageOcr(imageId);
-  }
-
-  saveImageOcr(
-    imageId: number,
-    blocks: Array<{
-      text: string;
-      bbox: { x: number; y: number; width: number; height: number };
-      polygon?: [[number, number], [number, number], [number, number], [number, number]];
-      confidence: number;
-    }>,
-  ): void {
-    this.ocr.saveImageOcr(imageId, blocks);
-  }
-
-  markOcrError(imageId: number, message: string): void {
-    this.ocr.markOcrError(imageId, message);
-  }
-
-  cleanupOrphanedPersons(): void {
-    this.people.cleanupOrphanedPersons();
-  }
-
-  listFolders(): Folder[] {
-    return this.folders.listFolders();
-  }
-
-  listFoldersWithStats(): FolderWithStats[] {
-    return this.folders.listFoldersWithStats();
-  }
-
-  findFolderForPath(filePath: string): Folder | null {
-    return this.folders.findFolderForPath(filePath);
-  }
-
-  getFolderAvailabilityState(folderPath: string): { available: boolean; writable: boolean } | null {
-    return this.folders.getFolderAvailabilityState(folderPath);
-  }
-
-  updateFolderAvailabilityState(folderPath: string, available: boolean, writable: boolean): void {
-    this.folders.updateFolderAvailabilityState(folderPath, available, writable);
-  }
-
-  getFolderFaceScanExclusion(folderPath: string): boolean | null {
-    return this.folders.getFolderFaceScanExclusion(folderPath);
-  }
-
-  setFolderFaceScanExclusionFlag(folderPath: string, excluded: boolean): void {
-    this.folders.setFolderFaceScanExclusionFlag(folderPath, excluded);
-  }
-
-  clearMissingUnderFolder(folderPath: string): void {
-    this.folders.clearMissingUnderFolder(folderPath);
-  }
-
-  markMissingUnderFolder(folderPath: string): void {
-    this.folders.markMissingUnderFolder(folderPath);
-  }
-
-  deleteFacesUnderFolder(folderPath: string): void {
-    this.folders.deleteFacesUnderFolder(folderPath);
-  }
-
-  markFacesUnscannedUnderFolder(folderPath: string): void {
-    this.folders.markFacesUnscannedUnderFolder(folderPath);
-  }
-
-  findOverlappingFolders(folderPath: string): { parents: string[]; children: string[] } {
-    return this.folders.findOverlappingFolders(folderPath);
-  }
-
-  setImageHidden(imageId: number): void {
-    this.folders.setImageHidden(imageId);
-  }
-
-  setImageMissingByPath(filePath: string): void {
-    this.folders.setImageMissingByPath(filePath);
-  }
-
-  updateImageMetadata(imageId: number, metadata: DatabaseImageMetadataUpdate): void {
-    this.images.updateImageMetadata(imageId, metadata);
-  }
-
-  getLinkPreview(urlHash: string): LinkPreview | null {
-    return (
-      (this.db
-        .prepare(
-          'SELECT url, title, description, site_name, image_path, fetched_at, error FROM link_previews WHERE url_hash = ?',
-        )
-        .get(urlHash) as LinkPreview | undefined) ?? null
+  resetAllData(): void {
+    const tableRows = this.db.prepare('PRAGMA table_list').all() as Array<{
+      name: string;
+      type: string;
+      schema: string;
+    }>;
+    const mainTables = tableRows.filter(
+      (row) => row.schema === 'main' && !row.name.startsWith('sqlite_'),
     );
-  }
+    const virtualTableNames = mainTables
+      .filter((row) => row.type === 'virtual')
+      .map((row) => row.name);
+    const isVecShadow = (name: string): boolean =>
+      virtualTableNames.some((virtualTable) => name.startsWith(`${virtualTable}_`));
+    const rows = mainTables.filter(
+      (row) => (row.type === 'table' || row.type === 'virtual') && !isVecShadow(row.name),
+    );
 
-  saveLinkPreview(urlHash: string, preview: LinkPreview): void {
-    this.db
-      .prepare(
-        `INSERT OR REPLACE INTO link_previews
-          (url_hash, url, title, description, site_name, image_path, fetched_at, error)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        urlHash,
-        preview.url,
-        preview.title,
-        preview.description,
-        preview.site_name,
-        preview.image_path,
-        preview.fetched_at,
-        preview.error,
-      );
-  }
-
-  getImagesMissingFileHash(): Array<{ id: number; file_path: string }> {
-    return this.images.getImagesMissingFileHash();
-  }
-
-  updateImageFileHash(imageId: number, fileHash: string): void {
-    this.images.updateImageFileHash(imageId, fileHash);
-  }
-
-  getVisibleImagesForDuplicates(): Image[] {
-    return this.images.getVisibleImagesForDuplicates();
-  }
-
-  findNearestImageMatches(embedding: number[], limit: number): VecMatchRow[] {
-    return this.vectors.findNearestImageMatches(embedding, limit);
-  }
-
-  getDismissedDuplicatePairs(): Array<{ image_id_1: number; image_id_2: number }> {
-    return this.db
-      .prepare('SELECT image_id_1, image_id_2 FROM dismissed_duplicates')
-      .all() as Array<{ image_id_1: number; image_id_2: number }>;
-  }
-
-  dismissDuplicatePair(imageId1: number, imageId2: number): void {
-    this.db
-      .prepare('INSERT OR IGNORE INTO dismissed_duplicates (image_id_1, image_id_2) VALUES (?, ?)')
-      .run(imageId1, imageId2);
-  }
-
-  deleteImageRecord(imageId: number): void {
-    this.images.deleteImageRecord(imageId);
+    this.db.pragma('foreign_keys = OFF');
+    try {
+      this.db.transaction(() => {
+        for (const { name } of rows) {
+          this.db.prepare(`DELETE FROM "${name}"`).run();
+        }
+      })();
+    } finally {
+      this.db.pragma('foreign_keys = ON');
+    }
   }
 }

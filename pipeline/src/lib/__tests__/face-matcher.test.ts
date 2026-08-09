@@ -13,7 +13,7 @@ function createMatcher(options: {
   let nextPersonId = 100;
   const insertedPersons: number[] = [];
 
-  const db = {
+  const people = {
     findNearestFaceClip: () => options.nearestFaceClips,
     findNearestFace: () => options.nearestFaces ?? options.nearestFaceClips,
     getPersonFaceClipEmbeddings: (personId: number) =>
@@ -26,6 +26,8 @@ function createMatcher(options: {
     },
     insertPersonEmbedding: () => undefined,
   };
+
+  const db = { people };
 
   return {
     matcher: new FaceMatcher(db as never),

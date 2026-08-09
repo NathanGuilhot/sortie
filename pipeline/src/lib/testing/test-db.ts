@@ -13,10 +13,10 @@ export interface TestDb {
 }
 
 export function createTestDb(): TestDb {
-  const manager = new DatabaseManager(':memory:');
+  const { manager, raw } = DatabaseManager.createForTesting();
   return {
     manager,
-    raw: manager.getDatabase(),
+    raw,
     close: () => manager.close(),
   };
 }

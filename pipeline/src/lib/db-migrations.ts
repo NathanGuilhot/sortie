@@ -184,9 +184,9 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
     const imageColumns = getColumnNames(db, 'images');
     addColumnIfMissing(db, 'images', imageColumns, 'palette_json', 'TEXT');
 
-    // Regular table holds per-color metadata (image_id, slot, weight) and
-    // owns the autoincrement id used as the vec_palette rowid. Mirrors the
-    // faces + vec_faces split.
+    // Authoritative vec_palette invariant: palette_colors.id is the matching
+    // vec_palette.rowid. This regular table owns the autoincrement id; mirror
+    // the faces + vec_faces split and bind vec_palette rowids as BigInt.
     db.exec(`
         CREATE TABLE IF NOT EXISTS palette_colors (
           id INTEGER PRIMARY KEY,

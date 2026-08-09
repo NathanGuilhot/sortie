@@ -24,12 +24,12 @@ export class DatabaseOcrService {
   }
 
   get(imageId: number): OcrResult {
-    const { status, at } = this.db.getOcrStatus(imageId);
+    const { status, at } = this.db.ocr.getOcrStatus(imageId);
     if (status !== 'done') {
       return { status, at, blocks: [] };
     }
 
-    const rows = this.db.getImageOcr(imageId);
+    const rows = this.db.ocr.getImageOcr(imageId);
     const blocks: OcrBlock[] = rows.map((row) => ({
       text: row.text,
       bbox: { x: row.bbox_x, y: row.bbox_y, width: row.bbox_w, height: row.bbox_h },
@@ -50,13 +50,13 @@ export class DatabaseOcrService {
     if (existing) return existing;
 
     const run = (async () => {
-      const filePath = this.db.getImagePath(imageId);
+      const filePath = this.db.images.getImagePath(imageId);
       if (!filePath) throw new Error(`Image ${imageId} not found`);
 
       await this.ensureReady();
       try {
         const blocks = await this.engine!.extract(filePath);
-        this.db.saveImageOcr(imageId, blocks);
+        this.db.ocr.saveImageOcr(imageId, blocks);
         this.notifyUpdate({
           imageId,
           status: blocks.length === 0 ? 'empty' : 'done',
@@ -66,7 +66,7 @@ export class DatabaseOcrService {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[ocr] failed for image ${imageId}:`, error);
-        this.db.markOcrError(imageId, message);
+        this.db.ocr.markOcrError(imageId, message);
         this.notifyUpdate({ imageId, status: `error:${message}`, blocks: [] });
         throw error;
       }

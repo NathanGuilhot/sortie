@@ -7,9 +7,13 @@ interface EmbeddingDbRow extends EmbeddingRowValue {
 }
 
 export class DatabaseVectorRepository {
-  constructor(private readonly db: Database.Database) {}
+  constructor(
+    private readonly db: Database.Database,
+    private readonly vecLoaded: boolean,
+  ) {}
 
   insertEmbedding(rowid: number, embedding: number[]): void {
+    if (!this.vecLoaded) return;
     this.db.prepare('DELETE FROM vec_images WHERE rowid = ?').run(BigInt(rowid));
     this.db
       .prepare('INSERT INTO vec_images (rowid, embedding) VALUES (?, ?)')
@@ -17,6 +21,7 @@ export class DatabaseVectorRepository {
   }
 
   getVisibleEmbeddings(): Array<{ rowid: number; embedding: number[] }> {
+    if (!this.vecLoaded) return [];
     return decodeEmbeddingRows(
       this.db
         .prepare(
@@ -30,6 +35,7 @@ export class DatabaseVectorRepository {
   }
 
   getEmbedding(imageId: number): number[] | null {
+    if (!this.vecLoaded) return null;
     const row = this.db.prepare('SELECT embedding FROM vec_images WHERE rowid = ?').get(imageId) as
       | { embedding: EmbeddingDbRow['embedding'] }
       | undefined;
@@ -38,6 +44,7 @@ export class DatabaseVectorRepository {
   }
 
   findNearestImageMatches(embedding: number[], limit: number): VecMatchRow[] {
+    if (!this.vecLoaded) return [];
     return this.db
       .prepare(
         `SELECT rowid, distance FROM vec_images
@@ -45,5 +52,22 @@ export class DatabaseVectorRepository {
          ORDER BY distance`,
       )
       .all(new Float32Array(embedding), limit) as VecMatchRow[];
+  }
+
+  findNearestVisibleImages(embedding: number[], k: number, maxDistance: number): VecMatchRow[] {
+    if (!this.vecLoaded) return [];
+    return this.db
+      .prepare(
+        `SELECT sub.rowid, sub.distance
+         FROM (
+           SELECT v.rowid, v.distance
+           FROM vec_images v
+           WHERE v.embedding MATCH ? AND k = ?
+         ) sub
+         INNER JOIN images i ON i.id = sub.rowid AND i.hidden = 0 AND i.missing = 0
+         WHERE sub.distance < ?
+         ORDER BY sub.distance`,
+      )
+      .all(new Float32Array(embedding), k, maxDistance) as VecMatchRow[];
   }
 }

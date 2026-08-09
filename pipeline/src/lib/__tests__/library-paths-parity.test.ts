@@ -28,7 +28,7 @@ describe('folder-covers-path parity (SQL vs JS)', () => {
   beforeEach(() => {
     t = createTestDb();
     for (const folder of FOLDERS) seedFolder(t, folder);
-    repo = new DatabaseFolderRepository(t.raw);
+    repo = new DatabaseFolderRepository(t.raw, true);
   });
 
   afterEach(() => {

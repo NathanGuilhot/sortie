@@ -1,6 +1,6 @@
-import { IPC_EVENTS } from 'shared';
 import type { MainIpcContext } from './context';
-import { handleInvoke, sendToRenderer, withOperation } from './context';
+import { handleInvoke, withOperation } from './context';
+import { createThrottledEmitter } from './events';
 
 export function registerPeopleHandlers({ dbService }: MainIpcContext): void {
   handleInvoke('getPersons', async () => {
@@ -40,12 +40,17 @@ export function registerPeopleHandlers({ dbService }: MainIpcContext): void {
   });
 
   handleInvoke('processFaces', async (event, { opId }) => {
-    return await withOperation(opId, (signal) =>
-      dbService.people.processExistingImagesForFaces(
-        sendToRenderer(event.sender, IPC_EVENTS.faceScanProgress),
-        signal,
-      ),
-    );
+    const emitter = createThrottledEmitter(event.sender, 'faceScanProgress');
+    try {
+      return await withOperation(opId, (signal) =>
+        dbService.people.processExistingImagesForFaces(
+          (progress) => emitter.emit({ ...progress, opId }),
+          signal,
+        ),
+      );
+    } finally {
+      emitter.flush();
+    }
   });
 
   handleInvoke('deletePerson', async (_event, { personId }) => {

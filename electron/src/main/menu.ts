@@ -1,6 +1,6 @@
 import { app, Menu, BrowserWindow, shell } from 'electron';
 import type { MenuItemConstructorOptions } from 'electron';
-import { IPC_EVENTS } from 'shared';
+import { emitToRenderer } from './ipc/events';
 
 const isMac = process.platform === 'darwin';
 
@@ -28,7 +28,7 @@ export function buildMenu(mainWindow: BrowserWindow | null): Menu {
           { type: 'separator' },
           {
             label: 'About Sortie',
-            click: () => mainWindow?.webContents.send(IPC_EVENTS.showAbout),
+            click: () => emitToRenderer(mainWindow, 'showAbout', undefined),
           },
         ] as MenuItemConstructorOptions[])),
   ];

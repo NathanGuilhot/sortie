@@ -8,7 +8,7 @@ describe('DatabaseFolderRepository path handling', () => {
 
   beforeEach(() => {
     t = createTestDb();
-    folders = new DatabaseFolderRepository(t.raw);
+    folders = new DatabaseFolderRepository(t.raw, true);
   });
 
   afterEach(() => {
@@ -76,6 +76,44 @@ describe('DatabaseFolderRepository path handling', () => {
     expect(t.raw.prepare('SELECT missing FROM images WHERE id = ?').get(inner)).toEqual({
       missing: 0,
     });
+  });
+
+  it('removes orphaned images and their palette vectors but keeps images covered by another folder', () => {
+    seedFolder(t, '/foo');
+    seedFolder(t, '/foo/bar');
+    const orphanedImageId = seedImage(t, '/foo/a.jpg');
+    const coveredImageId = seedImage(t, '/foo/bar/b.jpg');
+    const orphanedColorId = Number(
+      t.raw
+        .prepare('INSERT INTO palette_colors (image_id, color_idx, weight) VALUES (?, 0, 1)')
+        .run(orphanedImageId).lastInsertRowid,
+    );
+    const coveredColorId = Number(
+      t.raw
+        .prepare('INSERT INTO palette_colors (image_id, color_idx, weight) VALUES (?, 0, 1)')
+        .run(coveredImageId).lastInsertRowid,
+    );
+    t.raw
+      .prepare('INSERT INTO vec_palette (rowid, lab) VALUES (?, ?)')
+      .run(BigInt(orphanedColorId), '[0,0,0]');
+    t.raw
+      .prepare('INSERT INTO vec_palette (rowid, lab) VALUES (?, ?)')
+      .run(BigInt(coveredColorId), '[0,0,0]');
+
+    folders.removeFolderAndOrphanedImages('/foo');
+
+    expect(t.raw.prepare('SELECT id FROM images ORDER BY id').all()).toEqual([
+      { id: coveredImageId },
+    ]);
+    expect(t.raw.prepare('SELECT image_id FROM palette_colors').all()).toEqual([
+      { image_id: coveredImageId },
+    ]);
+    expect(t.raw.prepare('SELECT rowid FROM vec_palette').all()).toEqual([
+      { rowid: coveredColorId },
+    ]);
+    expect(t.raw.prepare('SELECT path FROM folders ORDER BY path').all()).toEqual([
+      { path: '/foo/bar' },
+    ]);
   });
 
   it('classifies overlapping folders into parents and children', () => {

@@ -1,6 +1,6 @@
-import { IPC_EVENTS } from 'shared';
 import type { MainIpcContext } from './context';
-import { handleInvoke, sendToRenderer, withOperation } from './context';
+import { handleInvoke, withOperation } from './context';
+import { createThrottledEmitter } from './events';
 
 export function registerFolderHandlers({
   dbService,
@@ -16,13 +16,18 @@ export function registerFolderHandlers({
   });
 
   handleInvoke('scanFolder', async (event, { path, opId }) => {
-    return await withOperation(opId, (signal) =>
-      dbService.folders.scanFolder(
-        path,
-        sendToRenderer(event.sender, IPC_EVENTS.scanProgress),
-        signal,
-      ),
-    );
+    const emitter = createThrottledEmitter(event.sender, 'scanProgress');
+    try {
+      return await withOperation(opId, (signal) =>
+        dbService.folders.scanFolder(
+          path,
+          (progress) => emitter.emit({ ...progress, opId }),
+          signal,
+        ),
+      );
+    } finally {
+      emitter.flush();
+    }
   });
 
   handleInvoke('getFolders', async () => {

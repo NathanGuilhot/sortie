@@ -1,11 +1,10 @@
 import {
-  IPC_EVENTS,
   type ExternalBoardImportRequest,
   type ExternalImportComplete,
   type ExternalImportProgress,
   type SortieAPI,
 } from 'shared';
-import { invoke, invokeNone, subscribe } from '../helpers';
+import { invoke, invokeNone, subscribeEvent } from '../helpers';
 
 export function createExternalImportApi(): Pick<SortieAPI, 'externalImport'> {
   return {
@@ -16,11 +15,11 @@ export function createExternalImportApi(): Pick<SortieAPI, 'externalImport'> {
       dismissPendingBoardImport: (jobId: string) =>
         invoke('externalImportDismissPendingBoardImport', { jobId }),
       onProgress: (callback: (progress: ExternalImportProgress) => void) =>
-        subscribe<ExternalImportProgress>(IPC_EVENTS.externalImportProgress, callback),
+        subscribeEvent('externalImportProgress', callback),
       onComplete: (callback: (complete: ExternalImportComplete) => void) =>
-        subscribe<ExternalImportComplete>(IPC_EVENTS.externalImportComplete, callback),
+        subscribeEvent('externalImportComplete', callback),
       onBoardImportRequest: (callback: (request: ExternalBoardImportRequest) => void) =>
-        subscribe<ExternalBoardImportRequest>(IPC_EVENTS.externalImportBoardRequest, callback),
+        subscribeEvent('externalImportBoardRequest', callback),
     },
   };
 }

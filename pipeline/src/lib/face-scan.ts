@@ -53,7 +53,7 @@ export class FaceScanService {
     faceCropEmbeddings: FaceCropEmbedding[],
   ): { count: number; personIds: number[] } {
     if (faces.length === 0) {
-      this.db.markImageFacesScanned(imageId);
+      this.db.people.markImageFacesScanned(imageId);
       return { count: 0, personIds: [] };
     }
 
@@ -69,7 +69,7 @@ export class FaceScanService {
     for (let index = 0; index < faces.length; index += 1) {
       const face = faces[index];
       const match = matches[index];
-      const faceId = this.db.insertFace({
+      const faceId = this.db.people.insertFace({
         image_id: imageId,
         person_id: match.personId,
         bbox_x: face.bbox.x,
@@ -78,10 +78,10 @@ export class FaceScanService {
         bbox_h: face.bbox.height,
         confidence: face.confidence,
       });
-      this.db.insertFaceEmbedding(faceId, face.descriptor);
+      this.db.people.insertFaceEmbedding(faceId, face.descriptor);
       const clipEmbedding = faceCropEmbeddings[index]?.embedding ?? null;
       if (clipEmbedding) {
-        this.db.insertFaceClipEmbedding(faceId, clipEmbedding);
+        this.db.people.insertFaceClipEmbedding(faceId, clipEmbedding);
       }
       this.faceMatcher.assignFaceToPerson(faceId, match.personId);
       usedPersonIds.add(match.personId);
@@ -91,7 +91,7 @@ export class FaceScanService {
       this.faceMatcher.updatePersonCentroid(personId);
     }
 
-    this.db.markImageFacesScanned(imageId);
+    this.db.people.markImageFacesScanned(imageId);
     return { count: faces.length, personIds: [...usedPersonIds] };
   }
 
@@ -190,7 +190,7 @@ export class FaceScanService {
     onProgress?: (progress: FaceScanProgress) => void,
     signal?: AbortSignal,
   ): Promise<{ scanned: number; detected: number; cancelled: boolean; personIds: number[] }> {
-    const images = this.db.getUnscannedFaceImages();
+    const images = this.db.people.getUnscannedFaceImages();
     const updatedPersonIds = new Set<number>();
     let totalFaces = 0;
     let scanned = 0;
@@ -206,7 +206,7 @@ export class FaceScanService {
           personIds = result.personIds;
         } catch (error) {
           console.error(`Failed face detection for ${image.file_path}:`, error);
-          await this.dbQueue(() => this.db.markImageFacesScanned(image.id));
+          await this.dbQueue(() => this.db.people.markImageFacesScanned(image.id));
         }
 
         for (const personId of personIds) {
@@ -214,7 +214,7 @@ export class FaceScanService {
         }
 
         const personUpdates = personIds
-          .map((personId) => this.db.getPersonById(personId))
+          .map((personId) => this.db.people.getPersonById(personId))
           .filter((person): person is Person => person !== null);
         scanned += 1;
         onProgress?.({

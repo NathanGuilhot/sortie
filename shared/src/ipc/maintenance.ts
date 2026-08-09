@@ -6,22 +6,22 @@ import type {
   HashScanResult,
 } from '../types';
 import { IPC_CHANNELS } from '../ipc-channels';
-import type { SortieProgress } from './common';
+import type { OperationFaceScanProgress, OperationProgress } from './events';
 
 export interface MaintenanceApi {
   cancelOperation: (opId: string) => Promise<{ cancelled: boolean }>;
   computeMissingPalettes: (opId: string) => Promise<{ computed: number; cancelled: boolean }>;
-  onPaletteProgress: (callback: (progress: SortieProgress) => void) => () => void;
+  onPaletteProgress: (callback: (progress: OperationProgress) => void) => () => void;
   computeMissingHashes: (opId: string) => Promise<HashScanResult>;
   findDuplicateGroups: () => Promise<DuplicateGroup[]>;
   dismissDuplicatePair: (imageId1: number, imageId2: number) => Promise<{ success: boolean }>;
   deleteImage: (imageId: number) => Promise<{ success: boolean }>;
-  onHashProgress: (callback: (progress: SortieProgress) => void) => () => void;
-  onScanProgress: (callback: (progress: SortieProgress) => void) => () => void;
+  onHashProgress: (callback: (progress: OperationProgress) => void) => () => void;
+  onScanProgress: (callback: (progress: OperationProgress) => void) => () => void;
   backfillExif: (opId: string) => Promise<BackfillExifResult>;
   processFaces: (opId: string) => Promise<FaceScanResult>;
   resetFaceData: () => Promise<{ success: boolean }>;
-  onFaceScanProgress: (callback: (progress: FaceScanProgress) => void) => () => void;
+  onFaceScanProgress: (callback: (progress: OperationFaceScanProgress) => void) => () => void;
   resetDatabase: () => Promise<{ success: boolean }>;
 }
 

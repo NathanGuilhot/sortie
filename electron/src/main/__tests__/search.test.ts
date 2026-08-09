@@ -45,10 +45,10 @@ describe('DatabaseSearchService.findSimilarImages', () => {
       const missingId = seedImage(t, '/photos/3.jpg', { missing: true });
       const visibleId = seedImage(t, '/photos/4.jpg');
 
-      t.manager.insertEmbedding(queryId, clipVector(0));
-      t.manager.insertEmbedding(hiddenId, clipVector(0.1));
-      t.manager.insertEmbedding(missingId, clipVector(0.2));
-      t.manager.insertEmbedding(visibleId, clipVector(0.3));
+      t.manager.vectors.insertEmbedding(queryId, clipVector(0));
+      t.manager.vectors.insertEmbedding(hiddenId, clipVector(0.1));
+      t.manager.vectors.insertEmbedding(missingId, clipVector(0.2));
+      t.manager.vectors.insertEmbedding(visibleId, clipVector(0.3));
 
       const service = new DatabaseSearchService({
         requireDb: () => t.manager,

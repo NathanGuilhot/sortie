@@ -1,5 +1,5 @@
-import { IPC_EVENTS, type FolderAvailabilityChange, type SortieAPI } from 'shared';
-import { invoke, invokeNone, invokeWithPath, subscribe } from '../helpers';
+import { type FolderAvailabilityChange, type SortieAPI } from 'shared';
+import { invoke, invokeNone, invokeWithPath, subscribeEvent } from '../helpers';
 
 export function createFolderApi(): Pick<
   SortieAPI,
@@ -29,6 +29,6 @@ export function createFolderApi(): Pick<
     recheckFolderAvailability: (folderPath?: string) =>
       invoke('recheckFolderAvailability', { path: folderPath }),
     onFolderAvailability: (callback: (change: FolderAvailabilityChange) => void) =>
-      subscribe<FolderAvailabilityChange>(IPC_EVENTS.folderAvailabilityChanged, callback),
+      subscribeEvent('folderAvailabilityChanged', callback),
   };
 }

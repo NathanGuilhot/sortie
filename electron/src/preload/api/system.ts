@@ -1,5 +1,5 @@
-import { IPC_EVENTS, type SortieAPI } from 'shared';
-import { invoke, invokeNone, invokeWithUrl, subscribe } from '../helpers';
+import { type SortieAPI } from 'shared';
+import { invoke, invokeNone, invokeWithUrl, subscribeEvent } from '../helpers';
 
 export function createSystemApi(): Pick<
   SortieAPI,
@@ -18,8 +18,7 @@ export function createSystemApi(): Pick<
       getVersion: () => invokeNone('appGetVersion'),
       openExternal: (url: string) => invokeWithUrl('appOpenExternal', url),
       showAboutPanel: () => invokeNone('appShowAboutPanel'),
-      onShowAbout: (callback: () => void) =>
-        subscribe<void>(IPC_EVENTS.showAbout, () => callback()),
+      onShowAbout: (callback: () => void) => subscribeEvent('showAbout', () => callback()),
     },
   };
 }

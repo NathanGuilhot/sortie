@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { IPC_EVENTS, SUPPORTED_IMAGE_EXTENSIONS } from 'shared';
+import { SUPPORTED_IMAGE_EXTENSIONS } from 'shared';
 import type {
   ExternalBoardImportRequest,
   ExternalImportAction,
@@ -14,6 +14,7 @@ import { runWithConcurrency } from 'pipeline';
 import type { DatabaseService } from './database';
 import type { FolderAvailabilityMonitor } from './folderAvailability';
 import type { WatcherService } from './watcher';
+import { emitToRenderer } from './ipc/events';
 
 export interface ExternalImportInvocation {
   action: ExternalImportAction;
@@ -100,11 +101,6 @@ export function normalizeExternalImportPath(filePath: string): string {
   return path.resolve(filePath);
 }
 
-function emitToWindow<T>(window: BrowserWindow | null, channel: string, payload: T): void {
-  if (!window || window.isDestroyed()) return;
-  window.webContents.send(channel, payload);
-}
-
 export class ExternalImportService {
   private readonly pendingBoardImports = new Map<string, ExternalBoardImportRequest>();
 
@@ -157,7 +153,7 @@ export class ExternalImportService {
         failed: result.failed,
       };
       this.pendingBoardImports.set(jobId, request);
-      emitToWindow(this.deps.getWindow(), IPC_EVENTS.externalImportBoardRequest, request);
+      emitToRenderer(this.deps.getWindow(), 'externalImportBoardRequest', request);
       return;
     }
 
@@ -267,11 +263,11 @@ export class ExternalImportService {
   }
 
   private emitProgress(progress: ExternalImportProgress): void {
-    emitToWindow(this.deps.getWindow(), IPC_EVENTS.externalImportProgress, progress);
+    emitToRenderer(this.deps.getWindow(), 'externalImportProgress', progress);
   }
 
   private emitComplete(complete: ExternalImportComplete): void {
-    emitToWindow(this.deps.getWindow(), IPC_EVENTS.externalImportComplete, complete);
+    emitToRenderer(this.deps.getWindow(), 'externalImportComplete', complete);
   }
 }
 

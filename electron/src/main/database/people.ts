@@ -32,7 +32,7 @@ export class DatabasePeopleService {
   }
 
   async getPersons(): Promise<Person[]> {
-    return this.deps.requireDb().getAllPersons();
+    return this.deps.requireDb().people.getAllPersons();
   }
 
   async getPersonImages(
@@ -42,17 +42,17 @@ export class DatabasePeopleService {
   ): Promise<Image[]> {
     const db = this.deps.requireDb();
     const allIds = this.deps.getOrBuildShuffledIds(`person:${personId}`, () =>
-      db.getPersonImageIds(personId),
+      db.people.getPersonImageIds(personId),
     );
     return this.deps.fetchImagesByIdsInOrder(allIds.slice(offset, offset + limit));
   }
 
   async getPersonThumbnails(personIds: number[]): Promise<Face[]> {
-    return this.deps.requireDb().getThumbnailFacesForPersons(personIds);
+    return this.deps.requireDb().people.getThumbnailFacesForPersons(personIds);
   }
 
   async renamePerson(personId: number, name: string): Promise<void> {
-    this.deps.requireDb().updatePersonName(personId, name);
+    this.deps.requireDb().people.updatePersonName(personId, name);
   }
 
   async mergePersons(keepPersonId: number, mergePersonId: number): Promise<void> {
@@ -62,7 +62,7 @@ export class DatabasePeopleService {
   }
 
   async splitFaceFromPerson(faceId: number): Promise<number> {
-    const oldPersonId = this.deps.requireDb().getFacePersonId(faceId);
+    const oldPersonId = this.deps.requireDb().people.getFacePersonId(faceId);
     const newPersonId = this.deps.getFaceMatcher().splitFaceFromPerson(faceId);
     if (oldPersonId !== null) {
       this.deps.deleteShuffledIds(`person:${oldPersonId}`, true);
@@ -72,15 +72,15 @@ export class DatabasePeopleService {
   }
 
   async getImageFaces(imageId: number): Promise<Face[]> {
-    return this.deps.requireDb().getImageFaces(imageId);
+    return this.deps.requireDb().people.getImageFaces(imageId);
   }
 
   async setPersonThumbnail(personId: number, faceId: number): Promise<void> {
-    this.deps.requireDb().updatePersonThumbnail(personId, faceId);
+    this.deps.requireDb().people.updatePersonThumbnail(personId, faceId);
   }
 
   async deletePerson(personId: number): Promise<void> {
-    this.deps.requireDb().deletePerson(personId);
+    this.deps.requireDb().people.deletePerson(personId);
     this.deps.deleteShuffledIds(`person:${personId}`, true);
   }
 }

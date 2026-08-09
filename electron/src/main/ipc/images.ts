@@ -1,18 +1,18 @@
-import { IPC_EVENTS } from 'shared';
 import type { MainIpcContext } from './context';
-import { handleInvoke, sendToRenderer, withOperation } from './context';
+import { handleInvoke, withOperation } from './context';
+import { createThrottledEmitter } from './events';
 
 export function registerImageHandlers({ dbService }: MainIpcContext): void {
   handleInvoke('getImages', async (_event, args) => {
-    return await dbService.getImages(args?.limit, args?.offset);
+    return await dbService.images.getImages(args?.limit, args?.offset);
   });
 
   handleInvoke('getImage', async (_event, { id }) => {
-    return await dbService.getImage(id);
+    return await dbService.images.getImage(id);
   });
 
   handleInvoke('reshuffleImages', () => {
-    dbService.reshuffle();
+    dbService.images.reshuffle();
     return { success: true };
   });
 
@@ -25,80 +25,85 @@ export function registerImageHandlers({ dbService }: MainIpcContext): void {
         );
       }
     }
-    return await dbService.queryImages(query);
+    return await dbService.search.queryImages(query);
   });
 
   handleInvoke('getEmbedderStatus', () => dbService.getEmbedderStatus());
 
   handleInvoke('findSimilarImages', async (_event, { imageId, limit }) => {
-    return await dbService.findSimilarImages(imageId, limit);
+    return await dbService.search.findSimilarImages(imageId, limit);
   });
 
   handleInvoke('getAllTags', async () => {
-    return await dbService.getAllTags();
+    return await dbService.images.getAllTags();
   });
 
   handleInvoke('getTagsWithCounts', async () => {
-    return await dbService.getTagsWithCounts();
+    return await dbService.images.getTagsWithCounts();
   });
 
   handleInvoke('updateImageTags', async (_event, { imageId, tags }) => {
-    await dbService.updateImageTags(imageId, tags);
+    await dbService.images.updateImageTags(imageId, tags);
     return { success: true };
   });
 
   handleInvoke('getSuggestions', async (_event, { imageId }) => {
-    return await dbService.getSuggestions(imageId);
+    return await dbService.images.getSuggestions(imageId);
   });
 
   handleInvoke('dismissSuggestion', async (_event, { imageId, tagId }) => {
-    await dbService.dismissSuggestion(imageId, tagId);
+    await dbService.images.dismissSuggestion(imageId, tagId);
     return { success: true };
   });
 
   handleInvoke('hideImage', async (_event, { imageId }) => {
-    await dbService.hideImage(imageId);
+    await dbService.images.hideImage(imageId);
     return { success: true };
   });
 
   handleInvoke('updateImageMetadata', async (_event, { imageId, metadata }) => {
-    await dbService.updateImageMetadata(imageId, metadata);
+    await dbService.images.updateImageMetadata(imageId, metadata);
     return { success: true };
   });
 
   handleInvoke('getLinkPreview', async (_event, { url }) => {
-    return await dbService.getLinkPreview(url);
+    return await dbService.images.getLinkPreview(url);
   });
 
   handleInvoke('fetchLinkPreview', async (_event, { url }) => {
-    return await dbService.fetchAndCacheLinkPreview(url);
+    return await dbService.images.fetchAndCacheLinkPreview(url);
   });
 
   handleInvoke('recomputeEmbedding', async (_event, { imageId }) => {
-    await dbService.recomputeEmbedding(imageId);
+    await dbService.maintenance.recomputeEmbedding(imageId);
     return { success: true };
   });
 
   handleInvoke('recomputePalette', async (_event, { imageId }) => {
-    await dbService.recomputePalette(imageId);
+    await dbService.maintenance.recomputePalette(imageId);
     return { success: true };
   });
 
   handleInvoke('computeMissingPalettes', async (event, { opId }) => {
-    return await withOperation(opId, (signal) =>
-      dbService.computeMissingPalettes(
-        sendToRenderer(event.sender, IPC_EVENTS.paletteProgress),
-        signal,
-      ),
-    );
+    const emitter = createThrottledEmitter(event.sender, 'paletteProgress');
+    try {
+      return await withOperation(opId, (signal) =>
+        dbService.maintenance.computeMissingPalettes(
+          (progress) => emitter.emit({ ...progress, opId }),
+          signal,
+        ),
+      );
+    } finally {
+      emitter.flush();
+    }
   });
 
   handleInvoke('deleteImage', async (_event, { imageId }) => {
-    await dbService.deleteImage(imageId);
+    await dbService.maintenance.deleteImage(imageId);
     return { success: true };
   });
 
   handleInvoke('backfillExif', async (_event, { opId }) => {
-    return await withOperation(opId, (signal) => dbService.backfillExifData(signal));
+    return await withOperation(opId, (signal) => dbService.maintenance.backfillExifData(signal));
   });
 }

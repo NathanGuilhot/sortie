@@ -1,5 +1,14 @@
 import type Database from 'better-sqlite3';
-import { type Image, type PaletteColor, parseOptionalJson, type Tag } from 'shared';
+import path from 'path';
+import {
+  type Image,
+  type LinkPreview,
+  type PaletteColor,
+  parseOptionalJson,
+  type Tag,
+} from 'shared';
+import { sqlPath } from './db-path-sql';
+import type { ExifData } from './exif';
 import type { DatabaseTagRepository } from './db-tags';
 
 interface ImageDbRow extends Omit<Image, 'embedded' | 'palette' | 'tags'> {
@@ -26,11 +35,27 @@ export interface ImageScanState {
   faces_scanned: number;
 }
 
+export interface ImageSetFilter {
+  includeHidden?: boolean;
+  favorites?: boolean;
+  personId?: number;
+  folderId?: number;
+  tags?: string[];
+  dateRange?: { start?: string | null; end?: string | null };
+}
+
 export class DatabaseImageRepository {
   constructor(
     private readonly db: Database.Database,
     private readonly tags: DatabaseTagRepository,
+    private readonly vecLoaded: boolean,
   ) {}
+
+  private embeddedColumn(): string {
+    return this.vecLoaded
+      ? '(i.id IN (SELECT rowid FROM vec_images)) AS embedded'
+      : '0 AS embedded';
+  }
 
   upsertImage(image: Omit<Image, 'id' | 'created_at' | 'modified_at'>): {
     id: number;
@@ -140,7 +165,7 @@ export class DatabaseImageRepository {
       .prepare(
         `SELECT i.id, i.file_size, i.file_mtime_ms, i.file_hash, i.palette_json,
                 i.faces_scanned,
-                (i.id IN (SELECT rowid FROM vec_images)) AS embedded
+                ${this.embeddedColumn()}
          FROM images i
          WHERE i.file_path = ?`,
       )
@@ -155,13 +180,67 @@ export class DatabaseImageRepository {
     return rows.map((row) => row.id);
   }
 
+  getFilteredImageIds(filter: ImageSetFilter): number[] {
+    const where: string[] = [
+      filter.includeHidden ? 'i.missing = 0' : 'i.hidden = 0 AND i.missing = 0',
+    ];
+    const params: Array<string | number> = [];
+
+    if (filter.favorites) where.push('i.favorite = 1');
+
+    if (filter.personId != null) {
+      where.push('EXISTS (SELECT 1 FROM faces f WHERE f.image_id = i.id AND f.person_id = ?)');
+      params.push(filter.personId);
+    }
+
+    if (filter.folderId != null) {
+      where.push(
+        `EXISTS (SELECT 1 FROM folders fo WHERE fo.id = ? AND ${sqlPath('i.file_path')} LIKE ${sqlPath('fo.path')} || '/%')`,
+      );
+      params.push(filter.folderId);
+    }
+
+    if (filter.tags && filter.tags.length > 0) {
+      const placeholders = filter.tags.map(() => '?').join(',');
+      where.push(
+        `(SELECT COUNT(DISTINCT t.id)
+            FROM image_tags it JOIN tags t ON it.tag_id = t.id
+            WHERE it.image_id = i.id AND t.name IN (${placeholders})) = ?`,
+      );
+      params.push(...filter.tags, filter.tags.length);
+    }
+
+    if (filter.dateRange?.start) {
+      where.push('i.captured_at >= ?');
+      params.push(filter.dateRange.start);
+    }
+    if (filter.dateRange?.end) {
+      where.push('i.captured_at <= ?');
+      params.push(filter.dateRange.end);
+    }
+
+    const rows = this.db
+      .prepare(`SELECT i.id FROM images i WHERE ${where.join(' AND ')}`)
+      .all(...params) as Array<{ id: number }>;
+    return rows.map((row) => row.id);
+  }
+
+  filterVisibleImageIds(ids: number[]): Set<number> {
+    if (ids.length === 0) return new Set();
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = this.db
+      .prepare(`SELECT id FROM images WHERE id IN (${placeholders}) AND hidden = 0 AND missing = 0`)
+      .all(...ids) as Array<{ id: number }>;
+    return new Set(rows.map((row) => row.id));
+  }
+
   getImagesByIds(ids: number[]): Image[] {
     if (ids.length === 0) return [];
 
     const placeholders = ids.map(() => '?').join(',');
     const rows = this.db
       .prepare(
-        `SELECT i.*, i.palette_json, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
+        `SELECT i.*, i.palette_json, ${this.embeddedColumn()}
          FROM images i
          WHERE i.id IN (${placeholders})`,
       )
@@ -188,7 +267,7 @@ export class DatabaseImageRepository {
   getImageById(imageId: number): Image | null {
     const row = this.db
       .prepare(
-        `SELECT i.*, i.palette_json, (i.id IN (SELECT rowid FROM vec_images)) AS embedded
+        `SELECT i.*, i.palette_json, ${this.embeddedColumn()}
          FROM images i
          WHERE i.id = ?`,
       )
@@ -209,6 +288,74 @@ export class DatabaseImageRepository {
       | { file_path: string }
       | undefined;
     return row?.file_path ?? null;
+  }
+
+  getImageIdByPath(filePath: string): number | null {
+    // `path.resolve` owns native paths; use win32 normalization as well so
+    // cross-platform callers and stored Windows libraries keep the shared
+    // separator-insensitive comparison contract.
+    const normalizedPath = path.win32.isAbsolute(filePath)
+      ? path.win32.normalize(filePath)
+      : path.resolve(filePath);
+    const row = this.db
+      .prepare(`SELECT id FROM images WHERE ${sqlPath('file_path')} = ${sqlPath('?')}`)
+      .get(normalizedPath) as { id: number } | undefined;
+    return row?.id ?? null;
+  }
+
+  clearMissingFlag(imageId: number): void {
+    this.db.prepare('UPDATE images SET missing = 0 WHERE id = ? AND missing <> 0').run(imageId);
+  }
+
+  setMissingFlag(imageId: number, missing: boolean): void {
+    this.db
+      .prepare("UPDATE images SET missing = ?, modified_at = datetime('now') WHERE id = ?")
+      .run(missing ? 1 : 0, imageId);
+  }
+
+  listImagesOutsideAnyFolder(): Array<{ id: number; file_path: string; missing: number }> {
+    return this.db
+      .prepare(
+        `SELECT i.id, i.file_path, i.missing
+         FROM images i
+         WHERE i.hidden = 0
+           AND NOT EXISTS (
+             SELECT 1 FROM folders f
+             WHERE ${sqlPath('i.file_path')} = ${sqlPath('f.path')}
+               OR ${sqlPath('i.file_path')} LIKE ${sqlPath('f.path')} || '/%'
+           )`,
+      )
+      .all() as Array<{ id: number; file_path: string; missing: number }>;
+  }
+
+  listImagesMissingCameraExif(): Array<{ id: number; file_path: string }> {
+    return this.db
+      .prepare(
+        'SELECT id, file_path FROM images WHERE camera_make IS NULL AND camera_model IS NULL',
+      )
+      .all() as Array<{ id: number; file_path: string }>;
+  }
+
+  updateImageCameraExif(
+    imageId: number,
+    exif: Pick<
+      ExifData,
+      'cameraMake' | 'cameraModel' | 'aperture' | 'iso' | 'exposureTime' | 'focalLength'
+    >,
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE images SET camera_make = ?, camera_model = ?, aperture = ?, iso = ?, exposure_time = ?, focal_length = ? WHERE id = ?`,
+      )
+      .run(
+        exif.cameraMake,
+        exif.cameraModel,
+        exif.aperture,
+        exif.iso,
+        exif.exposureTime,
+        exif.focalLength,
+        imageId,
+      );
   }
 
   getImagesMissingFileHash(): Array<{ id: number; file_path: string }> {
@@ -257,6 +404,47 @@ export class DatabaseImageRepository {
     fields.push("modified_at = datetime('now')");
     values.push(imageId);
     this.db.prepare(`UPDATE images SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  }
+
+  getLinkPreview(urlHash: string): LinkPreview | null {
+    return (
+      (this.db
+        .prepare(
+          'SELECT url, title, description, site_name, image_path, fetched_at, error FROM link_previews WHERE url_hash = ?',
+        )
+        .get(urlHash) as LinkPreview | undefined) ?? null
+    );
+  }
+
+  saveLinkPreview(urlHash: string, preview: LinkPreview): void {
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO link_previews
+          (url_hash, url, title, description, site_name, image_path, fetched_at, error)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        urlHash,
+        preview.url,
+        preview.title,
+        preview.description,
+        preview.site_name,
+        preview.image_path,
+        preview.fetched_at,
+        preview.error,
+      );
+  }
+
+  getDismissedDuplicatePairs(): Array<{ image_id_1: number; image_id_2: number }> {
+    return this.db
+      .prepare('SELECT image_id_1, image_id_2 FROM dismissed_duplicates')
+      .all() as Array<{ image_id_1: number; image_id_2: number }>;
+  }
+
+  dismissDuplicatePair(imageId1: number, imageId2: number): void {
+    this.db
+      .prepare('INSERT OR IGNORE INTO dismissed_duplicates (image_id_1, image_id_2) VALUES (?, ?)')
+      .run(imageId1, imageId2);
   }
 
   getVisibleImagesForDuplicates(): Image[] {

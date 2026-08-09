@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { IPC_EVENTS } from 'shared';
+import { IPC_EVENT_CHANNELS } from 'shared';
 import {
   collectImagePaths,
   ExternalImportService,
@@ -159,6 +159,7 @@ describe('ExternalImportService board imports', () => {
         ({
           isDestroyed: () => false,
           webContents: {
+            isDestroyed: () => false,
             send: (channel: string, payload: unknown) => events.push({ channel, payload }),
           },
         }) as never,
@@ -169,7 +170,7 @@ describe('ExternalImportService board imports', () => {
       paths: [path.join(tmpDir, 'valid.jpg'), path.join(tmpDir, 'broken.jpg')],
     });
     expect(events[0]).toMatchObject({
-      channel: IPC_EVENTS.externalImportProgress,
+      channel: IPC_EVENT_CHANNELS.externalImportProgress,
       payload: {
         action: 'add-to-board',
         current: 0,
@@ -181,7 +182,7 @@ describe('ExternalImportService board imports', () => {
     });
 
     const requestEvent = events.find(
-      (event) => event.channel === IPC_EVENTS.externalImportBoardRequest,
+      (event) => event.channel === IPC_EVENT_CHANNELS.externalImportBoardRequest,
     );
     const request = requestEvent?.payload as { jobId: string; failed: number } | undefined;
 
@@ -189,7 +190,7 @@ describe('ExternalImportService board imports', () => {
     await service.addPendingImagesToBoard(request!.jobId, 7);
 
     expect(events.at(-1)).toMatchObject({
-      channel: IPC_EVENTS.externalImportComplete,
+      channel: IPC_EVENT_CHANNELS.externalImportComplete,
       payload: { action: 'add-to-board', imported: 1, failed: 1 },
     });
   });

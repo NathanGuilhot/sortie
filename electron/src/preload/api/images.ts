@@ -1,5 +1,5 @@
-import { IPC_EVENTS, type EmbedderStatus, type SortieAPI } from 'shared';
-import { invoke, invokeNone, invokeWithImageId, invokeWithUrl, subscribe } from '../helpers';
+import { type EmbedderStatus, type SortieAPI } from 'shared';
+import { invoke, invokeNone, invokeWithImageId, invokeWithUrl, subscribeEvent } from '../helpers';
 
 export function createImageApi(): Pick<
   SortieAPI,
@@ -29,7 +29,7 @@ export function createImageApi(): Pick<
     query: (query) => invoke('queryImages', query),
     getEmbedderStatus: (): Promise<EmbedderStatus> => invokeNone('getEmbedderStatus'),
     onEmbedderStatus: (callback: (status: EmbedderStatus) => void) =>
-      subscribe<EmbedderStatus>(IPC_EVENTS.embedderStatus, callback),
+      subscribeEvent('embedderStatus', callback),
     findSimilarImages: (imageId: number, limit?: number) =>
       invoke('findSimilarImages', { imageId, limit }),
     getAllTags: () => invokeNone('getAllTags'),

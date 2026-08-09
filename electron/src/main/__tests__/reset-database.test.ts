@@ -1,20 +1,22 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { DatabaseManager } from 'pipeline';
-import type { ClipEmbedder } from 'pipeline';
+import { createTestDb, type ClipEmbedder, type DatabaseManager, type TestDb } from 'pipeline';
 import type { FileDeletionError } from '../database';
 import { DatabaseMaintenanceService } from '../database/maintenance';
 
 describe('database reset', () => {
   let manager: DatabaseManager | null = null;
+  let testDb: TestDb | null = null;
 
   afterEach(() => {
-    manager?.close();
+    testDb?.close();
+    testDb = null;
     manager = null;
   });
 
   it('does not try to delete sqlite-vec shadow tables directly', async () => {
-    manager = new DatabaseManager(':memory:');
-    const db = manager.getDatabase();
+    testDb = createTestDb();
+    manager = testDb.manager;
+    const { raw: db } = testDb;
     db.prepare('INSERT INTO folders (path) VALUES (?)').run('C:\\Photos');
     db.prepare('INSERT INTO images (file_path, file_name) VALUES (?, ?)').run(
       'C:\\Photos\\a.jpg',

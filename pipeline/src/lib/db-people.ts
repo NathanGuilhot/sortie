@@ -45,18 +45,21 @@ export class DatabasePeopleRepository {
   }
 
   insertFaceEmbedding(faceRowid: number, embedding: number[]): void {
+    if (!this.vecLoaded) return;
     this.db
       .prepare('INSERT OR REPLACE INTO vec_faces (rowid, embedding) VALUES (?, ?)')
       .run(BigInt(faceRowid), new Float32Array(normalizeVector(embedding)));
   }
 
   insertFaceClipEmbedding(faceRowid: number, embedding: number[]): void {
+    if (!this.vecLoaded) return;
     this.db
       .prepare('INSERT OR REPLACE INTO vec_face_clips (rowid, embedding) VALUES (?, ?)')
       .run(BigInt(faceRowid), new Float32Array(normalizeVector(embedding)));
   }
 
   getFaceEmbedding(faceId: number): number[] | null {
+    if (!this.vecLoaded) return null;
     const row = this.db
       .prepare('SELECT embedding FROM vec_faces WHERE rowid = ?')
       .get(BigInt(faceId)) as { embedding: Buffer | number[] } | undefined;
@@ -70,6 +73,7 @@ export class DatabasePeopleRepository {
   }
 
   insertPersonEmbedding(personRowid: number, embedding: number[]): void {
+    if (!this.vecLoaded) return;
     this.db.prepare('DELETE FROM vec_persons WHERE rowid = ?').run(BigInt(personRowid));
     this.db
       .prepare('INSERT INTO vec_persons (rowid, embedding) VALUES (?, ?)')
@@ -77,6 +81,7 @@ export class DatabasePeopleRepository {
   }
 
   findNearestPerson(embedding: number[], limit: number = 1): VecMatchRow[] {
+    if (!this.vecLoaded) return [];
     return this.db
       .prepare(
         `SELECT rowid, distance FROM vec_persons
@@ -87,6 +92,7 @@ export class DatabasePeopleRepository {
   }
 
   findNearestFace(embedding: number[], limit: number = 1): VecMatchRow[] {
+    if (!this.vecLoaded) return [];
     return this.db
       .prepare(
         `SELECT rowid, distance FROM vec_faces
@@ -97,6 +103,7 @@ export class DatabasePeopleRepository {
   }
 
   findNearestFaceClip(embedding: number[], limit: number = 1): VecMatchRow[] {
+    if (!this.vecLoaded) return [];
     return this.db
       .prepare(
         `SELECT rowid, distance FROM vec_face_clips
@@ -107,6 +114,7 @@ export class DatabasePeopleRepository {
   }
 
   getPersonFaceClipEmbeddings(personId: number): number[][] {
+    if (!this.vecLoaded) return [];
     const rows = this.db
       .prepare(
         `SELECT v.embedding AS embedding

@@ -1,4 +1,4 @@
-import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron';
+import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import {
   IPC_INVOKE_CHANNELS,
   type InvokeArgsByKey,
@@ -30,12 +30,6 @@ export async function withOperation<T>(
   } finally {
     clearOperation(opId);
   }
-}
-
-export function sendToRenderer<T>(sender: WebContents, channel: string): (payload: T) => void {
-  return (payload) => {
-    sender.send(channel, payload);
-  };
 }
 
 type InvokeHandler<K extends InvokeKey> = (

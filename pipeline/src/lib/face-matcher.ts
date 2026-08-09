@@ -48,8 +48,8 @@ export class FaceMatcher {
       };
     }
 
-    const personId = this.db.insertPerson(null);
-    this.db.insertPersonEmbedding(personId, face.descriptor);
+    const personId = this.db.people.insertPerson(null);
+    this.db.people.insertPersonEmbedding(personId, face.descriptor);
     return { personId, distance: 0, isNewPerson: true };
   }
 
@@ -99,8 +99,8 @@ export class FaceMatcher {
     if (M === 0) {
       // No existing persons match — create a new person for each face.
       return faces.map((face) => {
-        const personId = this.db.insertPerson(null);
-        this.db.insertPersonEmbedding(personId, face.descriptor);
+        const personId = this.db.people.insertPerson(null);
+        this.db.people.insertPersonEmbedding(personId, face.descriptor);
         return { personId, distance: 0, isNewPerson: true };
       });
     }
@@ -143,8 +143,8 @@ export class FaceMatcher {
         results[i] = { personId: personIds[j], distance: padded[i][j], isNewPerson: false };
         usedPersonIds.add(personIds[j]);
       } else {
-        const personId = this.db.insertPerson(null);
-        this.db.insertPersonEmbedding(personId, faces[i].descriptor);
+        const personId = this.db.people.insertPerson(null);
+        this.db.people.insertPersonEmbedding(personId, faces[i].descriptor);
         results[i] = { personId, distance: 0, isNewPerson: true };
       }
     }
@@ -168,14 +168,14 @@ export class FaceMatcher {
     const { clipEmbedding } = face;
     if (!clipEmbedding) return [];
 
-    const nearestFaces = this.db.findNearestFaceClip(clipEmbedding, limit);
-    const nearestDescriptors = this.db.findNearestFace(face.descriptor, limit);
+    const nearestFaces = this.db.people.findNearestFaceClip(clipEmbedding, limit);
+    const nearestDescriptors = this.db.people.findNearestFace(face.descriptor, limit);
     const descriptorDistanceByPerson = new Map<number, number>();
 
     for (const descriptorFace of nearestDescriptors) {
       if (descriptorFace.distance >= FACE_MATCH_THRESHOLD) break;
 
-      const personId = this.db.getFacePersonId(descriptorFace.rowid);
+      const personId = this.db.people.getFacePersonId(descriptorFace.rowid);
       if (personId === null) continue;
 
       const current = descriptorDistanceByPerson.get(personId);
@@ -190,7 +190,7 @@ export class FaceMatcher {
     for (const clipFace of nearestFaces) {
       if (clipFace.distance >= FACE_CLIP_MATCH_THRESHOLD) break;
 
-      const personId = this.db.getFacePersonId(clipFace.rowid);
+      const personId = this.db.people.getFacePersonId(clipFace.rowid);
       if (personId === null) continue;
       if (!descriptorDistanceByPerson.has(personId)) continue;
       if (!this.isCohesiveClipMatch(personId, clipEmbedding, personEmbeddingsCache)) continue;
@@ -213,7 +213,7 @@ export class FaceMatcher {
   ): boolean {
     let embeddings = cache.get(personId);
     if (!embeddings) {
-      embeddings = this.db.getPersonFaceClipEmbeddings(personId);
+      embeddings = this.db.people.getPersonFaceClipEmbeddings(personId);
       cache.set(personId, embeddings);
     }
     if (embeddings.length === 0) return false;
@@ -238,24 +238,24 @@ export class FaceMatcher {
   }
 
   assignFaceToPerson(faceId: number, personId: number): void {
-    this.db.updateFacePerson(faceId, personId);
-    this.db.updatePersonFaceCount(personId);
+    this.db.people.updateFacePerson(faceId, personId);
+    this.db.people.updatePersonFaceCount(personId);
 
-    const person = this.db.getPersonById(personId);
+    const person = this.db.people.getPersonById(personId);
     if (person && person.thumbnail_face_id === null) {
-      this.db.updatePersonThumbnail(personId, faceId);
+      this.db.people.updatePersonThumbnail(personId, faceId);
     }
   }
 
   updatePersonCentroid(personId: number): void {
-    const faces = this.db.getPersonFaces(personId);
+    const faces = this.db.people.getPersonFaces(personId);
     if (faces.length === 0) return;
 
     const centroid = new Array<number>(FACE_EMBEDDING_DIM).fill(0);
     let embeddingCount = 0;
 
     for (const face of faces) {
-      const embedding = this.db.getFaceEmbedding(face.id);
+      const embedding = this.db.people.getFaceEmbedding(face.id);
       if (!embedding) continue;
       embeddingCount++;
       for (let i = 0; i < FACE_EMBEDDING_DIM; i++) {
@@ -269,35 +269,35 @@ export class FaceMatcher {
       centroid[i] /= embeddingCount;
     }
 
-    this.db.insertPersonEmbedding(personId, normalizeVector(centroid));
+    this.db.people.insertPersonEmbedding(personId, normalizeVector(centroid));
   }
 
   mergePersons(keepPersonId: number, mergePersonId: number): void {
-    const mergeFaces = this.db.getPersonFaces(mergePersonId);
+    const mergeFaces = this.db.people.getPersonFaces(mergePersonId);
     for (const face of mergeFaces) {
-      this.db.updateFacePerson(face.id, keepPersonId);
+      this.db.people.updateFacePerson(face.id, keepPersonId);
     }
 
     this.updatePersonCentroid(keepPersonId);
-    this.db.updatePersonFaceCount(keepPersonId);
-    this.db.deletePerson(mergePersonId);
+    this.db.people.updatePersonFaceCount(keepPersonId);
+    this.db.people.deletePerson(mergePersonId);
   }
 
   splitFaceFromPerson(faceId: number): number {
-    const embedding = this.db.getFaceEmbedding(faceId);
+    const embedding = this.db.people.getFaceEmbedding(faceId);
     if (!embedding) throw new Error(`No embedding found for face ${faceId}`);
 
-    const oldPersonId = this.db.getFacePersonId(faceId);
+    const oldPersonId = this.db.people.getFacePersonId(faceId);
 
-    const newPersonId = this.db.insertPerson(null);
-    this.db.insertPersonEmbedding(newPersonId, embedding);
-    this.db.updateFacePerson(faceId, newPersonId);
-    this.db.updatePersonThumbnail(newPersonId, faceId);
-    this.db.updatePersonFaceCount(newPersonId);
+    const newPersonId = this.db.people.insertPerson(null);
+    this.db.people.insertPersonEmbedding(newPersonId, embedding);
+    this.db.people.updateFacePerson(faceId, newPersonId);
+    this.db.people.updatePersonThumbnail(newPersonId, faceId);
+    this.db.people.updatePersonFaceCount(newPersonId);
 
     if (oldPersonId) {
       this.updatePersonCentroid(oldPersonId);
-      this.db.updatePersonFaceCount(oldPersonId);
+      this.db.people.updatePersonFaceCount(oldPersonId);
     }
 
     return newPersonId;

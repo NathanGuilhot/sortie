@@ -1,7 +1,7 @@
 import { shell } from 'electron';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
-import { IPC_EVENTS, type PinterestErrorCode } from 'shared';
+import { type PinterestErrorCode } from 'shared';
 import { getImportFolder, importPin } from '../pinterest/import';
 import { bulkImportBoard } from '../pinterest/bulkImport';
 import {
@@ -12,6 +12,7 @@ import {
 } from '../pinterest/scraper';
 import type { MainIpcContext } from './context';
 import { handleInvoke } from './context';
+import { emitterFor } from './events';
 
 async function pinterestResult<T extends object>(
   run: () => Promise<T>,
@@ -52,10 +53,8 @@ export function registerPinterestHandlers({ dbService, bulkImportJobs }: MainIpc
     const controller = new AbortController();
     bulkImportJobs.set(jobId, controller);
 
-    const sender = event.sender;
-    const send = <T>(channel: string, payload: T) => {
-      if (!sender.isDestroyed()) sender.send(channel, payload);
-    };
+    const progressEmitter = emitterFor(event.sender, 'pinterestBulkImportProgress');
+    const completeEmitter = emitterFor(event.sender, 'pinterestBulkImportComplete');
 
     void (async () => {
       try {
@@ -64,13 +63,13 @@ export function registerPinterestHandlers({ dbService, bulkImportJobs }: MainIpc
           {
             dbService,
             signal: controller.signal,
-            onProgress: (progress) => send(IPC_EVENTS.pinterestBulkImportProgress, progress),
+            onProgress: progressEmitter,
           },
         );
-        send(IPC_EVENTS.pinterestBulkImportComplete, summary);
+        completeEmitter(summary);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        send(IPC_EVENTS.pinterestBulkImportComplete, {
+        completeEmitter({
           jobId,
           status: 'error' as const,
           total: 0,

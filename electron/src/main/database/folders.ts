@@ -5,7 +5,6 @@ import type { AddImageResult } from './images';
 import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
-import { OVERLAP_EXCLUDE_CLAUSE, pathPrefixLikePattern, sqlPath } from 'pipeline';
 import { IMAGE_EXTENSIONS } from '../database-helpers';
 
 interface DatabaseFoldersDeps {
@@ -122,7 +121,6 @@ export class DatabaseFoldersService {
   }
 
   async addFolder(folderPath: string): Promise<number> {
-    const db = this.deps.requireDb().getDatabase();
     const normalized = path.resolve(folderPath);
     let available = true;
     try {
@@ -131,32 +129,20 @@ export class DatabaseFoldersService {
       available = false;
     }
 
-    db.prepare('INSERT OR IGNORE INTO folders (path, available) VALUES (?, ?)').run(
-      normalized,
-      available ? 1 : 0,
-    );
-    db.prepare('UPDATE folders SET available = ? WHERE path = ?').run(
-      available ? 1 : 0,
-      normalized,
-    );
-
-    const row = db.prepare('SELECT id FROM folders WHERE path = ?').get(normalized) as
-      | { id: number }
-      | undefined;
-    if (!row) throw new Error('Folder insert failed');
+    const folderId = this.deps.requireDb().folders.upsertFolder(normalized, available);
 
     if (!available) {
-      this.deps.requireDb().markMissingUnderFolder(normalized);
+      this.deps.requireDb().folders.markMissingUnderFolder(normalized);
     }
 
     this.deps.invalidateImageCache();
-    return row.id;
+    return folderId;
   }
 
   async findOverlappingFolders(
     folderPath: string,
   ): Promise<{ parents: string[]; children: string[] }> {
-    return this.deps.requireDb().findOverlappingFolders(path.resolve(folderPath));
+    return this.deps.requireDb().folders.findOverlappingFolders(path.resolve(folderPath));
   }
 
   async scanFolder(
@@ -185,66 +171,37 @@ export class DatabaseFoldersService {
     const { processed, cancelled } = await this.processImageFiles(imageFiles, onProgress, signal);
     this.deps.invalidateImageCache();
 
-    this.deps
-      .requireDb()
-      .getDatabase()
-      .prepare(`UPDATE folders SET last_scanned = datetime('now') WHERE path = ?`)
-      .run(normalized);
+    this.deps.requireDb().folders.markFolderScanned(normalized);
 
     console.log(`Scan completed: ${processed} images processed${cancelled ? ' (cancelled)' : ''}`);
     return { folderId, processed, cancelled };
   }
 
   async getFolders(): Promise<Folder[]> {
-    return this.deps.requireDb().listFolders();
+    return this.deps.requireDb().folders.listFolders();
   }
 
   async getFoldersWithStats(): Promise<FolderWithStats[]> {
-    return this.deps.requireDb().listFoldersWithStats();
+    return this.deps.requireDb().folders.listFoldersWithStats();
+  }
+
+  setFolderWatched(folderPath: string, watched: boolean): void {
+    this.deps.requireDb().folders.setFolderWatched(path.resolve(folderPath), watched);
   }
 
   async removeFolder(folderPath: string): Promise<void> {
-    const db = this.deps.requireDb().getDatabase();
     const normalized = path.resolve(folderPath);
-    const pattern = pathPrefixLikePattern(normalized);
-
-    const txn = db.transaction(() => {
-      const imageIds = db
-        .prepare(
-          `SELECT id FROM images
-           WHERE ${sqlPath('file_path')} LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`,
-        )
-        .all(pattern, normalized) as Array<{ id: number }>;
-
-      if (imageIds.length > 0) {
-        const deleteVec = db.prepare('DELETE FROM vec_images WHERE rowid = ?');
-        const deletePaletteVec = db.prepare('DELETE FROM vec_palette WHERE rowid = ?');
-        const selectPaletteIds = db.prepare('SELECT id FROM palette_colors WHERE image_id = ?');
-        const deleteImage = db.prepare('DELETE FROM images WHERE id = ?');
-
-        for (const { id } of imageIds) {
-          deleteVec.run(id);
-          const colorIds = selectPaletteIds.all(id) as Array<{ id: number }>;
-          for (const { id: colorId } of colorIds) {
-            deletePaletteVec.run(BigInt(colorId));
-          }
-          deleteImage.run(id);
-        }
-      }
-
-      db.prepare('DELETE FROM folders WHERE path = ?').run(normalized);
-    });
-    txn();
+    this.deps.requireDb().folders.removeFolderAndOrphanedImages(normalized);
 
     this.deps.invalidateImageCache();
   }
 
   getFolderForPath(filePath: string): Folder | null {
-    return this.deps.requireDb().findFolderForPath(path.resolve(filePath));
+    return this.deps.requireDb().folders.findFolderForPath(path.resolve(filePath));
   }
 
   async markImageMissing(filePath: string): Promise<void> {
-    this.deps.requireDb().setImageMissingByPath(filePath);
+    this.deps.requireDb().folders.setImageMissingByPath(filePath);
     this.deps.invalidateImageCache();
   }
 
@@ -255,24 +212,23 @@ export class DatabaseFoldersService {
   ): Promise<{ changed: boolean }> {
     const db = this.deps.requireDb();
     const normalized = path.resolve(folderPath);
-    const current = db.getFolderAvailabilityState(normalized);
+    const current = db.folders.getFolderAvailabilityState(normalized);
     if (!current) return { changed: false };
 
     const availableChanged = current.available !== available;
     const writableChanged = current.writable !== writable;
     if (!availableChanged && !writableChanged) return { changed: false };
 
-    const txn = db.getDatabase().transaction(() => {
-      db.updateFolderAvailabilityState(normalized, available, writable);
+    db.runInTransaction(() => {
+      db.folders.updateFolderAvailabilityState(normalized, available, writable);
       if (availableChanged) {
         if (available) {
-          db.clearMissingUnderFolder(normalized);
+          db.folders.clearMissingUnderFolder(normalized);
         } else {
-          db.markMissingUnderFolder(normalized);
+          db.folders.markMissingUnderFolder(normalized);
         }
       }
     });
-    txn();
 
     if (availableChanged) {
       this.deps.invalidateImageCache();
@@ -287,20 +243,19 @@ export class DatabaseFoldersService {
   ): Promise<{ changed: boolean }> {
     const db = this.deps.requireDb();
     const normalized = path.resolve(folderPath);
-    const current = db.getFolderFaceScanExclusion(normalized);
+    const current = db.folders.getFolderFaceScanExclusion(normalized);
     if (current === null) return { changed: false };
     if (current === excluded) return { changed: false };
 
-    const txn = db.getDatabase().transaction(() => {
-      db.setFolderFaceScanExclusionFlag(normalized, excluded);
+    db.runInTransaction(() => {
+      db.folders.setFolderFaceScanExclusionFlag(normalized, excluded);
       if (excluded) {
-        db.deleteFacesUnderFolder(normalized);
-        db.markFacesUnscannedUnderFolder(normalized);
+        db.folders.deleteFacesUnderFolder(normalized);
+        db.folders.markFacesUnscannedUnderFolder(normalized);
       }
     });
-    txn();
 
-    if (excluded) db.cleanupOrphanedPersons();
+    if (excluded) db.people.cleanupOrphanedPersons();
     this.deps.invalidateImageCache();
     return { changed: true };
   }

@@ -1,13 +1,20 @@
 import { ipcRenderer, type IpcRendererEvent } from 'electron';
 import {
   IPC_INVOKE_CHANNELS,
+  IPC_EVENT_CHANNELS,
+  type EventKey,
+  type EventPayloadByKey,
   type InvokeArgsByKey,
   type InvokeKey,
   type InvokeResultByKey,
 } from 'shared';
 
-export function subscribe<T>(channel: string, cb: (value: T) => void): () => void {
-  const handler = (_event: IpcRendererEvent, value: T) => cb(value);
+export function subscribeEvent<K extends EventKey>(
+  key: K,
+  cb: (value: EventPayloadByKey[K]) => void,
+): () => void {
+  const channel = IPC_EVENT_CHANNELS[key];
+  const handler = (_event: IpcRendererEvent, value: EventPayloadByKey[K]) => cb(value);
   ipcRenderer.on(channel, handler);
   return () => {
     ipcRenderer.removeListener(channel, handler);

@@ -1,12 +1,12 @@
 import { app, BrowserWindow, Menu } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { IPC_EVENTS } from 'shared';
 import { shutdownRawLoader } from 'pipeline';
 import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
 import { FolderAvailabilityMonitor } from './folderAvailability';
 import { setupIpcHandlers } from './ipc';
+import { emitToRenderer } from './ipc/events';
 import {
   ExternalImportService,
   parseExternalImportArgs,
@@ -211,12 +211,12 @@ async function initializeServices() {
   setupIpcHandlers(dbService, watcherService, availabilityMonitor, externalImportService, dbPath);
 
   dbService.onEmbedderStatus((status) => {
-    mainWindow?.webContents.send(IPC_EVENTS.embedderStatus, status);
+    emitToRenderer(mainWindow, 'embedderStatus', status);
   });
   void dbService.warmupEmbedder();
 
-  dbService.onOcrUpdate((payload) => {
-    mainWindow?.webContents.send(IPC_EVENTS.ocrUpdated, payload);
+  dbService.ocr.onUpdate((payload) => {
+    emitToRenderer(mainWindow, 'ocrUpdated', payload);
   });
 
   // Pre-create the Pinterest import folder so it's listed in /folders even
@@ -228,7 +228,7 @@ async function initializeServices() {
     console.warn('[boot] failed to ensure pinterest import folder:', err);
   }
 
-  const folders = await dbService.getFolders();
+  const folders = await dbService.folders.getFolders();
   for (const folder of folders) {
     if (folder.watched) {
       void watcherService.watchFolder(folder.path);
@@ -242,7 +242,7 @@ async function initializeServices() {
   const service = dbService;
   void (async () => {
     try {
-      const result = await service.computeMissingPalettes();
+      const result = await service.maintenance.computeMissingPalettes();
       if (result.computed > 0) {
         console.log(`[palette] backfilled ${result.computed} images`);
       }
@@ -266,13 +266,11 @@ void app.whenReady().then(async () => {
       allowedRoots: [app.getPath('userData')],
       getLibraryFolderPaths: async () => {
         if (!dbService) throw new Error('database not ready');
-        const folders = await dbService.getFolders();
+        const folders = await dbService.folders.getFolders();
         return folders.map((folder) => folder.path);
       },
       isKnownImagePath: (requestedPath) => {
-        const db = dbService?.getDatabase();
-        if (!db) return false;
-        return db.getImageScanState(requestedPath) !== null;
+        return dbService?.images.isKnownImagePath(requestedPath) ?? false;
       },
     }),
   );
@@ -293,8 +291,8 @@ void app.whenReady().then(async () => {
 
   await initializeServices();
   createWindow();
-  void dbService
-    ?.recheckExternalImageAvailability()
+  void dbService?.images
+    .recheckExternalImageAvailability()
     .then(({ changed }) => {
       if (changed > 0) {
         console.log(`[maintenance] updated availability for ${changed} external images`);
@@ -313,7 +311,7 @@ void app.whenReady().then(async () => {
 
   app.on('browser-window-focus', () => {
     void availabilityMonitor?.checkNow();
-    void dbService?.recheckExternalImageAvailability();
+    void dbService?.images.recheckExternalImageAvailability();
   });
 });
 

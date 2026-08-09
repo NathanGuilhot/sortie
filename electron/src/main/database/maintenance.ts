@@ -23,49 +23,15 @@ export class DatabaseMaintenanceService {
   }
 
   async resetDatabase(): Promise<void> {
-    const db = this.deps.requireDb().getDatabase();
-    const tableRows = db.prepare('PRAGMA table_list').all() as Array<{
-      name: string;
-      type: string;
-      schema: string;
-    }>;
-    const mainTables = tableRows.filter(
-      (row) => row.schema === 'main' && !row.name.startsWith('sqlite_'),
-    );
-    const virtualTableNames = mainTables
-      .filter((row) => row.type === 'virtual')
-      .map((row) => row.name);
-    const isVecShadow = (name: string): boolean =>
-      virtualTableNames.some((virtualTable) => name.startsWith(`${virtualTable}_`));
-
-    const rows = mainTables.filter(
-      (row) => (row.type === 'table' || row.type === 'virtual') && !isVecShadow(row.name),
-    );
-
-    db.pragma('foreign_keys = OFF');
-    try {
-      const txn = db.transaction(() => {
-        for (const { name } of rows) {
-          db.prepare(`DELETE FROM "${name}"`).run();
-        }
-      });
-      txn();
-    } finally {
-      db.pragma('foreign_keys = ON');
-    }
-
+    this.deps.requireDb().resetAllData();
     this.deps.invalidateImageCache();
   }
 
   async backfillExifData(signal?: AbortSignal): Promise<BackfillExifResult> {
-    const db = this.deps.requireDb().getDatabase();
+    const db = this.deps.requireDb();
 
     console.log('[migration] backfilling camera EXIF data...');
-    const rows = db
-      .prepare(
-        'SELECT id, file_path FROM images WHERE camera_make IS NULL AND camera_model IS NULL',
-      )
-      .all() as Array<{ id: number; file_path: string }>;
+    const rows = db.images.listImagesMissingCameraExif();
 
     let filled = 0;
     let cancelled = false;
@@ -85,17 +51,7 @@ export class DatabaseMaintenanceService {
           exif.exposureTime ||
           exif.focalLength
         ) {
-          db.prepare(
-            `UPDATE images SET camera_make = ?, camera_model = ?, aperture = ?, iso = ?, exposure_time = ?, focal_length = ? WHERE id = ?`,
-          ).run(
-            exif.cameraMake,
-            exif.cameraModel,
-            exif.aperture,
-            exif.iso,
-            exif.exposureTime,
-            exif.focalLength,
-            row.id,
-          );
+          db.images.updateImageCameraExif(row.id, exif);
           filled++;
         }
       } catch (error) {
@@ -112,21 +68,21 @@ export class DatabaseMaintenanceService {
 
   async recomputeEmbedding(imageId: number): Promise<void> {
     const db = this.deps.requireDb();
-    const filePath = db.getImagePath(imageId);
+    const filePath = db.images.getImagePath(imageId);
     if (!filePath) throw new Error(`Image ${imageId} not found`);
 
     const embedding = await this.deps.getEmbedder().embedImage(filePath);
-    db.insertEmbedding(imageId, embedding);
+    db.vectors.insertEmbedding(imageId, embedding);
     this.deps.invalidateImageCache();
   }
 
   async recomputePalette(imageId: number): Promise<void> {
     const db = this.deps.requireDb();
-    const filePath = db.getImagePath(imageId);
+    const filePath = db.images.getImagePath(imageId);
     if (!filePath) throw new Error(`Image ${imageId} not found`);
 
     const palette = await extractPalette(filePath);
-    db.insertPalette(imageId, palette);
+    db.palettes.insertPalette(imageId, palette);
     this.deps.invalidateImageCache();
   }
 
@@ -135,7 +91,7 @@ export class DatabaseMaintenanceService {
     signal?: AbortSignal,
   ): Promise<{ computed: number; cancelled: boolean }> {
     const db = this.deps.requireDb();
-    const pending = db.getImagesMissingPalette();
+    const pending = db.palettes.getImagesMissingPalette();
     let computed = 0;
     let cancelled = false;
 
@@ -148,7 +104,7 @@ export class DatabaseMaintenanceService {
       const { id, file_path } = pending[index];
       try {
         const palette = await extractPalette(file_path);
-        db.insertPalette(id, palette);
+        db.palettes.insertPalette(id, palette);
         computed++;
       } catch (error) {
         console.error(`Failed to extract palette for ${file_path}:`, error);
@@ -166,7 +122,7 @@ export class DatabaseMaintenanceService {
     signal?: AbortSignal,
   ): Promise<HashScanResult> {
     const db = this.deps.requireDb();
-    const rows = db.getImagesMissingFileHash();
+    const rows = db.images.getImagesMissingFileHash();
     let computed = 0;
     let cancelled = false;
 
@@ -179,7 +135,7 @@ export class DatabaseMaintenanceService {
       const row = rows[index];
       try {
         const fileHash = await computeFileHash(row.file_path);
-        db.updateImageFileHash(row.id, fileHash);
+        db.images.updateImageFileHash(row.id, fileHash);
         computed++;
       } catch (error) {
         console.warn(`Failed to hash ${row.file_path}:`, error);
@@ -197,10 +153,10 @@ export class DatabaseMaintenanceService {
     const nearDuplicateDistance = 0.1;
     const vectorMatchLimit = 12;
 
-    const images = db.getVisibleImagesForDuplicates();
+    const images = db.images.getVisibleImagesForDuplicates();
     const imagesById = new Map(images.map((image) => [image.id, image]));
 
-    const dismissed = db.getDismissedDuplicatePairs();
+    const dismissed = db.images.getDismissedDuplicatePairs();
     const pairKey = (left: number, right: number) =>
       `${Math.min(left, right)}_${Math.max(left, right)}`;
     const dismissedSet = new Set(
@@ -240,10 +196,10 @@ export class DatabaseMaintenanceService {
     }
 
     for (const image of images) {
-      const embedding = db.getEmbedding(image.id);
+      const embedding = db.vectors.getEmbedding(image.id);
       if (!embedding) continue;
 
-      const matches = db.findNearestImageMatches(embedding, vectorMatchLimit);
+      const matches = db.vectors.findNearestImageMatches(embedding, vectorMatchLimit);
       for (const match of matches) {
         if (match.rowid === image.id) continue;
         if (match.distance > nearDuplicateDistance) break;
@@ -273,12 +229,12 @@ export class DatabaseMaintenanceService {
   async dismissDuplicatePair(imageId1: number, imageId2: number): Promise<void> {
     const lo = Math.min(imageId1, imageId2);
     const hi = Math.max(imageId1, imageId2);
-    this.deps.requireDb().dismissDuplicatePair(lo, hi);
+    this.deps.requireDb().images.dismissDuplicatePair(lo, hi);
   }
 
   async deleteImage(imageId: number): Promise<void> {
     const db = this.deps.requireDb();
-    const filePath = db.getImagePath(imageId);
+    const filePath = db.images.getImagePath(imageId);
     if (!filePath) return;
 
     try {
@@ -290,7 +246,7 @@ export class DatabaseMaintenanceService {
       }
     }
 
-    db.deleteImageRecord(imageId);
+    db.images.deleteImageRecord(imageId);
     this.deps.invalidateImageCache();
   }
 }

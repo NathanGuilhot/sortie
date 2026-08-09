@@ -1,24 +1,15 @@
 import { type ClipEmbedder, type DatabaseManager, hexToOklab } from 'pipeline';
 import type { Query, SearchResult } from 'shared';
-import { sqlPath } from 'pipeline';
-
-type SqlBinding = string | number | bigint | Uint8Array | null;
 
 interface DatabaseSearchDeps {
   requireDb(): DatabaseManager;
   getEmbedder(): ClipEmbedder;
   getOrBuildShuffledIds(cacheKey: string, loadIds: () => number[]): number[];
-  fetchImagesByIdsInOrder(ids: number[]): ReturnType<DatabaseManager['getImagesByIds']>;
+  fetchImagesByIdsInOrder(ids: number[]): ReturnType<DatabaseManager['images']['getImagesByIds']>;
 }
 
 export class DatabaseSearchService {
   constructor(private readonly deps: DatabaseSearchDeps) {}
-
-  private queryIds(idQuery: string, params: SqlBinding[] = []): number[] {
-    const statement = this.deps.requireDb().getDatabase().prepare(idQuery);
-    const rows = statement.all(...params) as Array<{ id: number }>;
-    return rows.map((row) => row.id);
-  }
 
   async queryImages(query: Query): Promise<SearchResult[]> {
     const db = this.deps.requireDb();
@@ -41,68 +32,29 @@ export class DatabaseSearchService {
       return this.paletteQuery(query.palette!, setIds, limit, offset);
     }
 
-    const ids = setIds ?? this.deps.getOrBuildShuffledIds('default', () => db.getVisibleImageIds());
+    const ids =
+      setIds ?? this.deps.getOrBuildShuffledIds('default', () => db.images.getVisibleImageIds());
     return this.deps.fetchImagesByIdsInOrder(ids.slice(offset, offset + limit)) as SearchResult[];
   }
 
   private buildSetFilterIds(query: Query): number[] | null {
-    const where: string[] = [];
-    const params: SqlBinding[] = [];
-    let active = false;
-
-    where.push(query.includeHidden ? 'i.missing = 0' : 'i.hidden = 0 AND i.missing = 0');
-
-    if (query.favorites) {
-      where.push('i.favorite = 1');
-      active = true;
-    }
-
-    if (query.personId != null) {
-      where.push('EXISTS (SELECT 1 FROM faces f WHERE f.image_id = i.id AND f.person_id = ?)');
-      params.push(query.personId);
-      active = true;
-    }
-
-    if (query.folderId != null) {
-      where.push(
-        `EXISTS (SELECT 1 FROM folders fo WHERE fo.id = ? AND ${sqlPath('i.file_path')} LIKE ${sqlPath('fo.path')} || '/%')`,
-      );
-      params.push(query.folderId);
-      active = true;
-    }
-
-    if (query.tags && query.tags.length > 0) {
-      const placeholders = query.tags.map(() => '?').join(',');
-      where.push(
-        `(SELECT COUNT(DISTINCT t.id)
-            FROM image_tags it JOIN tags t ON it.tag_id = t.id
-            WHERE it.image_id = i.id AND t.name IN (${placeholders})) = ?`,
-      );
-      params.push(...query.tags, query.tags.length);
-      active = true;
-    }
-
-    if (query.dateRange?.start) {
-      where.push('i.captured_at >= ?');
-      params.push(query.dateRange.start);
-      active = true;
-    }
-
-    if (query.dateRange?.end) {
-      where.push('i.captured_at <= ?');
-      params.push(query.dateRange.end);
-      active = true;
-    }
-
-    if (query.includeHidden) {
-      active = true;
-    }
-
-    if (!active) return null;
+    if (!this.hasSetFilter(query)) return null;
 
     const cacheKey = this.setFilterCacheKey(query);
     return this.deps.getOrBuildShuffledIds(cacheKey, () =>
-      this.queryIds(`SELECT i.id FROM images i WHERE ${where.join(' AND ')}`, params),
+      this.deps.requireDb().images.getFilteredImageIds(query),
+    );
+  }
+
+  private hasSetFilter(query: Query): boolean {
+    return !!(
+      query.includeHidden ||
+      query.favorites ||
+      query.personId != null ||
+      query.folderId != null ||
+      (query.tags && query.tags.length > 0) ||
+      query.dateRange?.start ||
+      query.dateRange?.end
     );
   }
 
@@ -153,21 +105,7 @@ export class DatabaseSearchService {
     const k = this.scoredOverfetch(offset + limit, setIds, vecLimit);
     const setIdSet = setIds ? new Set(setIds) : null;
 
-    const statement = db.getDatabase().prepare(`
-      SELECT sub.rowid, sub.distance
-      FROM (
-        SELECT v.rowid, v.distance
-        FROM vec_images v
-        WHERE v.embedding MATCH ? AND k = ?
-      ) sub
-      INNER JOIN images i ON i.id = sub.rowid AND i.hidden = 0 AND i.missing = 0
-      WHERE sub.distance < ?
-      ORDER BY sub.distance
-    `);
-    const ranked = statement.all(JSON.stringify(embedding), k, threshold) as Array<{
-      rowid: number;
-      distance: number;
-    }>;
+    const ranked = db.vectors.findNearestVisibleImages(embedding, k, threshold);
 
     const kept: Array<{ rowid: number; distance: number }> = [];
     for (const match of ranked) {
@@ -199,7 +137,7 @@ export class DatabaseSearchService {
 
     const paletteLimitCap = 409;
     const overfetch = this.scoredOverfetch(offset + limit, setIds, paletteLimitCap);
-    const ranked = db.findImagesByColors(labs, overfetch);
+    const ranked = db.palettes.findImagesByColors(labs, overfetch);
     const setIdSet = setIds ? new Set(setIds) : null;
     const kept: Array<{ imageId: number; score: number }> = [];
 
@@ -218,14 +156,14 @@ export class DatabaseSearchService {
 
   async findSimilarImages(imageId: number, limit: number = 20): Promise<SearchResult[]> {
     const db = this.deps.requireDb();
-    const embedding = db.getEmbedding(imageId);
+    const embedding = db.vectors.getEmbedding(imageId);
     if (!embedding) return [];
 
     const vectorLimit = Math.max(limit * 5, limit + 1);
-    const matches = db
+    const matches = db.vectors
       .findNearestImageMatches(embedding, vectorLimit)
       .filter((match) => match.rowid !== imageId);
-    const availableIds = this.availableImageIdSet(matches.map((match) => match.rowid));
+    const availableIds = db.images.filterVisibleImageIds(matches.map((match) => match.rowid));
     const results = this.hydrateScoredResults(
       matches
         .filter((match) => availableIds.has(match.rowid))
@@ -238,24 +176,5 @@ export class DatabaseSearchService {
 
     results.sort((left, right) => (left.distance ?? Infinity) - (right.distance ?? Infinity));
     return results;
-  }
-
-  private availableImageIdSet(ids: number[]): Set<number> {
-    if (ids.length === 0) return new Set();
-
-    const placeholders = ids.map(() => '?').join(',');
-    const rows = this.deps
-      .requireDb()
-      .getDatabase()
-      .prepare(
-        `SELECT id
-         FROM images
-         WHERE id IN (${placeholders})
-           AND hidden = 0
-           AND missing = 0`,
-      )
-      .all(...ids) as Array<{ id: number }>;
-
-    return new Set(rows.map((row) => row.id));
   }
 }

@@ -43,4 +43,16 @@ describe('watcher path normalization', () => {
 
     expect(watcher.close).toHaveBeenCalledTimes(1);
   });
+
+  it('uses the images namespace so watcher additions retain the skipped result', async () => {
+    const addImage = vi.fn().mockResolvedValue({ imageId: 42, skipped: true });
+    const service = new WatcherService();
+    service.setDatabaseService({ images: { addImage } } as never);
+
+    await (service as unknown as { onFileAdded(path: string): Promise<void> }).onFileAdded(
+      '/a/b/already-indexed.jpg',
+    );
+
+    await expect(addImage.mock.results[0]?.value).resolves.toEqual({ imageId: 42, skipped: true });
+  });
 });

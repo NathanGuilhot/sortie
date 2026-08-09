@@ -2,13 +2,80 @@ import type Database from 'better-sqlite3';
 import path from 'path';
 import type { Folder, FolderWithStats } from 'shared';
 import { folderCoversPath } from 'shared';
-import { normalizePathForSqlLike, pathPrefixLikePattern, sqlPath } from './db-path-sql';
+import {
+  normalizePathForSqlLike,
+  OVERLAP_EXCLUDE_CLAUSE,
+  pathPrefixLikePattern,
+  sqlPath,
+} from './db-path-sql';
 
 export class DatabaseFolderRepository {
-  constructor(private readonly db: Database.Database) {}
+  constructor(
+    private readonly db: Database.Database,
+    private readonly vecLoaded: boolean,
+  ) {}
 
   listFolders(): Folder[] {
     return this.db.prepare('SELECT * FROM folders ORDER BY created_at DESC').all() as Folder[];
+  }
+
+  upsertFolder(folderPath: string, available: boolean): number {
+    this.db
+      .prepare('INSERT OR IGNORE INTO folders (path, available) VALUES (?, ?)')
+      .run(folderPath, available ? 1 : 0);
+    this.db
+      .prepare('UPDATE folders SET available = ? WHERE path = ?')
+      .run(available ? 1 : 0, folderPath);
+
+    const row = this.db.prepare('SELECT id FROM folders WHERE path = ?').get(folderPath) as
+      | { id: number }
+      | undefined;
+    if (!row) throw new Error('Folder insert failed');
+    return row.id;
+  }
+
+  markFolderScanned(folderPath: string): void {
+    this.db
+      .prepare("UPDATE folders SET last_scanned = datetime('now') WHERE path = ?")
+      .run(folderPath);
+  }
+
+  removeFolderAndOrphanedImages(folderPath: string): void {
+    const selectImageIds = this.db.prepare(
+      `SELECT id FROM images
+       WHERE ${sqlPath('file_path')} LIKE ? AND ${OVERLAP_EXCLUDE_CLAUSE}`,
+    );
+    const deleteVector = this.vecLoaded
+      ? this.db.prepare('DELETE FROM vec_images WHERE rowid = ?')
+      : null;
+    const deletePaletteVector = this.vecLoaded
+      ? this.db.prepare('DELETE FROM vec_palette WHERE rowid = ?')
+      : null;
+    const selectPaletteIds = this.db.prepare('SELECT id FROM palette_colors WHERE image_id = ?');
+    const deleteImage = this.db.prepare('DELETE FROM images WHERE id = ?');
+    const deleteFolder = this.db.prepare('DELETE FROM folders WHERE path = ?');
+
+    this.db.transaction(() => {
+      const imageIds = selectImageIds.all(pathPrefixLikePattern(folderPath), folderPath) as Array<{
+        id: number;
+      }>;
+      for (const { id } of imageIds) {
+        deleteVector?.run(id);
+        const colorIds = selectPaletteIds.all(id) as Array<{ id: number }>;
+        for (const { id: colorId } of colorIds) {
+          // See the authoritative vec_palette invariant in the v11 migration.
+          deletePaletteVector?.run(BigInt(colorId));
+        }
+        deleteImage.run(id);
+      }
+      deleteFolder.run(folderPath);
+    })();
+  }
+
+  setFolderWatched(folderPath: string, watched: boolean): void {
+    this.db
+      .prepare('UPDATE folders SET watched = ? WHERE path = ?')
+      .run(watched ? 1 : 0, folderPath);
   }
 
   listFoldersWithStats(): FolderWithStats[] {

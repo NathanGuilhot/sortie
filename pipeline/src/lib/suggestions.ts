@@ -12,20 +12,20 @@ export class SuggestionEngine {
   }
 
   async getVisibleEmbeddings(): Promise<Array<{ rowid: number; embedding: number[] }>> {
-    return this.db.getVisibleEmbeddings();
+    return this.db.vectors.getVisibleEmbeddings();
   }
 
   async getEmbedding(imageId: number): Promise<number[]> {
     const cached = this.embeddingCache.get(imageId);
     if (cached) return cached;
-    const embedding = this.db.getEmbedding(imageId);
+    const embedding = this.db.vectors.getEmbedding(imageId);
     if (!embedding) return [];
     this.embeddingCache.set(imageId, embedding);
     return embedding;
   }
 
   getImageTags(imageId: number): Tag[] {
-    const rows = this.db.getImageTags(imageId);
+    const rows = this.db.tags.getImageTags(imageId);
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -36,7 +36,7 @@ export class SuggestionEngine {
   }
 
   getDismissedSuggestions(imageId: number): DismissedSuggestion[] {
-    const rows = this.db.getDismissedSuggestions(imageId);
+    const rows = this.db.tags.getDismissedSuggestions(imageId);
     return rows.map((row) => ({
       image_id: row.image_id,
       tag_id: row.tag_id,
@@ -45,11 +45,11 @@ export class SuggestionEngine {
   }
 
   dismissSuggestion(imageId: number, tagId: number): void {
-    this.db.dismissSuggestion(imageId, tagId);
+    this.db.tags.dismissSuggestion(imageId, tagId);
   }
 
   getAllTags(): Tag[] {
-    const rows = this.db.getAllTags();
+    const rows = this.db.tags.getAllTags();
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -108,7 +108,7 @@ export class SuggestionEngine {
     tagId: number,
     topK: number = 20,
   ): Promise<ImageSuggestion[]> {
-    const boardImageIds = this.db.getBoardImageIds(tagId);
+    const boardImageIds = this.db.tags.getBoardImageIds(tagId);
     if (boardImageIds.length === 0) return [];
 
     const boardEmbeddings: number[][] = [];
@@ -127,7 +127,7 @@ export class SuggestionEngine {
 
     const boardSet = new Set(boardImageIds);
     const dismissedSet = new Set(
-      this.db.getDismissedSuggestionsByTag(tagId).map((r) => r.image_id),
+      this.db.tags.getDismissedSuggestionsByTag(tagId).map((r) => r.image_id),
     );
 
     const allRows = await this.getVisibleEmbeddings();

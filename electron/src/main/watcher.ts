@@ -155,7 +155,7 @@ export class WatcherService {
     const dbService = this.dbService;
     await coalesceByPath(this.inflightAdds, abs, async (p) => {
       try {
-        await dbService.addImage(p);
+        await dbService.images.addImage(p);
       } catch (error) {
         console.error('Failed to process image:', p, error);
       }

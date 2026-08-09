@@ -91,19 +91,3 @@ export const IPC_CHANNELS = {
     getImportFolder: 'pinterest:get-import-folder',
   },
 } as const;
-
-export const IPC_EVENTS = {
-  embedderStatus: 'embedder-status',
-  paletteProgress: 'palette-progress',
-  hashProgress: 'hash-progress',
-  scanProgress: 'scan-progress',
-  faceScanProgress: 'face-scan-progress',
-  folderAvailabilityChanged: 'folder-availability-changed',
-  showAbout: 'show-about',
-  ocrUpdated: 'ocr-updated',
-  pinterestBulkImportProgress: 'pinterest:bulk-import-progress',
-  pinterestBulkImportComplete: 'pinterest:bulk-import-complete',
-  externalImportProgress: 'external-import:progress',
-  externalImportComplete: 'external-import:complete',
-  externalImportBoardRequest: 'external-import:board-request',
-} as const;

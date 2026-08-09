@@ -23,11 +23,8 @@ export async function ensureImportFolder(dbService: DatabaseService): Promise<st
   // observe this folder it would call addImage again on the file we just
   // wrote, and addImage's `INSERT OR REPLACE` would delete the row we
   // already populated with description/website_link metadata.
-  await dbService.addFolder(dir);
-  const db = dbService.getDatabase();
-  if (db) {
-    db.getDatabase().prepare('UPDATE folders SET watched = 0 WHERE path = ?').run(dir);
-  }
+  await dbService.folders.addFolder(dir);
+  dbService.folders.setFolderWatched(dir, false);
   return dir;
 }
 
@@ -101,15 +98,9 @@ export async function importPin(
 
   // Idempotency: if the file already exists AND the DB knows about it, just return it.
   if (existsSync(targetPath)) {
-    const db = deps.dbService.getDatabase();
-    if (db) {
-      const row = db
-        .getDatabase()
-        .prepare('SELECT id FROM images WHERE file_path = ?')
-        .get(targetPath) as { id: number } | undefined;
-      if (row) {
-        return { imageId: row.id, filePath: targetPath, alreadyImported: true };
-      }
+    const imageId = deps.dbService.images.getImageIdByPath(targetPath);
+    if (imageId !== null) {
+      return { imageId, filePath: targetPath, alreadyImported: true };
     }
     // File exists on disk but DB row is missing — fall through and re-add.
   }
@@ -127,7 +118,7 @@ export async function importPin(
 
   let imageId: number;
   try {
-    imageId = await deps.dbService.addImage(finalPath);
+    imageId = (await deps.dbService.images.addImage(finalPath)).imageId;
   } catch (err) {
     // Don't leave an orphan file on disk if DB insert fails.
     try {
@@ -155,12 +146,12 @@ export async function importPin(
     // Don't swallow failures here — if the patch silently no-ops the user gets
     // an imported image with no description and no link, which looks like a
     // success but isn't. Let it surface so the renderer shows an error.
-    await deps.dbService.updateImageMetadata(imageId, metadata);
+    await deps.dbService.images.updateImageMetadata(imageId, metadata);
   }
 
   // Pre-warm the link preview cache so the metadata panel opens with it ready.
   if (pin.sourceUrl) {
-    void deps.dbService.fetchAndCacheLinkPreview(pin.sourceUrl).catch((err) => {
+    void deps.dbService.images.fetchAndCacheLinkPreview(pin.sourceUrl).catch((err) => {
       console.warn('[pinterest] Link preview prefetch failed:', err);
     });
   }

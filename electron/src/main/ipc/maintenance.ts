@@ -1,8 +1,8 @@
 import { app, clipboard, nativeImage, shell } from 'electron';
 import fs from 'fs';
-import { IPC_EVENTS } from 'shared';
 import type { MainIpcContext } from './context';
-import { handleInvoke, sendToRenderer, withOperation } from './context';
+import { handleInvoke, withOperation } from './context';
+import { createThrottledEmitter } from './events';
 import { getSortieUserDataPaths } from '../userDataPaths';
 import { createDisplayOrientedPngBuffer } from '../clipboardImage';
 
@@ -41,12 +41,17 @@ export function registerMaintenanceHandlers({ dbService, watcherService }: MainI
   });
 
   handleInvoke('computeMissingHashes', async (event, { opId }) => {
-    return await withOperation(opId, (signal) =>
-      dbService.maintenance.computeMissingHashes(
-        sendToRenderer(event.sender, IPC_EVENTS.hashProgress),
-        signal,
-      ),
-    );
+    const emitter = createThrottledEmitter(event.sender, 'hashProgress');
+    try {
+      return await withOperation(opId, (signal) =>
+        dbService.maintenance.computeMissingHashes(
+          (progress) => emitter.emit({ ...progress, opId }),
+          signal,
+        ),
+      );
+    } finally {
+      emitter.flush();
+    }
   });
 
   handleInvoke('findDuplicateGroups', async () => {
