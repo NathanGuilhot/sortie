@@ -7,7 +7,6 @@ import {
   type RefObject,
 } from 'react';
 import { type EmbedderStatus } from 'shared';
-import { useBuiltSearchQuery } from './useBuiltSearchQuery';
 import { useReverseImageSearch } from './useReverseImageSearch';
 import { useEmbedderStore } from '../../stores/embedderStore';
 import { useImageStore } from '../../stores/imageStore';
@@ -15,7 +14,6 @@ import { useUIStore } from '../../stores/uiStore';
 
 interface UseGallerySearchBarOptions {
   inputRef?: MutableRefObject<HTMLInputElement | null>;
-  scrollContainerRef?: RefObject<HTMLDivElement | null>;
 }
 
 interface GallerySearchBarState {
@@ -46,7 +44,6 @@ interface GallerySearchBarState {
 
 export function useGallerySearchBar({
   inputRef,
-  scrollContainerRef,
 }: UseGallerySearchBarOptions): GallerySearchBarState {
   const {
     searchQuery,
@@ -61,13 +58,13 @@ export function useGallerySearchBar({
     clearFilters,
   } = useUIStore();
   const loading = useImageStore((state) => state.loading);
-  const runQuery = useImageStore((state) => state.runQuery);
   const setActiveImageQuery = useImageStore((state) => state.setActiveImageQuery);
   const clearImageQuery = useImageStore((state) => state.clearImageQuery);
   const activeImageQuery = useImageStore((state) => state.activeImageQuery);
   const embedderStatus = useEmbedderStore((state) => state.status);
 
-  const [localQuery, setLocalQuery] = useState(searchQuery);
+  const localQuery = searchQuery;
+  const setLocalQuery = setSearchQuery;
   const [isFocused, setIsFocused] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -83,31 +80,6 @@ export function useGallerySearchBar({
     personFilter !== null ||
     folderFilter !== null ||
     paletteFilters.length > 0;
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localQuery !== searchQuery) {
-        setSearchQuery(localQuery);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [localQuery, searchQuery, setSearchQuery]);
-
-  useEffect(() => {
-    setLocalQuery(searchQuery);
-  }, [searchQuery]);
-
-  const builtQuery = useBuiltSearchQuery({
-    searchQuery,
-    personFilter,
-    folderFilter,
-    tagFilters,
-    paletteFilters,
-    showFavoritesOnly,
-    showHidden,
-    dateRange,
-    imageBytes: activeImageQuery?.bytes ?? null,
-  });
 
   const {
     isDragActive,
@@ -125,11 +97,6 @@ export function useGallerySearchBar({
     },
     setActiveImageQuery,
   });
-
-  useEffect(() => {
-    void runQuery(builtQuery);
-    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [builtQuery, runQuery, scrollContainerRef]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

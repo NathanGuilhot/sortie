@@ -7,6 +7,8 @@ import { AddFromWebPill } from '../components/AddFromWebPill';
 import { SearchHint, WebImportHint } from '../components/OnboardingHints';
 import { useImageStore } from '../stores/imageStore';
 import { useUIStore } from '../stores/uiStore';
+import { useGalleryQuery } from '../search/useGalleryQuery';
+import { focusSearch, scrollGalleryToTop } from '../search/galleryCommands';
 
 export function GalleryScreen() {
   const selectedImage = useImageStore((s) => s.selectedImage);
@@ -17,29 +19,27 @@ export function GalleryScreen() {
   const goBackImageViewer = useImageStore((s) => s.goBackImageViewer);
   const goForwardImageViewer = useImageStore((s) => s.goForwardImageViewer);
   const clearFilters = useUIStore((s) => s.clearFilters);
-  const focusSearchRequestedAt = useUIStore((s) => s.focusSearchRequestedAt);
-  const scrollGalleryToTopRequestedAt = useUIStore((s) => s.scrollGalleryToTopRequestedAt);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  useGalleryQuery(scrollContainerRef);
 
   useEffect(() => {
     return () => clearFilters();
   }, [clearFilters]);
 
-  useEffect(() => {
-    if (focusSearchRequestedAt > 0) searchInputRef.current?.focus();
-  }, [focusSearchRequestedAt]);
-
-  useEffect(() => {
-    if (scrollGalleryToTopRequestedAt > 0) {
-      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [scrollGalleryToTopRequestedAt]);
+  useEffect(() => focusSearch.register(() => searchInputRef.current?.focus()), []);
+  useEffect(
+    () =>
+      scrollGalleryToTop.register(() =>
+        scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }),
+      ),
+    [],
+  );
 
   return (
     <>
-      <SearchBar inputRef={searchInputRef} scrollContainerRef={scrollContainerRef} />
+      <SearchBar inputRef={searchInputRef} />
       <RefreshControl scrollContainerRef={scrollContainerRef} />
       <main className="flex-1 overflow-hidden">
         <div ref={scrollContainerRef} className="h-full overflow-y-auto pt-16 pb-10">

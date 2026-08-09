@@ -1,4 +1,4 @@
-import React, { type MutableRefObject, type RefObject } from 'react';
+import React, { type MutableRefObject } from 'react';
 import { type EmbedderStatus } from 'shared';
 import { SearchIcon, XIcon, FilterIcon } from './icons';
 import { SearchBarAdvancedFilters } from './searchBar/SearchBarAdvancedFilters';
@@ -6,12 +6,11 @@ import { useGallerySearchBar } from './searchBar/useGallerySearchBar';
 
 interface SearchBarProps {
   inputRef?: MutableRefObject<HTMLInputElement | null>;
-  scrollContainerRef?: RefObject<HTMLDivElement | null>;
 }
 
 const SUGGESTIONS = ['landscape', 'portrait', 'sunset', 'beach', 'family', 'vacation'];
 
-export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
+export function SearchBar({ inputRef }: SearchBarProps) {
   const {
     activeImageQuery,
     containerRef,
@@ -36,10 +35,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
     hasActiveFilters,
     setLocalQuery,
     setShowAdvanced,
-  } = useGallerySearchBar({
-    inputRef,
-    scrollContainerRef,
-  });
+  } = useGallerySearchBar({ inputRef });
 
   return (
     <div
@@ -97,6 +93,7 @@ export function SearchBar({ inputRef, scrollContainerRef }: SearchBarProps) {
         {localQuery && (
           <button
             onClick={handleClear}
+            aria-label="Clear search"
             className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0 ml-1"
           >
             <XIcon />

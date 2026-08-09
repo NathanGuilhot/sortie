@@ -9,21 +9,18 @@ import { useFolderStore } from './stores/folderStore';
 import { useOnboardingStore } from './stores/onboardingStore';
 import { useImageStore } from './stores/imageStore';
 import { usePinterestImportStore } from './stores/pinterestImportStore';
-import { useUIStore } from './stores/uiStore';
 
 function App() {
   useErrorToastBridge();
   const loadFolders = useFolderStore((s) => s.load);
   const loadOnboarding = useOnboardingStore((s) => s.load);
-  const clearFilters = useUIStore((s) => s.clearFilters);
   const clearImageQuery = useImageStore((s) => s.clearImageQuery);
   const resetPinterestImport = usePinterestImportStore((s) => s.reset);
 
   useEffect(() => {
-    clearFilters();
     clearImageQuery();
     resetPinterestImport();
-  }, [clearFilters, clearImageQuery, resetPinterestImport]);
+  }, [clearImageQuery, resetPinterestImport]);
 
   useEffect(() => {
     void loadFolders();

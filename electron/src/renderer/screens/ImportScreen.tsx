@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePinterestImportStore } from '../stores/pinterestImportStore';
 import { usePinterestStore } from '../stores/pinterestStore';
-import { useUIStore } from '../stores/uiStore';
 import { useImageStore } from '../stores/imageStore';
 import { toast } from '../stores/toastStore';
 import { ImportSearchBar } from './ImportSearchBar';
@@ -9,6 +8,7 @@ import { ImportResultsGrid } from './ImportResultsGrid';
 import { useMasonryLayout } from '../components/useMasonryLayout';
 import { useImportSearchParams } from './useImportSearchParams';
 import '../stores/pinterest-events';
+import { focusSearch } from '../search/galleryCommands';
 
 export function ImportScreen() {
   const {
@@ -72,12 +72,7 @@ export function ImportScreen() {
     inputRef.current?.focus();
   }, []);
 
-  const focusSearchRequestedAt = useUIStore((state) => state.focusSearchRequestedAt);
-  useEffect(() => {
-    if (focusSearchRequestedAt > 0) {
-      inputRef.current?.focus();
-    }
-  }, [focusSearchRequestedAt]);
+  useEffect(() => focusSearch.register(() => inputRef.current?.focus()), []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

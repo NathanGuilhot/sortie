@@ -14,8 +14,9 @@ import {
   SettingsIcon,
 } from '../components/icons';
 import { useImageStore } from '../stores/imageStore';
-import { useUIStore } from '../stores/uiStore';
 import { useEmbedderStore } from '../stores/embedderStore';
+import { useUIStore } from '../stores/uiStore';
+import { focusSearch, scrollGalleryToTop } from '../search/galleryCommands';
 
 type NavItem = {
   to: string;
@@ -46,12 +47,10 @@ export function AppLayout() {
   const [showAbout, setShowAbout] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const initEmbedder = useEmbedderStore((s) => s.init);
-  const requestFocusSearch = useUIStore((s) => s.requestFocusSearch);
-  const requestScrollGalleryToTop = useUIStore((s) => s.requestScrollGalleryToTop);
 
   const goHomeOrScrollTop = () => {
     if (location.pathname === '/gallery') {
-      requestScrollGalleryToTop();
+      scrollGalleryToTop.invoke();
     } else {
       void navigate('/gallery');
     }
@@ -71,12 +70,12 @@ export function AppLayout() {
         if (location.pathname !== '/import') {
           void navigate('/gallery');
         }
-        requestFocusSearch();
+        focusSearch.invoke();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigate, requestFocusSearch, location.pathname]);
+  }, [navigate, location.pathname]);
 
   return (
     <div className="h-screen bg-cream flex overflow-hidden">
@@ -101,7 +100,7 @@ export function AppLayout() {
                   onClick={(e) => {
                     if (item.to === '/gallery' && location.pathname === '/gallery') {
                       e.preventDefault();
-                      requestScrollGalleryToTop();
+                      scrollGalleryToTop.invoke();
                     }
                   }}
                   className={({ isActive }) =>

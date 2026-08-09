@@ -98,13 +98,13 @@ export function ExternalImportBridge() {
   const [progressByJob, setProgressByJob] = useState<Record<string, ExternalImportProgress>>({});
   const fetchBoards = useBoardStore((s) => s.fetchBoards);
   const loadFolders = useFolderStore((s) => s.load);
-  const runQuery = useImageStore((s) => s.runQuery);
 
   const refreshGallery = useCallback((): void => {
-    void runQuery({});
+    const { lastQuery, runQuery } = useImageStore.getState();
+    void runQuery(lastQuery ?? {});
     void fetchBoards();
     void loadFolders();
-  }, [fetchBoards, loadFolders, runQuery]);
+  }, [fetchBoards, loadFolders]);
 
   useEffect(() => {
     void window.sortieAPI.externalImport.getPendingBoardImport().then((request) => {
