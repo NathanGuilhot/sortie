@@ -96,7 +96,6 @@ export function OnboardingTakeover() {
       await window.sortieAPI.addFolder(target);
       await refreshFolders();
       await setCompleted();
-      // Un-awaited so the user watches the gallery fill in.
       void kickScan(target);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

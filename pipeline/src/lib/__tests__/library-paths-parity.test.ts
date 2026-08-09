@@ -3,10 +3,7 @@ import { mostSpecificFolderForPath } from 'shared';
 import { DatabaseFolderRepository } from '../db-folders';
 import { createTestDb, seedFolder, type TestDb } from '../testing/test-db';
 
-// The SQL "which folder covers this path" (db-folders.findFolderForPath) and
-// the pure JS one (shared/library-paths.mostSpecificFolderForPath, used by the
-// renderer) must agree — this table pins them together across the separator
-// spellings that caused regression dd339e3.
+// Keep SQL and JS folder lookup behavior aligned across path separators.
 
 const FOLDERS = ['/photos', '/photos/trips', 'C:\\Photos', 'C:\\Photos\\Trips', '/pho'];
 

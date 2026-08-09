@@ -63,7 +63,6 @@ export class DatabaseFolderRepository {
         deleteVector?.run(id);
         const colorIds = selectPaletteIds.all(id) as Array<{ id: number }>;
         for (const { id: colorId } of colorIds) {
-          // See the authoritative vec_palette invariant in the v11 migration.
           deletePaletteVector?.run(BigInt(colorId));
         }
         deleteImage.run(id);

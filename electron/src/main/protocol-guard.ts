@@ -18,10 +18,8 @@ export function isServablePath(
 }
 
 export interface ProtocolPathGuardDeps {
-  /** Roots the app owns (userData caches) — always servable. */
   allowedRoots: readonly string[];
   getLibraryFolderPaths(): Promise<readonly string[]>;
-  /** Exact-path lookup for images the library knows but that live outside any folder. */
   isKnownImagePath(requestedPath: string): boolean;
 }
 

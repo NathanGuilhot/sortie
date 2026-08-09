@@ -1,13 +1,10 @@
 import type Database from 'better-sqlite3';
 import { DatabaseManager } from '../db';
 
-// Test harness: a real in-memory database with the full schema, migrations,
-// and sqlite-vec loaded — so tests can never drift from the real schema the
-// way hand-rolled CREATE TABLE blocks silently did.
+// In-memory database initialized with the production schema and migrations.
 
 export interface TestDb {
   manager: DatabaseManager;
-  /** Raw better-sqlite3 handle, for test seeding and assertions only. */
   raw: Database.Database;
   close(): void;
 }

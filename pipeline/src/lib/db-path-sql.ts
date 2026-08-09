@@ -8,11 +8,7 @@ export function pathPrefixLikePattern(folderPath: string): string {
   return `${normalizePathForSqlLike(folderPath)}/%`;
 }
 
-// Folder-overlap-aware NOT EXISTS clauses. When two registered folders overlap
-// (e.g. /foo and /foo/bar), images under the intersection belong to both.
-// These filter to images NOT covered by any other folder — used to scope
-// folder removal and availability flips so sibling folders' files are left
-// alone. Bind the folder being operated on as the `?` parameter.
+// Excludes images covered by another registered folder; bind the current folder to `?`.
 
 export const OVERLAP_EXCLUDE_CLAUSE = `NOT EXISTS (
   SELECT 1 FROM folders f2

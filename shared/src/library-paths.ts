@@ -1,8 +1,4 @@
-// One owner for library path semantics, shared by the renderer, electron main,
-// and pipeline. Policy: *storage* keeps native absolute paths (electron
-// resolves with path.resolve before writing); *comparison* always goes through
-// toPortablePath (JS) or sqlPath (SQL, pipeline/src/lib/db-path-sql.ts) so
-// Windows backslash spellings compare equal to forward-slash ones.
+// Store native absolute paths; normalize separators only for comparisons.
 
 export function toPortablePath(p: string): string {
   return p.replace(/\\/g, '/');
