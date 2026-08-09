@@ -155,7 +155,7 @@ export function getVisibleIndices(
     Math.floor(viewBottom / VISIBILITY_BUCKET_HEIGHT),
   );
 
-  // Single bucket — return its members filtered to the exact window.
+  // Single bucket: return its members filtered to the exact window.
   if (first === last) {
     const out: number[] = [];
     const bucket = layout.buckets[first];
@@ -167,7 +167,7 @@ export function getVisibleIndices(
     return out;
   }
 
-  // Multiple buckets — union members, then filter. An item spanning a bucket
+  // Multiple buckets: union members, then filter. An item spanning a bucket
   // boundary appears in both, so dedupe via a Set.
   const seen = new Set<number>();
   const out: number[] = [];

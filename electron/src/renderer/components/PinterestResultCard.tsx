@@ -84,7 +84,7 @@ export const PinterestResultCard = memo(function PinterestResultCard({
           }`}
         />
 
-        {/* AI-generated badge — top-left. Only visible when the user has
+        {/* AI-generated badge: top-left. Only visible when the user has
             opted in to seeing AI results, so they can tell them apart. */}
         {pin.isAiGenerated && !hideAiGenerated && !isImported && (
           <div className="absolute top-2 left-2 px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase text-white bg-black/55 backdrop-blur rounded-full">
@@ -94,7 +94,7 @@ export const PinterestResultCard = memo(function PinterestResultCard({
 
         {gif && !isImported && <GifBadge corner="bottom-right" />}
 
-        {/* Domain chip — bottom-left */}
+        {/* Domain chip: bottom-left */}
         {pin.sourceDomain && pin.sourceUrl && !isImported && (
           <button
             onClick={handleSourceClick}
@@ -106,7 +106,7 @@ export const PinterestResultCard = memo(function PinterestResultCard({
           </button>
         )}
 
-        {/* Status badge — top-right */}
+        {/* Status badge: top-right */}
         {(isImported || isPending || isError) && (
           <div
             className={`absolute top-2 right-2 px-2 py-1 text-[11px] font-medium rounded-full backdrop-blur ${

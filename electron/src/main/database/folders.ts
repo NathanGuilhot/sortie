@@ -18,6 +18,26 @@ const WALK_CONCURRENCY = Math.min(32, Math.max(8, cpuCount * 4));
 const IMAGE_PROCESSING_CONCURRENCY =
   process.platform === 'linux' ? 1 : Math.min(4, Math.max(2, Math.floor(cpuCount / 2)));
 
+export class FolderReadError extends Error {
+  readonly code: string | undefined;
+
+  constructor(
+    readonly folderPath: string,
+    cause: unknown,
+  ) {
+    super(`Unable to read folder: ${folderPath}`, { cause });
+    this.name = 'FolderReadError';
+    this.code =
+      typeof cause === 'object' && cause !== null && 'code' in cause
+        ? String(cause.code)
+        : undefined;
+  }
+}
+
+export function isFolderAccessDenied(error: unknown): error is FolderReadError {
+  return error instanceof FolderReadError && (error.code === 'EACCES' || error.code === 'EPERM');
+}
+
 export class DatabaseFoldersService {
   constructor(private readonly deps: DatabaseFoldersDeps) {}
 
@@ -25,6 +45,7 @@ export class DatabaseFoldersService {
     const imageFiles: string[] = [];
     const pendingDirs = [folderPath];
     let active = 0;
+    let failed = false;
     let resolveDone: (() => void) | null = null;
     let rejectDone: ((error: unknown) => void) | null = null;
 
@@ -38,6 +59,7 @@ export class DatabaseFoldersService {
         resolveDone?.();
         return;
       }
+      if (failed) return;
 
       while (active < WALK_CONCURRENCY && pendingDirs.length > 0) {
         const dir = pendingDirs.shift();
@@ -70,7 +92,10 @@ export class DatabaseFoldersService {
               }
             },
             (error) => {
-              rejectDone?.(error);
+              active -= 1;
+              failed = true;
+              pendingDirs.length = 0;
+              rejectDone?.(new FolderReadError(dir, error));
             },
           );
       }

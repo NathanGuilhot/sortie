@@ -58,7 +58,7 @@ export function parsePin(raw: unknown): PinterestResult | null {
   if (!raw || typeof raw !== 'object') return null;
   const p = raw as RawPin;
 
-  // Skip videos in v1 — they need HLS handling we haven't built.
+  // Skip videos in v1: they need HLS handling we haven't built.
   if (p.videos) return null;
 
   const orig = p.images?.orig;
@@ -70,7 +70,7 @@ export function parsePin(raw: unknown): PinterestResult | null {
   if (width <= 0 || height <= 0) return null;
 
   // `link` is the source of truth for the pin's source URL. `domain` is just
-  // a label Pinterest provides — and they sometimes use the literal sentinel
+  // a label Pinterest provides: and they sometimes use the literal sentinel
   // "Uploaded by user" when a pin was uploaded directly rather than scraped
   // from a website. Trust `link`; only fall back to the domain field when the
   // URL doesn't parse cleanly.

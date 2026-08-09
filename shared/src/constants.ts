@@ -30,7 +30,7 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   '.bmp',
   '.tiff',
   '.heic',
-  // Camera RAW — decoded via embedded JPEG preview in pipeline/lib/raw.ts
+  // Camera RAW: decoded via embedded JPEG preview in pipeline/lib/raw.ts
   '.cr2',
   '.cr3',
   '.crw',

@@ -57,7 +57,7 @@ Node 18 or newer, and Yarn.
 ```sh
 yarn install
 yarn dev            # build workspaces + launch Electron with hot reload
-yarn dist:mac       # or dist:win / dist:linux — artifacts land in electron/out/
+yarn dist:mac       # or dist:win / dist:linux: artifacts land in electron/out/
 ```
 
 See [`docs/RELEASE.md`](docs/RELEASE.md) for versioning, cross-building, and the smoke-test checklist.

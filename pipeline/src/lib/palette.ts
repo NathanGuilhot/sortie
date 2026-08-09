@@ -5,7 +5,7 @@ import { PaletteColor } from 'shared';
 
 export const PALETTE_SIZE = 5;
 
-// Downsample before clustering — ~10k pixels is plenty to converge on
+// Downsample before clustering: ~10k pixels is plenty to converge on
 // dominant colors while keeping k-means fast (<50ms per image typical).
 const SAMPLE_EDGE = 100;
 
@@ -77,7 +77,7 @@ export function hexToOklab(hex: string): [number, number, number] | null {
   return rgbToOklab(rgb[0], rgb[1], rgb[2]);
 }
 
-// `lab` in PaletteColor holds OKLab coordinates — the name is kept for schema continuity.
+// `lab` in PaletteColor holds OKLab coordinates: the name is kept for schema continuity.
 export async function extractPalette(input: string | Buffer): Promise<PaletteColor[]> {
   const { data, info } = await sharp(await resolveImageInput(input))
     .resize(SAMPLE_EDGE, SAMPLE_EDGE, { fit: 'inside', withoutEnlargement: false })

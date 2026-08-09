@@ -3,7 +3,7 @@ import { Image } from 'shared';
 import { type Position } from './masonry-layout';
 import { isGif } from './gif-utils';
 import { GifBadge } from './gif';
-import { HeartIcon, XIcon } from './icons';
+import { HeartIcon } from './icons';
 import { buildSortieFileUrl, buildSortieThumbUrl } from './sortieImageUrl';
 
 export const MasonryImage = memo(function MasonryImage({
@@ -81,26 +81,6 @@ export const MasonryImage = memo(function MasonryImage({
           title="Favorite"
         >
           <HeartIcon className="w-[11px] h-[11px] text-white" filled />
-        </div>
-      )}
-      {image.embedded === false && loaded && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 6,
-            right: 6,
-            width: 20,
-            height: 20,
-            borderRadius: '50%',
-            backgroundColor: 'rgba(239, 68, 68, 0.9)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-          }}
-          title="No embedding — won't appear in search results"
-        >
-          <XIcon className="w-3 h-3 text-white" strokeWidth={2.5} />
         </div>
       )}
     </div>

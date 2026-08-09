@@ -41,7 +41,7 @@ export function useReverseImageSearch({
       if (!embedderReady) {
         toast.error(
           embedderWarming
-            ? 'Search model is still warming up — try again in a moment.'
+            ? 'Search model is still warming up: try again in a moment.'
             : 'Search unavailable.',
         );
         return;

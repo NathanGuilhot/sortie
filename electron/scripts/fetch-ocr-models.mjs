@@ -80,7 +80,7 @@ const results = await Promise.all(
     const size = fs.statSync(dest).size;
     if (size < minBytes) {
       fs.unlinkSync(dest);
-      throw new Error(`${name} downloaded too small (${size} bytes) — aborting`);
+      throw new Error(`${name} downloaded too small (${size} bytes): aborting`);
     }
     console.log(`[ocr-models]   → ${name} (${(size / 1024 / 1024).toFixed(1)} MB)`);
     return true;
@@ -88,5 +88,5 @@ const results = await Promise.all(
 );
 
 if (!results.some(Boolean)) {
-  console.log('[ocr-models] all files present — nothing to do');
+  console.log('[ocr-models] all files present: nothing to do');
 }

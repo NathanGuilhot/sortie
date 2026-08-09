@@ -11,7 +11,7 @@ export function registerOcrHandlers({ dbService }: MainIpcContext): void {
       return { available: false as const };
     }
 
-    // Fire and forget — the renderer subscribes to the shared OCR update event for the
+    // Fire and forget: the renderer subscribes to the shared OCR update event for the
     // result. Surfacing the promise here would serialize every renderer call
     // behind the heavy inference queue.
     void dbService.ocr.ensure(imageId).catch(() => undefined);

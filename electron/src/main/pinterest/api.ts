@@ -176,10 +176,10 @@ export function parsePinterestInput(input: string): ParsedTarget {
   const trimmed = input.trim();
   if (!trimmed) throw new PinterestAPIError('Empty input', undefined, 'invalid_input');
 
-  // Pin URL — treat as a single-pin board lookup is unsupported in v1.
+  // Pin URL: treat as a single-pin board lookup is unsupported in v1.
   if (PIN_URL_RE.test(trimmed)) {
     throw new PinterestAPIError(
-      "Direct pin URLs aren't supported yet — paste a board URL or search by keyword instead.",
+      "Direct pin URLs aren't supported yet: paste a board URL or search by keyword instead.",
       undefined,
       'invalid_input',
     );

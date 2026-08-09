@@ -123,7 +123,7 @@ export function BoardPickerModal({
           {filtered.length === 0 && !canCreate && (
             <div className="py-12 text-center text-sm text-gray-400">
               {boards.length === 0
-                ? 'No boards yet — type a name to create one.'
+                ? 'No boards yet: type a name to create one.'
                 : 'No matching boards.'}
             </div>
           )}

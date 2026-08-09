@@ -13,7 +13,7 @@ Sortie ships unsigned installers. Code signing + notarization are planned follow
 3. The `Release` workflow runs automatically on tag push (or trigger manually from the Actions tab):
    - Generates icons once on macOS, shares them via artifact.
    - Builds + publishes mac / windows / linux in parallel.
-   - Uploads all artifacts to a **draft** GitHub release — edit the notes and publish when ready.
+   - Uploads all artifacts to a **draft** GitHub release: edit the notes and publish when ready.
 
 ## Local builds
 
@@ -56,7 +56,7 @@ electron-builder sign the final app bundle.
 
 ## Release-notes boilerplate
 
-### Windows — SmartScreen warning
+### Windows: SmartScreen warning
 
 SmartScreen may show "Windows protected your PC". Click **More info** → **Run anyway**.
 

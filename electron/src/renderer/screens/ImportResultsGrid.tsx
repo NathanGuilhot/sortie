@@ -25,7 +25,7 @@ function errorCopy(error: PinterestImportError): { title: string; description: s
       return {
         title: "Couldn't reach Pinterest.",
         description:
-          "If you're using a VPN, try disabling it — Pinterest blocks some VPN exit nodes and silently returns no results.",
+          "If you're using a VPN, try disabling it: Pinterest blocks some VPN exit nodes and silently returns no results.",
       };
     case 'rate_limited':
       return {
@@ -199,7 +199,7 @@ export function ImportResultsGrid({
               <div className="mt-4 text-center text-xs text-gray-400">Loading more…</div>
             )}
             {isEnd && visibleResults.length > 0 && (
-              <div className="mt-4 text-center text-xs text-gray-300">— end of results —</div>
+              <div className="mt-4 text-center text-xs text-gray-300">— end of results:</div>
             )}
           </>
         )}

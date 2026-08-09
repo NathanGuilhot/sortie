@@ -292,7 +292,7 @@ export function MetadataModal({
 
       {/* Three-panel layout */}
       <div className="absolute inset-0 top-14 flex">
-        {/* Left sidebar — similar images */}
+        {/* Left sidebar: similar images */}
         <div
           className="w-[200px] flex-shrink-0 overflow-y-auto p-2 flex items-center"
           style={{ overscrollBehavior: 'contain' }}
@@ -333,7 +333,7 @@ export function MetadataModal({
           </div>
         </div>
 
-        {/* Right sidebar — similar images */}
+        {/* Right sidebar: similar images */}
         <div
           className="w-[200px] flex-shrink-0 overflow-y-auto p-2 flex items-center"
           style={{ overscrollBehavior: 'contain' }}
@@ -348,7 +348,7 @@ export function MetadataModal({
           </div>
         </div>
 
-        {/* Metadata panel — overlaid on the right */}
+        {/* Metadata panel: overlaid on the right */}
         {showMetadata && (
           <div
             className="absolute top-0 right-0 bottom-0 w-96 bg-white/95 backdrop-blur-sm shadow-2xl overflow-y-auto animate-slide-in-right"

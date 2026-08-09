@@ -60,7 +60,7 @@ function DuplicateGroupCard({
           <span className="text-xs text-gray-400">{group.images.length} files</span>
           {allReadOnly && (
             <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-              Read-only — review only
+              Read-only: review only
             </span>
           )}
           {!allReadOnly && someReadOnly && (
@@ -82,7 +82,7 @@ function DuplicateGroupCard({
       >
         {group.images.map((img: Image) => {
           const writable = isWritable(img.file_path);
-          // "Keep this one" means delete the others — only the writable ones.
+          // "Keep this one" means delete the others: only the writable ones.
           const othersToDelete = group.images.filter(
             (o) => o.id !== img.id && isWritable(o.file_path),
           );
@@ -121,7 +121,7 @@ function ImageCard({
 }) {
   const [confirming, setConfirming] = useState(false);
   // If there's nothing to delete (all siblings are read-only), disable the
-  // action — "Keep this one" only makes sense when we can actually remove the
+  // action: "Keep this one" only makes sense when we can actually remove the
   // others.
   const canAct = writable && deleteCount > 0;
 

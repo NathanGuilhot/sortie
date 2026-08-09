@@ -21,6 +21,7 @@ function main() {
   }
 
   verifyBundle(builtApp);
+  assertElectronHelpersAllowLibraryValidation(builtApp);
   assertFinderSyncSandboxed(path.join(builtApp, 'Contents', 'PlugIns', 'SortieFinderSync.appex'));
 
   console.log(`[install:mac-local] installing ${builtApp} -> ${installedApp}`);
@@ -28,6 +29,7 @@ function main() {
   run('ditto', [builtApp, installedApp]);
 
   verifyBundle(installedApp);
+  assertElectronHelpersAllowLibraryValidation(installedApp);
   assertFinderSyncSandboxed(installedExtension);
 
   run(
@@ -62,6 +64,23 @@ function assertFinderSyncSandboxed(appexPath) {
         'Rebuild with "yarn dist:mac" so electron-builder signs the app and extension separately.',
       ].join(os.EOL),
     );
+  }
+}
+
+function assertElectronHelpersAllowLibraryValidation(appPath) {
+  const frameworksPath = path.join(appPath, 'Contents', 'Frameworks');
+  const helpers = fs
+    .readdirSync(frameworksPath)
+    .filter((entry) => entry.startsWith('Sortie Helper') && entry.endsWith('.app'));
+
+  for (const helper of helpers) {
+    const helperPath = path.join(frameworksPath, helper);
+    const result = run('codesign', ['-d', '--entitlements', '-', helperPath], { capture: true });
+    if (!result.output.includes('com.apple.security.cs.disable-library-validation')) {
+      throw new Error(
+        `Electron helper ${helperPath} cannot load Electron Framework under the hardened runtime.`,
+      );
+    }
   }
 }
 

@@ -64,7 +64,7 @@ export async function bulkImportBoard(
 
   const seen = new Set<string>();
 
-  // Resolve board once — we need the id for feed pagination and pinCount
+  // Resolve board once: we need the id for feed pagination and pinCount
   // for the initial progress total.
   let boardId: string;
   let pinCount: number;
@@ -107,7 +107,7 @@ export async function bulkImportBoard(
       });
     } catch (err) {
       // Abort errors bubble up as DOMException; don't count them as a
-      // user-visible failure — the job summary will say 'cancelled'.
+      // user-visible failure: the job summary will say 'cancelled'.
       if (signal.aborted) return;
       failed += 1;
       onProgress({

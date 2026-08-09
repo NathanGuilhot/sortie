@@ -19,7 +19,7 @@ export async function ensureImportFolder(dbService: DatabaseService): Promise<st
   const dir = getImportFolder();
   await fs.mkdir(dir, { recursive: true });
   // Register in folders table so the count rolls up in /folders, but force
-  // watched=0 — the importer adds files explicitly. If chokidar were to
+  // watched=0: the importer adds files explicitly. If chokidar were to
   // observe this folder it would call addImage again on the file we just
   // wrote, and addImage's `INSERT OR REPLACE` would delete the row we
   // already populated with description/website_link metadata.
@@ -102,7 +102,7 @@ export async function importPin(
     if (imageId !== null) {
       return { imageId, filePath: targetPath, alreadyImported: true };
     }
-    // File exists on disk but DB row is missing — fall through and re-add.
+    // File exists on disk but DB row is missing: fall through and re-add.
   }
 
   const { bytes, contentType } = await downloadImageBytes(pin.imageUrl, deps.signal);
@@ -131,7 +131,7 @@ export async function importPin(
 
   // Patch metadata. `description` falls through pin.description → pin.alt so
   // even pins with no real caption still get the auto-alt CV text. `website_link`
-  // is only set when Pinterest has a real source URL — we never want to write
+  // is only set when Pinterest has a real source URL: we never want to write
   // the pin's own URL there since the user has explicitly asked for the
   // *source* (the original site the image was pinned from).
   const description = pin.description ?? pin.alt;
@@ -143,7 +143,7 @@ export async function importPin(
   if (pin.sourceUrl) metadata.website_link = pin.sourceUrl;
 
   if (Object.keys(metadata).length > 0) {
-    // Don't swallow failures here — if the patch silently no-ops the user gets
+    // Don't swallow failures here: if the patch silently no-ops the user gets
     // an imported image with no description and no link, which looks like a
     // success but isn't. Let it surface so the renderer shows an error.
     await deps.dbService.images.updateImageMetadata(imageId, metadata);

@@ -14,14 +14,14 @@ interface RefreshControlProps {
 const PULL_THRESHOLD = 160;
 // Cap so the indicator doesn't stretch forever on aggressive scrolls.
 const MAX_PULL = 220;
-// Wheel-end debounce — no events for this long counts as release.
+// Wheel-end debounce: no events for this long counts as release.
 const RELEASE_DELAY_MS = 160;
 // Required quiet time at the top before we accept a new pull. Blocks momentum
 // scroll-up from a prior downward scroll: trackpad momentum keeps emitting
 // wheel events after the user lifts their fingers, and those would otherwise
 // be counted as an intentional pull the moment scrollTop hits 0.
 const REST_DELAY_MS = 320;
-// Don't show the indicator for tiny overscrolls — avoids flicker on stray
+// Don't show the indicator for tiny overscrolls: avoids flicker on stray
 // single-tick wheel events.
 const INDICATOR_SHOW_AT = 16;
 
@@ -54,7 +54,7 @@ export function RefreshControl({ scrollContainerRef }: RefreshControlProps) {
 
   // Pull-to-refresh via wheel overscroll while the container is already at
   // the top. A pull only engages if the user was *at rest* at the top before
-  // the pull began — otherwise trackpad momentum from a preceding upward
+  // the pull began: otherwise trackpad momentum from a preceding upward
   // scroll would get counted as a deliberate pull the instant scrollTop hits
   // 0. Once a session starts, subsequent wheel events add to the pull; a
   // release (no wheel activity for RELEASE_DELAY_MS) commits or cancels.
@@ -88,7 +88,7 @@ export function RefreshControl({ scrollContainerRef }: RefreshControlProps) {
     };
 
     const handleWheel = (e: WheelEvent) => {
-      // Capture pre-event rest state, then invalidate it for this event — any
+      // Capture pre-event rest state, then invalidate it for this event: any
       // wheel activity counts as "not at rest" until the quiet timer re-arms.
       const wasResting = restedAtTop;
       restedAtTop = false;
@@ -146,7 +146,7 @@ export function RefreshControl({ scrollContainerRef }: RefreshControlProps) {
 
   return (
     <>
-      {/* Pull-to-refresh indicator — floats below the search bar */}
+      {/* Pull-to-refresh indicator: floats below the search bar */}
       {indicatorVisible && (
         <div
           className="fixed left-1/2 -translate-x-1/2 top-20 z-20 pointer-events-none"
@@ -177,7 +177,7 @@ export function RefreshControl({ scrollContainerRef }: RefreshControlProps) {
         </div>
       )}
 
-      {/* Refresh button — top-right floating */}
+      {/* Refresh button: top-right floating */}
       <button
         onClick={() => void triggerRefresh()}
         disabled={refreshing}

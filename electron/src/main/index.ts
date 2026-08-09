@@ -220,7 +220,7 @@ async function initializeServices() {
   });
 
   // Pre-create the Pinterest import folder so it's listed in /folders even
-  // before the user imports anything. NEVER add it to the watcher — the
+  // before the user imports anything. NEVER add it to the watcher: the
   // importer calls addImage explicitly.
   try {
     await ensureImportFolder(dbService);

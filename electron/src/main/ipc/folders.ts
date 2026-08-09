@@ -1,5 +1,7 @@
 import type { MainIpcContext } from './context';
 import { handleInvoke, withOperation } from './context';
+import { isFolderAccessDenied } from '../database/folders';
+import { showDirectoryPicker } from './directoryPicker';
 import { createThrottledEmitter } from './events';
 
 export function registerFolderHandlers({
@@ -17,14 +19,26 @@ export function registerFolderHandlers({
 
   handleInvoke('scanFolder', async (event, { path, opId }) => {
     const emitter = createThrottledEmitter(event.sender, 'scanProgress');
+    const scan = (signal: AbortSignal) =>
+      dbService.folders.scanFolder(path, (progress) => emitter.emit({ ...progress, opId }), signal);
     try {
-      return await withOperation(opId, (signal) =>
-        dbService.folders.scanFolder(
-          path,
-          (progress) => emitter.emit({ ...progress, opId }),
-          signal,
-        ),
-      );
+      return await withOperation(opId, async (signal) => {
+        try {
+          return await scan(signal);
+        } catch (error) {
+          if (process.platform !== 'darwin' || !isFolderAccessDenied(error)) throw error;
+
+          const grantedPath = await showDirectoryPicker(event, {
+            defaultPath: error.folderPath,
+            message: 'Select this folder to allow Sortie to scan its photos.',
+            treatPackagesAsDirectories: true,
+          });
+          if (!grantedPath) {
+            throw new Error(`Access was not granted to ${error.folderPath}.`);
+          }
+          return await scan(signal);
+        }
+      });
     } finally {
       emitter.flush();
     }

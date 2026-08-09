@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { coalesceByPath } from '../watcher-coalesce';
 
 // When /foo and /foo/bar are both watched, chokidar emits `add` for files in
-// the overlap region TWICE — once per watcher. coalesceByPath de-duplicates
+// the overlap region TWICE: once per watcher. coalesceByPath de-duplicates
 // these concurrent invocations so addImage() only runs once.
 
 describe('coalesceByPath', () => {

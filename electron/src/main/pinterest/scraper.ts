@@ -161,7 +161,7 @@ export async function loadMore(
       isEnd: isEndBookmark(next),
     };
   }
-  // For board: requires the boardId — caller must re-resolve via getBoardInfo if reusing across sessions.
+  // For board: requires the boardId: caller must re-resolve via getBoardInfo if reusing across sessions.
   const info = await getBoardInfo(target.username, target.slug);
   const { pins, bookmarks: next } = await getBoardFeed({
     boardId: info.boardId,

@@ -25,7 +25,7 @@ export function OnboardingFolderStep({
         ? 'No images found'
         : `${picturesCount.toLocaleString()}${suggestion.capped ? '+' : ''} image${picturesCount === 1 ? '' : 's'} to import`
       : 'Ready to scan'
-    : 'Not found — pick a folder instead';
+    : 'Not found: pick a folder instead';
 
   return (
     <div className="animate-fade-in">
@@ -64,7 +64,7 @@ export function OnboardingFolderStep({
           disabled={working !== null}
           className="text-xs text-ink/50 hover:text-ink/80 transition-colors disabled:opacity-40"
         >
-          Start empty — I'll add folders later
+          Start empty: I'll add folders later
         </button>
       </div>
     </div>

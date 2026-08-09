@@ -113,7 +113,7 @@ export class DatabaseManager {
     // Once all rows have dimensions the SELECT returns nothing and this is a
     // no-op, so no global "done" flag is needed. A failed extraction (e.g.
     // file on an unmounted volume) is silently skipped so the row is retried
-    // next launch — never overwrite valid dims with null.
+    // next launch: never overwrite valid dims with null.
     const rows = this.db
       .prepare('SELECT id, file_path FROM images WHERE width IS NULL OR height IS NULL')
       .all() as Array<{ id: number; file_path: string }>;

@@ -213,7 +213,7 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
   if (version < 12) {
     // Palette space switched from CIELAB to OKLab. Stored vectors and query
     // vectors must share a space or nearest-neighbor search is garbage, so
-    // wipe existing palette data — `getImagesMissingPalette` will surface
+    // wipe existing palette data: `getImagesMissingPalette` will surface
     // these for recomputation.
     if (vecLoaded) {
       db.exec('DELETE FROM vec_palette');

@@ -119,7 +119,7 @@ export class FaceDetector {
       canvasWidth = result.info.width;
       canvasHeight = result.info.height;
     } else {
-      // Only touch loadImageInput on cache miss — a cache hit must never
+      // Only touch loadImageInput on cache miss: a cache hit must never
       // trigger embedded-JPEG extraction for the same file.
       const resolved = input ?? (await loadImageInput(imagePath));
       let pipeline = sharp(resolved).rotate();

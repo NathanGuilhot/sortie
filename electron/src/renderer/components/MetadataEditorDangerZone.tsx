@@ -71,7 +71,7 @@ export function MetadataEditorDangerZone({
             title="This file lives on a read-only volume and cannot be deleted from Sortie."
             className="w-full px-3 py-2 text-xs font-medium text-gray-400 cursor-not-allowed text-center"
           >
-            Read-only — cannot delete file
+            Read-only: cannot delete file
           </button>
         )
       ) : null}

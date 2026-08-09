@@ -92,7 +92,7 @@ export function FolderScanner() {
       await window.sortieAPI.resetDatabase();
       setResettingDb(false);
       await loadFolders();
-      // Reset wipes app_settings too — rehydrate so the takeover reappears.
+      // Reset wipes app_settings too: rehydrate so the takeover reappears.
       await useOnboardingStore.getState().load();
     } catch (error) {
       showIpcError(error);

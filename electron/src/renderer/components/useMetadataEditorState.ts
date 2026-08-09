@@ -14,6 +14,7 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
     hideImage,
     deleteImage,
     updateImageMetadata,
+    recomputeEmbedding,
     addToBoard,
     setSelectedImage,
     closeImageViewer,
@@ -37,6 +38,7 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
   const [faces, setFaces] = useState<Face[]>([]);
 
   useEffect(() => {
+    setEmbeddingStatus('idle');
     if (image) {
       setDate(image.captured_at ? new Date(image.captured_at).toISOString().split('T')[0] : '');
       setLocation([image.city, image.country].filter(Boolean).join(', ') || '');
@@ -177,15 +179,11 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
     if (!image) return;
 
     setEmbeddingStatus('loading');
-    try {
-      await window.sortieAPI.recomputeEmbedding(image.id);
+    const succeeded = await recomputeEmbedding(image.id);
+    if (succeeded) {
       setEmbeddingStatus('success');
-      setTimeout(() => setEmbeddingStatus('idle'), 2000);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to recompute embedding: ${message}`);
+    } else {
       setEmbeddingStatus('error');
-      setTimeout(() => setEmbeddingStatus('idle'), 3000);
     }
   };
 

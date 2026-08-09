@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, Fragment } from 'react';
 import type { OcrBlock } from 'shared';
 
-// Only matches absolute http(s) URLs — relative paths in photos are almost
+// Only matches absolute http(s) URLs: relative paths in photos are almost
 // never meaningful and would false-positive on every "word.word" token.
 const URL_RE = /\bhttps?:\/\/[^\s<>"'()一-鿿]+/gi;
 
@@ -123,7 +123,7 @@ export function OcrOverlay({ imageId, imgRef, imageLoaded }: Props) {
 }
 
 function renderBlock(block: OcrBlock, index: number, rect: { width: number; height: number }) {
-  // Prefer the polygon if present — rotated text needs it. Fall back to the
+  // Prefer the polygon if present: rotated text needs it. Fall back to the
   // axis-aligned bbox (covers the PaddleOCR "no polygon" case).
   const poly = block.polygon;
   let px: number;
@@ -154,7 +154,7 @@ function renderBlock(block: OcrBlock, index: number, rect: { width: number; heig
 
   // Height is a good proxy for the visible font's em-square; pick fontSize
   // from it, then correct the horizontal axis via scaleX so the rendered
-  // glyph run exactly spans the OCR bbox — no matter which font the original
+  // glyph run exactly spans the OCR bbox: no matter which font the original
   // image used or how wide its glyphs were.
   const fontSize = Math.max(8, height * 0.9);
   const naturalWidth = measureTextWidth(block.text, fontSize);
@@ -186,7 +186,7 @@ function renderBlock(block: OcrBlock, index: number, rect: { width: number; heig
         pointerEvents: 'auto',
         userSelect: 'text',
         cursor: 'text',
-        // Selection color is kept default (OS accent) — only the rectangle
+        // Selection color is kept default (OS accent): only the rectangle
         // shows on drag, glyphs stay transparent.
       }}
       data-ocr-block

@@ -31,7 +31,7 @@ export function SearchHint() {
         />
         <div className="flex items-center gap-2.5 bg-lavender/80 border border-lavender text-ink text-xs rounded-full px-4 py-2 shadow-lg shadow-black/5 backdrop-blur-sm">
           <span>
-            Try searching in your own words — <em className="not-italic font-medium">“sunset”</em>,{' '}
+            Try searching in your own words: <em className="not-italic font-medium">“sunset”</em>,{' '}
             <em className="not-italic font-medium">“red coat”</em>…
           </span>
           <button

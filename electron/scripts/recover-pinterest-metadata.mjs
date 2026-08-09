@@ -66,7 +66,7 @@ async function fetchPinFromHtml(pinId) {
     s ? s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x2F;/g, '/') : null;
 
   // Find the pin's source link via the embedded JSON.
-  // It appears as JSON-escaped — match a URL that doesn't contain pinterest.com.
+  // It appears as JSON-escaped: match a URL that doesn't contain pinterest.com.
   let link = null;
   let description = null;
 

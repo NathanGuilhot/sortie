@@ -97,7 +97,7 @@ export class FaceMatcher {
     const M = personIds.length; // candidate persons (cols)
 
     if (M === 0) {
-      // No existing persons match — create a new person for each face.
+      // No existing persons match: create a new person for each face.
       return faces.map((face) => {
         const personId = this.db.people.insertPerson(null);
         this.db.people.insertPersonEmbedding(personId, face.descriptor);

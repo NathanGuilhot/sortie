@@ -1,10 +1,11 @@
-import { app, BrowserWindow, dialog, shell } from 'electron';
+import { app, shell } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { SUPPORTED_IMAGE_EXTENSIONS } from 'shared';
 import { cancelOperation } from '../operations';
 import type { MainIpcContext } from './context';
 import { handleInvoke } from './context';
+import { showDirectoryPicker } from './directoryPicker';
 
 const IMAGE_EXTENSIONS = new Set<string>(SUPPORTED_IMAGE_EXTENSIONS);
 
@@ -47,12 +48,7 @@ export function registerSystemHandlers({
   dbPath,
 }: MainIpcContext): void {
   handleInvoke('pickFolder', async (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const result = window
-      ? await dialog.showOpenDialog(window, { properties: ['openDirectory'] })
-      : await dialog.showOpenDialog({ properties: ['openDirectory'] });
-    if (result.canceled || result.filePaths.length === 0) return null;
-    return result.filePaths[0];
+    return await showDirectoryPicker(event);
   });
 
   handleInvoke('cancelOperation', async (_event, { opId }) => {

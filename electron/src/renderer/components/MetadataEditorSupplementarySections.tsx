@@ -1,7 +1,7 @@
 import type { Image } from 'shared';
 import { CopyText } from './CopyText';
 import { MetadataDisclosureSection } from './MetadataEditorPrimitives';
-import { CheckIcon } from './icons';
+import { AlertIcon, CheckIcon } from './icons';
 
 function saveButtonLabel(isSaving: boolean, saveSuccess: boolean, isDirty: boolean): string {
   if (isSaving) return 'Saving...';
@@ -37,6 +37,35 @@ export function MetadataEditorSupplementarySections({
 }: MetadataEditorSupplementarySectionsProps) {
   return (
     <>
+      {image.embedded === false && (
+        <section
+          className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+          aria-label="Visual search indexing unavailable"
+        >
+          <div className="flex gap-2.5">
+            <AlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <div>
+              <h2 className="text-sm font-medium text-amber-900">Not included in visual search</h2>
+              <p className="mt-1 text-xs leading-5 text-amber-800">
+                Sortie could not create this image&apos;s search index. It will not appear in visual
+                search results until indexing succeeds.
+              </p>
+              {embeddingStatus === 'error' && (
+                <p className="mt-2 text-xs font-medium text-amber-900">
+                  Retry failed. Please try indexing again.
+                </p>
+              )}
+              <button
+                onClick={() => void onRecomputeEmbedding()}
+                disabled={embeddingStatus === 'loading'}
+                className="mt-3 inline-flex items-center rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {embeddingStatus === 'loading' ? 'Indexing…' : 'Retry indexing'}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
       <div className="mb-6">
         <button
           onClick={() => void onSave()}
@@ -109,26 +138,6 @@ export function MetadataEditorSupplementarySections({
               </div>
             )}
           </div>
-
-          <button
-            onClick={() => void onRecomputeEmbedding()}
-            disabled={embeddingStatus === 'loading'}
-            className={`mt-3 w-full px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-              embeddingStatus === 'success'
-                ? 'border-mint/50 text-ink bg-mint/20'
-                : embeddingStatus === 'error'
-                  ? 'border-gray-300 text-red-500 bg-gray-50'
-                  : 'border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-            }`}
-          >
-            {embeddingStatus === 'loading'
-              ? 'Computing...'
-              : embeddingStatus === 'success'
-                ? 'Embedding updated'
-                : embeddingStatus === 'error'
-                  ? 'Failed — try again'
-                  : 'Recompute embedding'}
-          </button>
         </MetadataDisclosureSection>
       </div>
     </>

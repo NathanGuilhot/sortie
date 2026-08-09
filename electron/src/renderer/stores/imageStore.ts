@@ -47,6 +47,7 @@ interface ImageStore {
   hideImage: (imageId: number) => Promise<void>;
   deleteImage: (imageId: number) => Promise<void>;
   updateImageMetadata: (imageId: number, metadata: SortieImageMetadataUpdate) => Promise<void>;
+  recomputeEmbedding: (imageId: number) => Promise<boolean>;
 }
 
 function releasePreviewUrl(current: ActiveImageQuery | null) {
@@ -79,8 +80,8 @@ export const useImageStore = create<ImageStore>((set, get) => {
   const refreshImageAfterMutation = async (
     imageId: number,
     mutate: () => Promise<void>,
-  ): Promise<void> => {
-    await runIpcTask({
+  ): Promise<boolean> => {
+    const updated = await runIpcTask({
       run: async () => {
         await mutate();
         return await window.sortieAPI.getImage(imageId);
@@ -88,6 +89,7 @@ export const useImageStore = create<ImageStore>((set, get) => {
       onSuccess: (updated) => patchUpdatedImage(imageId, updated),
       onError: (message) => set({ error: message }),
     });
+    return updated !== null;
   };
 
   return {
@@ -270,5 +272,9 @@ export const useImageStore = create<ImageStore>((set, get) => {
         await window.sortieAPI.updateImageMetadata(imageId, metadata);
       });
     },
+    recomputeEmbedding: async (imageId) =>
+      refreshImageAfterMutation(imageId, async () => {
+        await window.sortieAPI.recomputeEmbedding(imageId);
+      }),
   };
 });

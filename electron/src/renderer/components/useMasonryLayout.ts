@@ -23,7 +23,7 @@ interface UseMasonryLayoutOptions<T extends MasonryItem> {
   maxColumns?: number;
   overscan?: number;
   // Reuse the prior layout for append-only updates. Turn off when items can
-  // be reordered or removed from the middle — the layout skips recomputing
+  // be reordered or removed from the middle: the layout skips recomputing
   // existing positions when resuming, which would leave stale coordinates.
   resumeOnAppend?: boolean;
 }
@@ -96,7 +96,7 @@ export function useMasonryLayout<T extends MasonryItem>({
 
   // Cache the last layout so append-only updates can resume from the prior
   // positions instead of recomputing every tile. Read/write during render is
-  // intentional — the memo only recomputes when inputs change, so the ref is
+  // intentional: the memo only recomputes when inputs change, so the ref is
   // effectively acting as a single-slot memoization cache.
   const priorLayoutRef = useRef<LayoutResult | undefined>(undefined);
   const layout = useMemo(() => {

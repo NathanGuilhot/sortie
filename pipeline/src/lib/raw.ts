@@ -44,7 +44,7 @@ function tool(): ExifTool {
 
 // Extract the largest embedded JPEG from a RAW file. Tries JpgFromRaw first
 // (DSLR convention, full sensor resolution), then PreviewImage (Sony/Fuji and
-// many others), then ThumbnailImage as last resort. Throws if none present —
+// many others), then ThumbnailImage as last resort. Throws if none present:
 // caller decides how to handle.
 async function extractEmbeddedJpeg(filePath: string): Promise<Buffer> {
   const t = tool();
@@ -65,7 +65,7 @@ async function extractEmbeddedJpeg(filePath: string): Promise<Buffer> {
 }
 
 // Sony ARW, Fuji RAF and some older ORFs store the embedded preview as
-// sensor-native pixels with no EXIF Orientation of their own — the rotation
+// sensor-native pixels with no EXIF Orientation of their own: the rotation
 // lives only on the RAW container. Returns the orientation EXIF viewers
 // should apply (1 when already correct, 2–8 otherwise). Uses aspect-ratio
 // agreement to detect previews that are already pre-rotated (Canon/Nikon),
@@ -97,7 +97,7 @@ async function resolveOrientation(buf: Buffer, filePath: string): Promise<number
 // returned verbatim (sharp opens them directly); RAW paths resolve to a Buffer
 // whose pixels are already rotated for display and whose EXIF Orientation is
 // stripped. Baking the rotation here means downstream callers don't need to
-// remember `.rotate()` — one forgotten call used to produce wrong-oriented
+// remember `.rotate()`: one forgotten call used to produce wrong-oriented
 // thumbnails for cameras (Sony ARW, Fuji RAF) whose embedded preview lacks
 // its own orientation tag.
 export async function loadImageInput(filePath: string): Promise<string | Buffer> {

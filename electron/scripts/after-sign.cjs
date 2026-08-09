@@ -10,8 +10,12 @@ exports.default = function afterSign(context) {
     `${context.packager.appInfo.productFilename}.app`,
   );
   const appexPath = path.join(appPath, 'Contents', 'PlugIns', 'SortieFinderSync.appex');
+  const frameworksPath = path.join(appPath, 'Contents', 'Frameworks');
   if (!fs.existsSync(appexPath)) {
     throw new Error(`[finder-sync] embedded extension is missing at ${appexPath}`);
+  }
+  if (!fs.existsSync(frameworksPath)) {
+    throw new Error(`[finder-sync] Frameworks directory is missing at ${frameworksPath}`);
   }
 
   const identity = resolveSigningIdentity(context, appPath);
@@ -28,6 +32,22 @@ exports.default = function afterSign(context) {
     'resources',
     'entitlements.mac.plist',
   );
+
+  // electron-builder skips all macOS signing when no Developer ID is available.
+  // For local builds, sign frameworks deeply and helpers with the same inherited
+  // entitlements as the main app. Helpers need disable-library-validation to load
+  // Electron Framework under the hardened runtime.
+  if (identity === '-') {
+    for (const entry of fs.readdirSync(frameworksPath)) {
+      const target = path.join(frameworksPath, entry);
+      if (entry.endsWith('.framework')) {
+        signNestedFramework(identity, target);
+      } else if (entry.startsWith('Sortie Helper') && entry.endsWith('.app')) {
+        signBundle(identity, appEntitlements, target);
+      }
+    }
+    console.log('[finder-sync] signed nested Electron bundles for local use');
+  }
 
   signBundle(identity, finderEntitlements, appexPath);
   console.log(`[finder-sync] signed appex with ${identity}`);
@@ -76,6 +96,10 @@ function signBundle(identity, entitlements, target) {
   }
   args.push(target);
   run('codesign', args);
+}
+
+function signNestedFramework(identity, target) {
+  run('codesign', ['--force', '--deep', '--sign', identity, '--options', 'runtime', target]);
 }
 
 function run(command, args) {
