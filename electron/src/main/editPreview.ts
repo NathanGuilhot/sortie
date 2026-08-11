@@ -1,7 +1,7 @@
-import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import sharp from 'sharp';
+import { buildCacheKey } from './cacheKey';
 
 export interface EditPreviewRequest {
   cacheDirectory: string;
@@ -16,17 +16,13 @@ export interface EditPreviewRequest {
 const pendingPreviews = new Map<string, Promise<string>>();
 const EDIT_PREVIEW_CACHE_VERSION = 2;
 
-function buildHash(value: string): string {
-  return crypto.createHash('sha256').update(value).digest('hex').slice(0, 16);
-}
-
 export function buildEditPreviewCachePath(
   request: Pick<
     EditPreviewRequest,
     'cacheDirectory' | 'sourcePath' | 'size' | 'clockwiseTurns' | 'flipHorizontal'
   >,
 ): string {
-  const hash = buildHash(request.sourcePath);
+  const hash = buildCacheKey(request.sourcePath);
   if (request.clockwiseTurns === 0 && !request.flipHorizontal) {
     return path.join(request.cacheDirectory, `${hash}_edit_base_${request.size}.webp`);
   }

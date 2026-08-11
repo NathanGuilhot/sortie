@@ -11,8 +11,9 @@ import { MetadataModal } from '../components/MetadataModal';
 import { BoardSuggestionsRow } from '../components/BoardSuggestionsRow';
 import { isGif } from '../components/gif-utils';
 import { GifBadge } from '../components/gif';
-import { ChevronLeftIcon, XIcon } from '../components/icons';
+import { ChevronLeftIcon, GripIcon, XIcon } from '../components/icons';
 import { buildSortieFileUrl, buildSortieThumbUrl } from '../components/sortieImageUrl';
+import { useImageDragOut } from '../components/useImageDragOut';
 
 const DND_TYPE = 'board-image';
 
@@ -123,7 +124,8 @@ export function BoardDetailScreen() {
                 </h1>
               )}
               <p className="text-sm text-gray-500 mt-0.5">
-                {images.length} {images.length === 1 ? 'image' : 'images'} · Drag to reorder
+                {images.length} {images.length === 1 ? 'image' : 'images'} · Drag images out or use
+                the handle to reorder
               </p>
             </div>
           </div>
@@ -242,6 +244,7 @@ function DraggableTile({
   onOpen,
   onRemove,
 }: DraggableTileProps) {
+  const { dragProps, consumeDidDrag } = useImageDragOut(image);
   const [{ isDragging }, drag] = useDrag({
     type: DND_TYPE,
     item: { index },
@@ -259,8 +262,7 @@ function DraggableTile({
     collect: (monitor) => ({ isOver: monitor.isOver() }),
   });
 
-  const setRef = (node: HTMLDivElement | null) => {
-    drag(node);
+  const setDropRef = (node: HTMLDivElement | null) => {
     drop(node);
   };
 
@@ -272,7 +274,7 @@ function DraggableTile({
 
   return (
     <div
-      ref={setRef}
+      ref={setDropRef}
       style={{
         position: 'absolute',
         top: position.y,
@@ -282,7 +284,6 @@ function DraggableTile({
         borderRadius: 6,
         overflow: 'hidden',
         boxShadow: isOver ? '0 0 0 2px rgb(17 24 39)' : '0 2px 8px rgba(0,0,0,0.1)',
-        cursor: isDragging ? 'grabbing' : 'grab',
         backgroundColor: '#f3f4f6',
         opacity: isDragging ? 0.4 : 1,
         transition: 'opacity 0.15s, box-shadow 0.15s',
@@ -292,11 +293,23 @@ function DraggableTile({
       <img
         src={src}
         alt={image.file_name}
-        draggable={false}
-        onClick={onOpen}
+        {...dragProps}
+        onClick={() => {
+          if (consumeDidDrag()) return;
+          onOpen();
+        }}
         style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
       />
       {gif && <GifBadge corner="bottom-right" />}
+      <button
+        ref={drag}
+        type="button"
+        className="absolute top-2 left-2 w-6 h-6 flex items-center justify-center rounded bg-black/60 text-white opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-black/80 cursor-grab active:cursor-grabbing"
+        title="Drag to reorder"
+        aria-label="Drag to reorder"
+      >
+        <GripIcon className="w-4 h-4" />
+      </button>
       <button
         onClick={(e) => {
           e.stopPropagation();

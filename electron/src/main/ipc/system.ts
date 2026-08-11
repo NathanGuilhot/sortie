@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import { SUPPORTED_IMAGE_EXTENSIONS } from 'shared';
 import { cancelOperation } from '../operations';
+import { getAppIconPath } from '../appIcon';
+import { prepareDrag } from '../dragExport';
 import type { MainIpcContext } from './context';
 import { handleInvoke } from './context';
 import { showDirectoryPicker } from './directoryPicker';
@@ -47,6 +49,8 @@ export function registerSystemHandlers({
   availabilityMonitor,
   dbPath,
 }: MainIpcContext): void {
+  const userDataPath = app.getPath('userData');
+
   handleInvoke('pickFolder', async (event) => {
     return await showDirectoryPicker(event);
   });
@@ -96,6 +100,24 @@ export function registerSystemHandlers({
 
   handleInvoke('getDatabasePath', async () => {
     return dbPath;
+  });
+
+  handleInvoke('prepareImageDrag', async (_event, { filePath }) => {
+    if (!dbService.images.isKnownImagePath(filePath)) return { success: false };
+    void prepareDrag(userDataPath, filePath);
+    return { success: true };
+  });
+
+  handleInvoke('startImageDrag', async (event, { filePath }) => {
+    if (!dbService.images.isKnownImagePath(filePath)) return { success: false };
+    try {
+      const { dragPath, iconPath } = await prepareDrag(userDataPath, filePath);
+      event.sender.startDrag({ file: dragPath, icon: iconPath ?? getAppIconPath() });
+      return { success: true };
+    } catch (error) {
+      console.warn('[drag] startDrag failed:', error);
+      return { success: false };
+    }
   });
 
   handleInvoke('appGetVersion', () => app.getVersion());

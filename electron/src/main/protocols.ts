@@ -1,11 +1,11 @@
 import { net, protocol } from 'electron';
-import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import sharp from 'sharp';
 import { isRawPath, loadImageInput } from 'pipeline';
 import { buildEditPreviewCachePath, getCachedEditPreview } from './editPreview';
+import { buildCacheKey } from './cacheKey';
 import { getSortieUserDataPaths } from './userDataPaths';
 
 const RAW_PREVIEW_CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024;
@@ -34,18 +34,14 @@ function ensureDir(dirPath: string): void {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function buildHash(value: string): string {
-  return crypto.createHash('sha256').update(value).digest('hex').slice(0, 16);
-}
-
 export async function invalidateThumbnailCache(
   userDataPath: string,
   filePath: string,
 ): Promise<void> {
   const paths = getSortieUserDataPaths(userDataPath);
-  const prefix = `${buildHash(filePath)}_`;
-  await Promise.all(
-    [paths.thumbs, paths.faceThumbs].map(async (directory) => {
+  const hash = buildCacheKey(filePath);
+  await Promise.all([
+    ...[paths.thumbs, paths.faceThumbs].map(async (directory) => {
       let entries: string[];
       try {
         entries = await fs.promises.readdir(directory);
@@ -55,11 +51,15 @@ export async function invalidateThumbnailCache(
       }
       await Promise.all(
         entries
-          .filter((entry) => entry.startsWith(prefix))
+          .filter((entry) => entry.startsWith(`${hash}_`))
           .map((entry) => fs.promises.unlink(path.join(directory, entry))),
       );
     }),
-  );
+    // Drag artefacts are keyed by the bare hash: a single icon file, and a
+    // directory holding the export under its original basename.
+    fs.promises.rm(path.join(paths.dragIcons, `${hash}.png`), { force: true }),
+    fs.promises.rm(path.join(paths.dragExports, hash), { recursive: true, force: true }),
+  ]);
 }
 
 function fetchLocalFile(filePath: string): Promise<Response> {
@@ -98,7 +98,7 @@ function evictRawPreviewCacheIfFull(rawPreviewDir: string, incomingBytes: number
 }
 
 async function getCachedRawPreview(rawPreviewDir: string, filePath: string): Promise<string> {
-  const cachePath = path.join(rawPreviewDir, `${buildHash(filePath)}.jpg`);
+  const cachePath = path.join(rawPreviewDir, `${buildCacheKey(filePath)}.jpg`);
   const sourceStats = fs.statSync(filePath);
 
   try {
@@ -155,7 +155,7 @@ export function registerSortieProtocols(
       return new Response(null, { status: 403 });
     }
     const width = parseInt(url.searchParams.get('w') || '400', 10);
-    const cachePath = path.join(paths.thumbs, `${buildHash(filePath)}_${width}.webp`);
+    const cachePath = path.join(paths.thumbs, `${buildCacheKey(filePath)}_${width}.webp`);
 
     let sourceStats: fs.Stats;
     try {
@@ -283,7 +283,7 @@ export function registerSortieProtocols(
     const bboxKey = `${bboxX.toFixed(4)}_${bboxY.toFixed(4)}_${bboxWidth.toFixed(4)}_${bboxHeight.toFixed(4)}`;
     const cachePath = path.join(
       paths.faceThumbs,
-      `${buildHash(filePath)}_${buildHash(`${faceId}_${bboxKey}`)}_${size}.jpg`,
+      `${buildCacheKey(filePath)}_${buildCacheKey(`${faceId}_${bboxKey}`)}_${size}.jpg`,
     );
 
     try {

@@ -5,6 +5,7 @@ import { isGif } from './gif-utils';
 import { GifBadge } from './gif';
 import { HeartIcon } from './icons';
 import { buildSortieFileUrl, buildSortieThumbUrl } from './sortieImageUrl';
+import { useImageDragOut } from './useImageDragOut';
 import { useImageStore } from '../stores/imageStore';
 
 export const MasonryImage = memo(function MasonryImage({
@@ -20,6 +21,7 @@ export const MasonryImage = memo(function MasonryImage({
 }) {
   const [loaded, setLoaded] = useState(false);
   const thumbnailRevision = useImageStore((state) => state.thumbnailRevision);
+  const { dragProps, consumeDidDrag } = useImageDragOut(image);
 
   const thumbWidth = Math.ceil((columnWidth * (window.devicePixelRatio || 1)) / 100) * 100;
   const gif = isGif(image);
@@ -50,12 +52,19 @@ export const MasonryImage = memo(function MasonryImage({
         contentVisibility: 'auto',
         containIntrinsicSize: `${position.height}px ${position.width}px`,
       }}
-      onClick={() => onSelect(image)}
+      {...dragProps}
+      onClick={() => {
+        if (consumeDidDrag()) return;
+        onSelect(image);
+      }}
     >
       <img
         src={src}
         alt={image.file_name}
         title={image.description || image.file_name}
+        // The tile owns the drag; without this the <img> starts its own with a
+        // sortie-thumb:// URL nothing outside the app can resolve.
+        draggable={false}
         style={{
           display: 'block',
           width: '100%',

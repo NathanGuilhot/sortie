@@ -3,11 +3,20 @@ import { invoke, invokeNone, invokeWithUrl, subscribeEvent } from '../helpers';
 
 export function createSystemApi(): Pick<
   SortieAPI,
-  'revealInFinder' | 'copyImageToClipboard' | 'getDatabasePath' | 'pickFolder' | 'settings' | 'app'
+  | 'revealInFinder'
+  | 'copyImageToClipboard'
+  | 'prepareImageDrag'
+  | 'startImageDrag'
+  | 'getDatabasePath'
+  | 'pickFolder'
+  | 'settings'
+  | 'app'
 > {
   return {
     revealInFinder: (filePath: string) => invoke('revealInFinder', { filePath }),
     copyImageToClipboard: (filePath: string) => invoke('copyImageToClipboard', { filePath }),
+    prepareImageDrag: (filePath: string) => invoke('prepareImageDrag', { filePath }),
+    startImageDrag: (filePath: string) => invoke('startImageDrag', { filePath }),
     getDatabasePath: () => invokeNone('getDatabasePath'),
     pickFolder: () => invokeNone('pickFolder'),
     settings: {

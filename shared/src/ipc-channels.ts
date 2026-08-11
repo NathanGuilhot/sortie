@@ -34,6 +34,8 @@ export const IPC_CHANNELS = {
   deleteImage: 'delete-image',
   revealInFinder: 'reveal-in-finder',
   copyImageToClipboard: 'copy-image-to-clipboard',
+  prepareImageDrag: 'prepare-image-drag',
+  startImageDrag: 'start-image-drag',
   backfillExif: 'backfill-exif',
   getPersons: 'get-persons',
   getPersonImages: 'get-person-images',

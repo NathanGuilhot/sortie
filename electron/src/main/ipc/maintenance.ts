@@ -36,6 +36,8 @@ export function registerMaintenanceHandlers({ dbService, watcherService }: MainI
       wipeCacheDir(userDataPaths.faceThumbs),
       wipeCacheDir(userDataPaths.rawPreviews),
       wipeCacheDir(userDataPaths.linkPreviews),
+      wipeCacheDir(userDataPaths.dragIcons),
+      wipeCacheDir(userDataPaths.dragExports),
     ]);
     return { success: true };
   });

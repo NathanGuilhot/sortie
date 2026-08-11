@@ -1,9 +1,9 @@
-import crypto from 'crypto';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { invalidateThumbnailCache } from '../protocols';
+import { buildCacheKey } from '../cacheKey';
 import { getSortieUserDataPaths } from '../userDataPaths';
 
 const temporaryDirectories: string[] = [];
@@ -23,12 +23,8 @@ describe('thumbnail cache invalidation', () => {
     await fs.mkdir(thumbnailDirectory, { recursive: true });
     await fs.mkdir(faceThumbnailDirectory, { recursive: true });
     const editedPath = '/photos/edited.jpg';
-    const editedHash = crypto.createHash('sha256').update(editedPath).digest('hex').slice(0, 16);
-    const otherHash = crypto
-      .createHash('sha256')
-      .update('/photos/other.jpg')
-      .digest('hex')
-      .slice(0, 16);
+    const editedHash = buildCacheKey(editedPath);
+    const otherHash = buildCacheKey('/photos/other.jpg');
     await Promise.all([
       fs.writeFile(path.join(thumbnailDirectory, `${editedHash}_200.webp`), ''),
       fs.writeFile(path.join(thumbnailDirectory, `${editedHash}_800.webp`), ''),

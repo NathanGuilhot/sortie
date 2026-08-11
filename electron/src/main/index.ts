@@ -15,15 +15,14 @@ import {
 import { buildMenu } from './menu';
 import { ensureImportFolder } from './pinterest/import';
 import { registerSortieProtocols, registerSortieSchemes } from './protocols';
+import { getAppIconPath } from './appIcon';
 import { createProtocolPathGuard } from './protocol-guard';
 import { registerExternalImportEntrypoints } from './shellContextMenu';
 import { getSortieUserDataPaths } from './userDataPaths';
 
 app.setName('Sortie');
 
-const iconPath = app.isPackaged
-  ? path.join(process.resourcesPath, 'icons', 'icon.png')
-  : path.join(__dirname, '../../resources/icons/icon.png');
+const iconPath = getAppIconPath();
 
 registerSortieSchemes();
 

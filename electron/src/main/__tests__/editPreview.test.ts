@@ -1,10 +1,10 @@
 import fs from 'fs/promises';
-import crypto from 'crypto';
 import os from 'os';
 import path from 'path';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getCachedEditPreview } from '../editPreview';
+import { buildCacheKey } from '../cacheKey';
 
 const temporaryDirectories: string[] = [];
 
@@ -85,7 +85,7 @@ describe('getCachedEditPreview', () => {
       .png()
       .toFile(sourcePath);
     const sourceMtimeMs = (await fs.stat(sourcePath)).mtimeMs;
-    const sourceHash = crypto.createHash('sha256').update(sourcePath).digest('hex').slice(0, 16);
+    const sourceHash = buildCacheKey(sourcePath);
     const legacyPath = path.join(cacheDirectory, `${sourceHash}_edit_3_1_8.webp`);
     await sharp({
       create: { width: 4, height: 8, channels: 3, background: { r: 255, g: 0, b: 0 } },

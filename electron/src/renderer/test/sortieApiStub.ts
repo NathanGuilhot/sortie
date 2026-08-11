@@ -27,7 +27,9 @@ export function installSortieAPIStub(overrides: Partial<SortieAPI> = {}) {
       callback: (payload: EventPayloadByKey['folderAvailabilityChanged']) => void,
     ) => on('folderAvailabilityChanged', callback),
   } as SortieAPI;
-  vi.stubGlobal('window', { sortieAPI: api });
+  // Stub the property, not `window` itself: replacing the global window leaks
+  // into every later spec in the run and breaks anything that renders.
+  vi.stubGlobal('sortieAPI', api);
   return {
     api,
     emit<K extends EventKey>(key: K, payload: EventPayloadByKey[K]) {

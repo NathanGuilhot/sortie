@@ -8,6 +8,7 @@ import { useImageStore } from '../stores/imageStore';
 import { toast } from '../stores/toastStore';
 import { ChevronLeftIcon, EditIcon, InfoIcon, XIcon } from './icons';
 import { buildSortieFileUrl } from './sortieImageUrl';
+import { useImageDragOut } from './useImageDragOut';
 import { ImageCropEditor } from './ImageCropEditor';
 
 const SWIPE_THRESHOLD_PX = 60;
@@ -56,6 +57,7 @@ export function MetadataModal({
   const didSwipeRef = useRef(false);
   const wheelSwipeConsumedRef = useRef(false);
   const wheelSwipeResetRef = useRef<number | null>(null);
+  const { dragProps } = useImageDragOut(image);
 
   // Reset image loaded state when image changes
   /* eslint-disable react-hooks/set-state-in-effect -- intentional reset on prop change */
@@ -361,7 +363,13 @@ export function MetadataModal({
               }`}
               style={{ maxHeight: 'calc(100vh - 56px - 32px)' }}
               onLoad={() => setImageLoaded(true)}
-              draggable={false}
+              {...dragProps}
+              onDragStart={(event) => {
+                // Dragging out would otherwise land as a horizontal swipe and
+                // navigate to the neighbouring image on release.
+                pointerStartRef.current = null;
+                dragProps.onDragStart(event);
+              }}
             />
             <OcrOverlay imageId={image.id} imgRef={imgRef} imageLoaded={imageLoaded} />
           </div>
