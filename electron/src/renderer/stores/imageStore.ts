@@ -25,8 +25,10 @@ interface ImageStore {
   selectedImage: Image | null;
   viewerBackStack: Image[];
   viewerForwardStack: Image[];
+  thumbnailRevision: number;
 
   setSelectedImage: (image: Image | null) => void;
+  replaceImage: (image: Image) => void;
   openImageViewer: (image: Image) => void;
   closeImageViewer: () => void;
   navigateImageViewer: (image: Image) => void;
@@ -102,6 +104,7 @@ export const useImageStore = create<ImageStore>((set, get) => {
     selectedImage: null,
     viewerBackStack: [],
     viewerForwardStack: [],
+    thumbnailRevision: 0,
 
     setSelectedImage: (image) =>
       set(
@@ -109,6 +112,10 @@ export const useImageStore = create<ImageStore>((set, get) => {
           ? { selectedImage: image }
           : { selectedImage: null, viewerBackStack: [], viewerForwardStack: [] },
       ),
+    replaceImage: (image) => {
+      patchUpdatedImage(image.id, image);
+      set((state) => ({ thumbnailRevision: state.thumbnailRevision + 1 }));
+    },
     openImageViewer: (image) =>
       set({
         selectedImage: image,

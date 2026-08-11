@@ -6,3 +6,4 @@ export * from './constants';
 export * from './search-query';
 export * from './utils';
 export * from './library-paths';
+export * from './image-edit';

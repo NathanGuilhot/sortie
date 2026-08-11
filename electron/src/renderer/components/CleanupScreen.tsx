@@ -133,6 +133,7 @@ function ImageCard({
           src={buildSortieThumbUrl(
             image.file_path,
             Math.ceil((300 * (window.devicePixelRatio || 1)) / 100) * 100,
+            image.file_mtime_ms,
           )}
           alt={image.file_name}
           className="w-full h-full object-cover"

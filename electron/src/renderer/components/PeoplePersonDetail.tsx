@@ -148,7 +148,7 @@ export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePers
             className="aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
           >
             <img
-              src={buildSortieThumbUrl(image.file_path, 300)}
+              src={buildSortieThumbUrl(image.file_path, 300, image.file_mtime_ms)}
               alt={image.file_name}
               className="w-full h-full object-cover"
               loading="lazy"

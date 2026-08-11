@@ -28,11 +28,11 @@ export interface LayoutResult {
   gap: number;
   offset: number;
   imageCount: number;
-  // IDs at the edges of the prefix this layout was computed from. Used to
-  // invalidate a prior layout when the items array was replaced (search,
-  // filter, hide-from-middle) rather than appended to.
+  // Inputs from the prefix this layout was computed from. Used to invalidate
+  // a prior layout when items are replaced, reordered, or change dimensions.
   firstImageId: number | string | undefined;
   lastImageId: number | string | undefined;
+  itemSnapshots: MasonryItem[];
   // buckets[i] lists the item indices whose rectangle intersects the i-th
   // vertical band of height VISIBILITY_BUCKET_HEIGHT starting at y=0.
   buckets: number[][];
@@ -58,6 +58,7 @@ export function computeMasonryLayout<T extends MasonryItem>(
       imageCount: images.length,
       firstImageId: undefined,
       lastImageId: undefined,
+      itemSnapshots: [],
       buckets: [],
     };
   }
@@ -77,8 +78,13 @@ export function computeMasonryLayout<T extends MasonryItem>(
     prior.imageCount > 0 &&
     prior.imageCount <= images.length &&
     prior.positions.length === prior.imageCount &&
+    prior.itemSnapshots.length === prior.imageCount &&
     prior.firstImageId === images[0]?.id &&
-    prior.lastImageId === images[prior.imageCount - 1]?.id;
+    prior.lastImageId === images[prior.imageCount - 1]?.id &&
+    prior.itemSnapshots.every((item, index) => {
+      const image = images[index];
+      return item.id === image.id && item.width === image.width && item.height === image.height;
+    });
 
   const columnHeights = canResume
     ? prior.columnHeights.slice()
@@ -122,6 +128,7 @@ export function computeMasonryLayout<T extends MasonryItem>(
     imageCount: images.length,
     firstImageId: images[0]?.id,
     lastImageId: images[images.length - 1]?.id,
+    itemSnapshots: images.map(({ id, width, height }) => ({ id, width, height })),
     buckets,
   };
 }

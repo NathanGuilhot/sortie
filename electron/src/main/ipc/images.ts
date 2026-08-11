@@ -1,8 +1,65 @@
 import type { MainIpcContext } from './context';
 import { handleInvoke, withOperation } from './context';
 import { createThrottledEmitter } from './events';
+import fs from 'fs/promises';
+import { constants as fsConstants } from 'fs';
+import { randomUUID } from 'crypto';
+import path from 'path';
+import { app } from 'electron';
+import { isNoopImageEdit, type ImageEditTransform } from 'shared';
+import { renderImageEdit } from '../imageEdit';
+import { invalidateThumbnailCache } from '../protocols';
+
+const EDITABLE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 
 export function registerImageHandlers({ dbService }: MainIpcContext): void {
+  handleInvoke('getImageEditEligibility', async (_event, { imageId }) => {
+    const image = await dbService.images.getImage(imageId);
+    if (!image) return { editable: false, reason: 'Image is unavailable.' };
+    if (!EDITABLE_EXTENSIONS.has(path.extname(image.file_path).toLowerCase())) {
+      return { editable: false, reason: 'This image format cannot be edited.' };
+    }
+    try {
+      await fs.access(image.file_path, fsConstants.W_OK);
+      await fs.access(path.dirname(image.file_path), fsConstants.W_OK);
+      return { editable: true, reason: null };
+    } catch {
+      return {
+        editable: false,
+        reason: 'This image is on a read-only drive or you do not have permission to edit it.',
+      };
+    }
+  });
+
+  handleInvoke('applyImageEdit', async (_event, { imageId, transform }) => {
+    const image = await dbService.images.getImage(imageId);
+    if (!image) throw new Error('Image is unavailable');
+    const ext = path.extname(image.file_path).toLowerCase();
+    if (!EDITABLE_EXTENSIONS.has(ext)) throw new Error('This image format cannot be edited');
+    await fs.access(image.file_path, fsConstants.W_OK);
+    await fs.access(path.dirname(image.file_path), fsConstants.W_OK);
+    validateTransform(transform);
+    if (isNoopImageEdit(transform)) return image;
+    const tempPath = path.join(
+      path.dirname(image.file_path),
+      `.${path.basename(image.file_path)}.sortie-edit-${randomUUID()}`,
+    );
+    const output = await renderImageEdit(await fs.readFile(image.file_path), ext, transform);
+    try {
+      await fs.writeFile(tempPath, output, { flag: 'wx' });
+      const originalStat = await fs.stat(image.file_path);
+      await fs.chmod(tempPath, originalStat.mode);
+      await fs.rename(tempPath, image.file_path);
+      await invalidateThumbnailCache(app.getPath('userData'), image.file_path);
+    } finally {
+      await fs.unlink(tempPath).catch(() => undefined);
+    }
+    dbService.ocr.invalidate(imageId);
+    const result = await dbService.images.addImage(image.file_path);
+    if (dbService.ocr.isAvailable())
+      await dbService.ocr.ensure(result.imageId).catch(() => undefined);
+    return await dbService.images.getImage(imageId);
+  });
   handleInvoke('getImages', async (_event, args) => {
     return await dbService.images.getImages(args?.limit, args?.offset);
   });
@@ -106,4 +163,17 @@ export function registerImageHandlers({ dbService }: MainIpcContext): void {
   handleInvoke('backfillExif', async (_event, { opId }) => {
     return await withOperation(opId, (signal) => dbService.maintenance.backfillExifData(signal));
   });
+}
+
+function validateTransform(transform: ImageEditTransform): void {
+  const { left, top, right, bottom } = transform.crop;
+  if (
+    ![left, top, right, bottom].every(
+      (value) => Number.isFinite(value) && value >= 0 && value <= 1,
+    ) ||
+    right <= left ||
+    bottom <= top ||
+    !Number.isInteger(transform.clockwiseTurns)
+  )
+    throw new Error('Invalid image edit');
 }

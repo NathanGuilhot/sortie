@@ -268,7 +268,10 @@ export class DatabaseImagesService {
 
     if (!folder?.exclude_from_face_scan) {
       try {
-        const result = await this.deps.getFaceScan().processImage(imageId, filePath, loaded);
+        const faceScan = this.deps.getFaceScan();
+        const result = created
+          ? await faceScan.processImage(imageId, filePath, loaded)
+          : await faceScan.rescanImage(imageId, filePath, loaded);
         for (const personId of result.personIds) {
           this.deleteShuffledIds(`person:${personId}`, true);
         }

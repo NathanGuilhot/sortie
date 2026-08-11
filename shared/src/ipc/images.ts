@@ -12,6 +12,8 @@ import { IPC_CHANNELS } from '../ipc-channels';
 import type { SortieImageMetadataUpdate } from './common';
 
 export interface ImageApi {
+  getImageEditEligibility: (imageId: number) => Promise<ImageEditEligibility>;
+  applyImageEdit: (imageId: number, transform: ImageEditTransform) => Promise<Image | null>;
   getImages: (limit?: number, offset?: number) => Promise<Image[]>;
   getImage: (id: number) => Promise<Image | null>;
   reshuffleImages: () => Promise<{ success: boolean }>;
@@ -35,7 +37,19 @@ export interface ImageApi {
   recomputePalette: (imageId: number) => Promise<{ success: boolean }>;
 }
 
+export interface ImageEditEligibility {
+  editable: boolean;
+  reason: string | null;
+}
+export interface ImageEditTransform {
+  crop: { left: number; top: number; right: number; bottom: number };
+  clockwiseTurns: number;
+  flipHorizontal: boolean;
+}
+
 export const imageInvokeChannels = {
+  getImageEditEligibility: IPC_CHANNELS.getImageEditEligibility,
+  applyImageEdit: IPC_CHANNELS.applyImageEdit,
   getImages: IPC_CHANNELS.getImages,
   getImage: IPC_CHANNELS.getImage,
   reshuffleImages: IPC_CHANNELS.reshuffleImages,
@@ -56,6 +70,8 @@ export const imageInvokeChannels = {
 } as const;
 
 export interface ImageInvokeArgsByKey {
+  getImageEditEligibility: { imageId: number };
+  applyImageEdit: { imageId: number; transform: ImageEditTransform };
   getImages: { limit?: number; offset?: number } | undefined;
   getImage: { id: number };
   reshuffleImages: undefined;
@@ -76,6 +92,8 @@ export interface ImageInvokeArgsByKey {
 }
 
 export interface ImageInvokeResultByKey {
+  getImageEditEligibility: ImageEditEligibility;
+  applyImageEdit: Image | null;
   getImages: Image[];
   getImage: Image | null;
   reshuffleImages: { success: boolean };

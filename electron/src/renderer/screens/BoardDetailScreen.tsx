@@ -268,7 +268,7 @@ function DraggableTile({
   const gif = isGif(image);
   const src = gif
     ? buildSortieFileUrl(image.file_path)
-    : buildSortieThumbUrl(image.file_path, thumbWidth);
+    : buildSortieThumbUrl(image.file_path, thumbWidth, image.file_mtime_ms);
 
   return (
     <div

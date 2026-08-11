@@ -1,5 +1,6 @@
 import { Board } from 'shared';
 import { buildSortieThumbUrl } from './sortieImageUrl';
+import { useImageStore } from '../stores/imageStore';
 
 interface BoardCoverProps {
   board: Board;
@@ -7,6 +8,7 @@ interface BoardCoverProps {
 }
 
 export function BoardCover({ board, thumbWidth = 400 }: BoardCoverProps) {
+  const thumbnailRevision = useImageStore((state) => state.thumbnailRevision);
   const previews = board.preview_image_paths ?? [];
 
   if (previews.length === 0) {
@@ -28,7 +30,7 @@ export function BoardCover({ board, thumbWidth = 400 }: BoardCoverProps) {
           return (
             <img
               key={i}
-              src={buildSortieThumbUrl(path, thumbWidth)}
+              src={buildSortieThumbUrl(path, thumbWidth, thumbnailRevision)}
               alt=""
               className="w-full h-full object-cover"
             />

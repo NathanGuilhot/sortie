@@ -25,6 +25,8 @@ export const IPC_CHANNELS = {
   setFolderFaceScanExclusion: 'set-folder-face-scan-exclusion',
   recomputeEmbedding: 'recompute-embedding',
   recomputePalette: 'recompute-palette',
+  getImageEditEligibility: 'get-image-edit-eligibility',
+  applyImageEdit: 'apply-image-edit',
   computeMissingPalettes: 'compute-missing-palettes',
   computeMissingHashes: 'compute-missing-hashes',
   findDuplicateGroups: 'find-duplicate-groups',

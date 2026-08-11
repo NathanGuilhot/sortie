@@ -49,6 +49,20 @@ describe('masonry layout', () => {
     expect(replaced.positions).toHaveLength(1);
   });
 
+  it('invalidates a prior layout when an image aspect ratio changes', () => {
+    const landscape = computeMasonryLayout([{ id: 1, width: 400, height: 200 }], 200, 1, 0);
+    const portrait = computeMasonryLayout(
+      [{ id: 1, width: 200, height: 400 }],
+      200,
+      1,
+      0,
+      0,
+      landscape,
+    );
+
+    expect(portrait.positions[0]).toEqual({ x: 0, y: 0, width: 200, height: 400 });
+  });
+
   it('returns each item once when a viewport crosses visibility buckets', () => {
     const layout = computeMasonryLayout(
       [

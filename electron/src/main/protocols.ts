@@ -5,15 +5,21 @@ import path from 'path';
 import { pathToFileURL } from 'url';
 import sharp from 'sharp';
 import { isRawPath, loadImageInput } from 'pipeline';
+import { getCachedEditPreview } from './editPreview';
 import { getSortieUserDataPaths } from './userDataPaths';
 
 const RAW_PREVIEW_CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+const MAX_EDIT_PREVIEW_SIZE = 1600;
 
 export function registerSortieSchemes(): void {
   protocol.registerSchemesAsPrivileged([
     { scheme: 'sortie-file', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
     {
       scheme: 'sortie-thumb',
+      privileges: { bypassCSP: true, supportFetchAPI: true, stream: true },
+    },
+    {
+      scheme: 'sortie-edit-preview',
       privileges: { bypassCSP: true, supportFetchAPI: true, stream: true },
     },
     { scheme: 'sortie-face', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
@@ -30,6 +36,30 @@ function ensureDir(dirPath: string): void {
 
 function buildHash(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex').slice(0, 16);
+}
+
+export async function invalidateThumbnailCache(
+  userDataPath: string,
+  filePath: string,
+): Promise<void> {
+  const paths = getSortieUserDataPaths(userDataPath);
+  const prefix = `${buildHash(filePath)}_`;
+  await Promise.all(
+    [paths.thumbs, paths.faceThumbs].map(async (directory) => {
+      let entries: string[];
+      try {
+        entries = await fs.promises.readdir(directory);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+        throw error;
+      }
+      await Promise.all(
+        entries
+          .filter((entry) => entry.startsWith(prefix))
+          .map((entry) => fs.promises.unlink(path.join(directory, entry))),
+      );
+    }),
+  );
 }
 
 function fetchLocalFile(filePath: string): Promise<Response> {
@@ -173,6 +203,70 @@ export function registerSortieProtocols(
     }
   });
 
+  protocol.handle('sortie-edit-preview', async (request) => {
+    const url = new URL(request.url);
+    const filePath = getFilePathFromUrl(url);
+    if (!(await isServable(filePath))) {
+      return new Response(null, { status: 403 });
+    }
+
+    const turns = Number(url.searchParams.get('turns'));
+    const flippedParam = url.searchParams.get('flipped');
+    const size = Number(url.searchParams.get('size'));
+    if (
+      !Number.isInteger(turns) ||
+      turns < 0 ||
+      turns > 3 ||
+      (flippedParam !== 'true' && flippedParam !== 'false') ||
+      !Number.isInteger(size) ||
+      size < 1 ||
+      size > MAX_EDIT_PREVIEW_SIZE
+    ) {
+      return new Response(null, { status: 400 });
+    }
+    const flipped = flippedParam === 'true';
+    const hash = buildHash(filePath);
+    const cachePath = path.join(
+      paths.thumbs,
+      turns === 0 && !flipped
+        ? `${hash}_edit_base_${size}.webp`
+        : `${hash}_edit_${turns}_${flipped ? 1 : 0}_${size}.webp`,
+    );
+
+    let sourceStats: fs.Stats;
+    try {
+      sourceStats = fs.statSync(filePath);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT' || code === 'EACCES' || code === 'EIO') {
+        return new Response(null, { status: 410 });
+      }
+      return new Response(null, { status: 500 });
+    }
+
+    try {
+      const inputPath = isRawPath(filePath)
+        ? await getCachedRawPreview(paths.rawPreviews, filePath)
+        : filePath;
+      const previewPath = await getCachedEditPreview({
+        cacheDirectory: paths.thumbs,
+        sourcePath: filePath,
+        inputPath,
+        sourceMtimeMs: sourceStats.mtimeMs,
+        size,
+        clockwiseTurns: turns,
+        flipHorizontal: flipped,
+      });
+      return fetchLocalFile(previewPath);
+    } catch (error) {
+      console.error('[edit-preview] failed:', error);
+      if (fs.existsSync(cachePath)) {
+        return fetchLocalFile(cachePath);
+      }
+      return new Response(null, { status: 500 });
+    }
+  });
+
   protocol.handle('sortie-face', async (request) => {
     const url = new URL(request.url);
     const faceId = url.hostname;
@@ -189,7 +283,7 @@ export function registerSortieProtocols(
     const bboxKey = `${bboxX.toFixed(4)}_${bboxY.toFixed(4)}_${bboxWidth.toFixed(4)}_${bboxHeight.toFixed(4)}`;
     const cachePath = path.join(
       paths.faceThumbs,
-      `${buildHash(`${faceId}_${bboxKey}_${filePath}`)}_${size}.jpg`,
+      `${buildHash(filePath)}_${buildHash(`${faceId}_${bboxKey}`)}_${size}.jpg`,
     );
 
     try {

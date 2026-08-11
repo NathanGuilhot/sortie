@@ -7,6 +7,7 @@ export const APP_SETTING_KEYS = {
   onboardingCompleted: 'onboarding.completed',
   onboardingHintSearch: 'onboarding.hints.search',
   onboardingHintWeb: 'onboarding.hints.web',
+  imageEditingShowWarning: 'imageEditing.showWarning',
 } as const;
 
 export const FACE_DETECTION_MAX_DIM = 1024;

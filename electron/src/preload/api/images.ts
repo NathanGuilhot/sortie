@@ -21,8 +21,12 @@ export function createImageApi(): Pick<
   | 'dismissSuggestion'
   | 'recomputeEmbedding'
   | 'recomputePalette'
+  | 'getImageEditEligibility'
+  | 'applyImageEdit'
 > {
   return {
+    getImageEditEligibility: (imageId) => invoke('getImageEditEligibility', { imageId }),
+    applyImageEdit: (imageId, transform) => invoke('applyImageEdit', { imageId, transform }),
     getImages: (limit?: number, offset?: number) => invoke('getImages', { limit, offset }),
     getImage: (id: number) => invoke('getImage', { id }),
     reshuffleImages: () => invokeNone('reshuffleImages'),

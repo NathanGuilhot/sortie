@@ -23,6 +23,10 @@ export class DatabaseOcrService {
     return this.engine !== null;
   }
 
+  invalidate(imageId: number): void {
+    this.db.ocr.invalidateImage(imageId);
+  }
+
   get(imageId: number): OcrResult {
     const { status, at } = this.db.ocr.getOcrStatus(imageId);
     if (status !== 'done') {

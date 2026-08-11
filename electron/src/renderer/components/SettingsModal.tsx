@@ -8,6 +8,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [confirming, setConfirming] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showEditWarning, setShowEditWarning] = useState(true);
+
+  useEffect(() => {
+    void window.sortieAPI.settings
+      .get('imageEditing.showWarning')
+      .then((value) => setShowEditWarning(value !== 'false'));
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -39,6 +46,28 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       >
         <div className="px-8 pt-8 pb-4">
           <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
+        </div>
+
+        <div className="px-8 py-5 border-t border-gray-100">
+          <label className="flex items-center justify-between gap-4">
+            <span>
+              <span className="block text-sm font-medium text-gray-900">
+                Show warning when editing an image
+              </span>
+              <span className="block text-xs text-gray-500 mt-1">
+                Confirm before permanently overwriting an original image.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={showEditWarning}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setShowEditWarning(checked);
+                void window.sortieAPI.settings.set('imageEditing.showWarning', String(checked));
+              }}
+            />
+          </label>
         </div>
 
         <div className="px-8 py-5 border-t border-gray-100">

@@ -50,6 +50,7 @@ export type {
   PinterestScrapeResponse,
   PinterestTarget,
 } from './ipc/pinterest';
+export type { ImageEditEligibility, ImageEditTransform } from './ipc/images';
 
 export interface SortieAPI
   extends

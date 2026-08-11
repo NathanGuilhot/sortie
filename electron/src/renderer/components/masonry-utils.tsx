@@ -5,6 +5,7 @@ import { isGif } from './gif-utils';
 import { GifBadge } from './gif';
 import { HeartIcon } from './icons';
 import { buildSortieFileUrl, buildSortieThumbUrl } from './sortieImageUrl';
+import { useImageStore } from '../stores/imageStore';
 
 export const MasonryImage = memo(function MasonryImage({
   image,
@@ -18,6 +19,7 @@ export const MasonryImage = memo(function MasonryImage({
   onSelect: (image: Image) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
+  const thumbnailRevision = useImageStore((state) => state.thumbnailRevision);
 
   const thumbWidth = Math.ceil((columnWidth * (window.devicePixelRatio || 1)) / 100) * 100;
   const gif = isGif(image);
@@ -26,7 +28,11 @@ export const MasonryImage = memo(function MasonryImage({
   // thumb cache.
   const src = gif
     ? buildSortieFileUrl(image.file_path)
-    : buildSortieThumbUrl(image.file_path, thumbWidth);
+    : buildSortieThumbUrl(
+        image.file_path,
+        thumbWidth,
+        `${image.file_mtime_ms ?? ''}-${thumbnailRevision}`,
+      );
 
   return (
     <div

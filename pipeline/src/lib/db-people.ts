@@ -206,7 +206,7 @@ export class DatabasePeopleRepository {
       .run(name, personId);
   }
 
-  updatePersonThumbnail(personId: number, faceId: number): void {
+  updatePersonThumbnail(personId: number, faceId: number | null): void {
     this.db
       .prepare(
         "UPDATE persons SET thumbnail_face_id = ?, updated_at = datetime('now') WHERE id = ?",
@@ -235,6 +235,33 @@ export class DatabasePeopleRepository {
 
   markImageFacesScanned(imageId: number): void {
     this.db.prepare('UPDATE images SET faces_scanned = 1 WHERE id = ?').run(imageId);
+  }
+
+  deleteFacesForImage(imageId: number): number[] {
+    const rows = this.db
+      .prepare('SELECT id, person_id FROM faces WHERE image_id = ?')
+      .all(imageId) as Array<{ id: number; person_id: number | null }>;
+    const personIds = [
+      ...new Set(rows.flatMap((row) => (row.person_id == null ? [] : [row.person_id]))),
+    ];
+    const txn = this.db.transaction(() => {
+      if (this.vecLoaded)
+        for (const row of rows) {
+          this.db.prepare('DELETE FROM vec_faces WHERE rowid = ?').run(BigInt(row.id));
+          this.db.prepare('DELETE FROM vec_face_clips WHERE rowid = ?').run(BigInt(row.id));
+        }
+      this.db.prepare('DELETE FROM faces WHERE image_id = ?').run(imageId);
+      this.db.prepare('UPDATE images SET faces_scanned = 0 WHERE id = ?').run(imageId);
+      for (const personId of personIds) {
+        this.updatePersonFaceCount(personId);
+        const thumbnail = this.db
+          .prepare('SELECT id FROM faces WHERE person_id = ? ORDER BY id LIMIT 1')
+          .get(personId) as { id: number } | undefined;
+        this.updatePersonThumbnail(personId, thumbnail?.id ?? null);
+      }
+    });
+    txn();
+    return personIds;
   }
 
   getUnscannedFaceImages(): Array<{ id: number; file_path: string }> {

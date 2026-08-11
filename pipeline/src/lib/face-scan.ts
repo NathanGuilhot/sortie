@@ -47,6 +47,17 @@ export class FaceScanService {
     return await this.dbQueue(() => this.saveDetectedFaces(imageId, faces, faceCropEmbeddings));
   }
 
+  async rescanImage(
+    imageId: number,
+    filePath: string,
+    input?: string | Buffer,
+  ): Promise<{ count: number; personIds: number[] }> {
+    const previousPersonIds = this.db.people.deleteFacesForImage(imageId);
+    for (const personId of previousPersonIds) this.faceMatcher.updatePersonCentroid(personId);
+    this.db.people.cleanupOrphanedPersons();
+    return await this.processImage(imageId, filePath, input);
+  }
+
   private saveDetectedFaces(
     imageId: number,
     faces: DetectedFace[],

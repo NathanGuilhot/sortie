@@ -70,7 +70,7 @@ export function BoardSuggestionsRow({ tagId, excludeIds, onAdd }: BoardSuggestio
                 const gif = isGif(image);
                 const src = gif
                   ? buildSortieFileUrl(image.file_path)
-                  : buildSortieThumbUrl(image.file_path, THUMB_FETCH_WIDTH);
+                  : buildSortieThumbUrl(image.file_path, THUMB_FETCH_WIDTH, image.file_mtime_ms);
                 return (
                   <div
                     key={image.id}

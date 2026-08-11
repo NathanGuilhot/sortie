@@ -6,8 +6,9 @@ import { SimilarityGrid } from './SimilarityGrid';
 import { OcrOverlay } from './OcrOverlay';
 import { useImageStore } from '../stores/imageStore';
 import { toast } from '../stores/toastStore';
-import { ChevronLeftIcon, InfoIcon, XIcon } from './icons';
+import { ChevronLeftIcon, EditIcon, InfoIcon, XIcon } from './icons';
 import { buildSortieFileUrl } from './sortieImageUrl';
+import { ImageCropEditor } from './ImageCropEditor';
 
 const SWIPE_THRESHOLD_PX = 60;
 const SWIPE_VERTICAL_TOLERANCE_PX = 45;
@@ -40,6 +41,12 @@ export function MetadataModal({
   const storeImages = useImageStore((s) => s.images);
   const images = imagesProp ?? storeImages;
   const [showMetadata, setShowMetadata] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editEligibility, setEditEligibility] = useState<{
+    editable: boolean;
+    reason: string | null;
+  }>({ editable: false, reason: 'Checking whether this image can be edited…' });
+  const replaceImage = useImageStore((s) => s.replaceImage);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [similarImages, setSimilarImages] = useState<SearchResult[]>([]);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -54,6 +61,16 @@ export function MetadataModal({
   /* eslint-disable react-hooks/set-state-in-effect -- intentional reset on prop change */
   useEffect(() => {
     setImageLoaded(false);
+    setEditing(false);
+    void window.sortieAPI
+      .getImageEditEligibility(image.id)
+      .then(setEditEligibility)
+      .catch(() =>
+        setEditEligibility({
+          editable: false,
+          reason: 'Could not check whether this image is editable.',
+        }),
+      );
   }, [image.id]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -102,6 +119,7 @@ export function MetadataModal({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      if (editing) return;
       const target = e.target as HTMLElement;
       const tag = target.tagName;
       if (
@@ -148,7 +166,7 @@ export function MetadataModal({
           break;
       }
     },
-    [onClose, onNavigate, onBack, onForward, canGoBack, canGoForward, images, image.id],
+    [editing, onClose, onNavigate, onBack, onForward, canGoBack, canGoForward, images, image.id],
   );
 
   useEffect(() => {
@@ -270,6 +288,22 @@ export function MetadataModal({
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => {
+              setShowMetadata(false);
+              setEditing(true);
+            }}
+            disabled={!editEligibility.editable}
+            className="w-9 h-9 flex items-center justify-center rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors disabled:text-white/20 disabled:cursor-not-allowed"
+            title={
+              editEligibility.editable
+                ? 'Edit image'
+                : (editEligibility.reason ?? 'Image cannot be edited')
+            }
+            aria-label="Edit image"
+          >
+            <EditIcon className="w-5 h-5" />
+          </button>
+          <button
             onClick={() => setShowMetadata((prev) => !prev)}
             className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
               showMetadata
@@ -320,7 +354,7 @@ export function MetadataModal({
           >
             <img
               ref={imgRef}
-              src={buildSortieFileUrl(image.file_path)}
+              src={buildSortieFileUrl(image.file_path, image.file_mtime_ms)}
               alt={image.file_name}
               className={`block max-w-full object-contain transition-opacity duration-200 ${
                 imageLoaded ? 'opacity-100' : 'opacity-0'
@@ -359,6 +393,17 @@ export function MetadataModal({
           </div>
         )}
       </div>
+      {editing && (
+        <ImageCropEditor
+          image={image}
+          onCancel={() => setEditing(false)}
+          onApplied={(updated) => {
+            replaceImage(updated);
+            setEditing(false);
+            setImageLoaded(false);
+          }}
+        />
+      )}
     </div>
   );
 }

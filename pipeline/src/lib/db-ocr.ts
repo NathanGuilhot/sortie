@@ -11,6 +11,16 @@ export class DatabaseOcrRepository {
     return row ?? { status: null, at: null };
   }
 
+  invalidateImage(imageId: number): void {
+    const txn = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM image_ocr WHERE image_id = ?').run(imageId);
+      this.db
+        .prepare('UPDATE images SET ocr_status = NULL, ocr_at = NULL WHERE id = ?')
+        .run(imageId);
+    });
+    txn();
+  }
+
   getImageOcr(imageId: number): Array<{
     block_index: number;
     text: string;
