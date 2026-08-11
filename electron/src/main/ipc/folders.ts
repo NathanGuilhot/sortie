@@ -34,7 +34,7 @@ export function registerFolderHandlers({
             treatPackagesAsDirectories: true,
           });
           if (!grantedPath) {
-            throw new Error(`Access was not granted to ${error.folderPath}.`);
+            throw new Error(`Access was not granted to ${error.folderPath}.`, { cause: error });
           }
           return await scan(signal);
         }

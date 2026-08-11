@@ -6,11 +6,7 @@ import {
   FaceMatcher,
   FaceScanService,
 } from 'pipeline';
-import {
-  Folder,
-  EmbedderStatus,
-  type AppSettingKey,
-} from 'shared';
+import { Folder, EmbedderStatus, type AppSettingKey } from 'shared';
 import { DatabaseOcrService } from './database-ocr';
 import { DatabaseBoardsService } from './database/boards';
 import { DatabaseFoldersService } from './database/folders';

@@ -118,13 +118,13 @@ export function useGallerySearchBar({
 
     clearFilters();
     setLocalQuery('');
-  }, [clearFilters, localQuery, setSearchQuery]);
+  }, [clearFilters, localQuery, setLocalQuery, setSearchQuery]);
 
   const handleClear = useCallback(() => {
     setLocalQuery('');
     clearFilters();
     inputRef?.current?.focus();
-  }, [clearFilters, inputRef]);
+  }, [clearFilters, inputRef, setLocalQuery]);
 
   const handleClearImageQuery = useCallback(() => {
     clearImageQuery();
@@ -160,7 +160,7 @@ export function useGallerySearchBar({
       setSearchQuery(term);
       setIsFocused(false);
     },
-    [setSearchQuery],
+    [setLocalQuery, setSearchQuery],
   );
 
   const showSuggestions = isFocused && !localQuery;

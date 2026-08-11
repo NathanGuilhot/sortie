@@ -1,10 +1,4 @@
-import type {
-  BackfillExifResult,
-  DuplicateGroup,
-  FaceScanProgress,
-  FaceScanResult,
-  HashScanResult,
-} from '../types';
+import type { BackfillExifResult, DuplicateGroup, FaceScanResult, HashScanResult } from '../types';
 import { IPC_CHANNELS } from '../ipc-channels';
 import type { OperationFaceScanProgress, OperationProgress } from './events';
 

@@ -1,7 +1,7 @@
 {
   "name": "sortie-desktop",
   "productName": "Sortie",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "Local-first photo tagger with CLIP embeddings and face detection",
   "author": "Nathan Guilhot <nathan.guilhot@gmx.fr>",
   "license": "MIT",
