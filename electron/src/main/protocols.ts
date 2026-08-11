@@ -5,7 +5,7 @@ import path from 'path';
 import { pathToFileURL } from 'url';
 import sharp from 'sharp';
 import { isRawPath, loadImageInput } from 'pipeline';
-import { getCachedEditPreview } from './editPreview';
+import { buildEditPreviewCachePath, getCachedEditPreview } from './editPreview';
 import { getSortieUserDataPaths } from './userDataPaths';
 
 const RAW_PREVIEW_CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024;
@@ -225,13 +225,13 @@ export function registerSortieProtocols(
       return new Response(null, { status: 400 });
     }
     const flipped = flippedParam === 'true';
-    const hash = buildHash(filePath);
-    const cachePath = path.join(
-      paths.thumbs,
-      turns === 0 && !flipped
-        ? `${hash}_edit_base_${size}.webp`
-        : `${hash}_edit_${turns}_${flipped ? 1 : 0}_${size}.webp`,
-    );
+    const cachePath = buildEditPreviewCachePath({
+      cacheDirectory: paths.thumbs,
+      sourcePath: filePath,
+      size,
+      clockwiseTurns: turns,
+      flipHorizontal: flipped,
+    });
 
     let sourceStats: fs.Stats;
     try {
