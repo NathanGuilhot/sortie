@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Board, Image } from 'shared';
+import type {
+  Board,
+  BoardExportFailure,
+  BoardExportProgress,
+  BoardExportResult,
+  Image,
+} from 'shared';
 import { useImageStore } from '../stores/imageStore';
 import { useBoardStore } from '../stores/boardStore';
 import { type Position } from '../components/masonry-layout';
@@ -11,9 +17,12 @@ import { MetadataModal } from '../components/MetadataModal';
 import { BoardSuggestionsRow } from '../components/BoardSuggestionsRow';
 import { isGif } from '../components/gif-utils';
 import { GifBadge } from '../components/gif';
-import { ChevronLeftIcon, GripIcon, XIcon } from '../components/icons';
+import { ChevronLeftIcon, ExportIcon, GripIcon, XIcon } from '../components/icons';
 import { buildSortieFileUrl, buildSortieThumbUrl } from '../components/sortieImageUrl';
 import { useImageDragOut } from '../components/useImageDragOut';
+import { BoardExportModal } from '../components/BoardExportModal';
+import { runOperation, type OperationHandle } from '../operations/runOperation';
+import { toast } from '../stores/toastStore';
 
 const DND_TYPE = 'board-image';
 
@@ -48,6 +57,11 @@ export function BoardDetailScreen() {
 
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportProgress, setExportProgress] = useState<BoardExportProgress | null>(null);
+  const [exportFailures, setExportFailures] = useState<BoardExportFailure[] | null>(null);
+  const [exportCancelling, setExportCancelling] = useState(false);
+  const exportHandleRef = useRef<OperationHandle<BoardExportResult> | null>(null);
 
   useEffect(() => {
     if (!Number.isFinite(tagId)) return;
@@ -80,6 +94,53 @@ export function BoardDetailScreen() {
       await renameBoard(tagId, trimmed);
     }
     setRenaming(false);
+  };
+
+  const startExport = () => {
+    if (!board || images.length === 0 || exportHandleRef.current) return;
+    setExportOpen(true);
+    setExportProgress(null);
+    setExportFailures(null);
+    setExportCancelling(false);
+
+    const handle = runOperation<BoardExportProgress, BoardExportResult>({
+      subscribe: window.sortieAPI.boards.onExportProgress,
+      start: (opId) => window.sortieAPI.boards.exportZip(tagId, opId),
+      onProgress: setExportProgress,
+    });
+    exportHandleRef.current = handle;
+    void handle.result
+      .then((result) => {
+        if (result.status === 'failed') {
+          setExportFailures(result.failures);
+          return;
+        }
+        setExportOpen(false);
+        if (result.status === 'saved') {
+          toast.success('Board exported', {
+            label: 'Reveal',
+            onClick: () => {
+              void window.sortieAPI.revealInFinder(result.filePath);
+            },
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        setExportFailures([
+          { fileName: 'Export', reason: error instanceof Error ? error.message : 'Export failed' },
+        ]);
+      })
+      .finally(() => {
+        exportHandleRef.current = null;
+        setExportCancelling(false);
+      });
+  };
+
+  const cancelExport = async () => {
+    const handle = exportHandleRef.current;
+    if (!handle) return;
+    setExportCancelling(true);
+    await handle.cancel();
   };
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -128,6 +189,14 @@ export function BoardDetailScreen() {
                 handle to reorder
               </p>
             </div>
+            <button
+              onClick={startExport}
+              disabled={!board || images.length === 0}
+              className="flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ExportIcon />
+              Export
+            </button>
           </div>
 
           <BoardMasonry
@@ -164,6 +233,18 @@ export function BoardDetailScreen() {
             onForward={goForwardImageViewer}
             canGoBack={viewerBackStack.length > 0}
             canGoForward={viewerForwardStack.length > 0}
+          />
+        )}
+
+        {exportOpen && board && (
+          <BoardExportModal
+            boardName={board.name}
+            progress={exportProgress}
+            cancelling={exportCancelling}
+            failures={exportFailures}
+            onCancel={() => void cancelExport()}
+            onRetry={startExport}
+            onClose={() => setExportOpen(false)}
           />
         )}
       </main>

@@ -111,6 +111,15 @@ export function ChevronLeftIcon(props: IconProps) {
   );
 }
 
+export function ExportIcon(props: IconProps) {
+  return (
+    <StrokeIcon {...props}>
+      <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
+      <path d="M5 21h14a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2" />
+    </StrokeIcon>
+  );
+}
+
 export function ChevronDownIcon(props: IconProps) {
   return (
     <StrokeIcon {...props}>
