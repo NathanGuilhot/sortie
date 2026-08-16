@@ -1,4 +1,5 @@
 import type { Query } from 'shared';
+import type { OriginFilter } from '../stores/uiStore';
 
 export interface SearchQueryInputs {
   searchQuery: string;
@@ -9,6 +10,7 @@ export interface SearchQueryInputs {
   showFavoritesOnly: boolean;
   showHidden: boolean;
   dateRange: { start: Date | null; end: Date | null };
+  originFilter: OriginFilter;
   imageBytes: Uint8Array | null;
 }
 
@@ -23,6 +25,7 @@ export function buildSearchQuery(inputs: SearchQueryInputs): Query {
   if (inputs.paletteFilters.length) query.palette = inputs.paletteFilters;
   if (inputs.showFavoritesOnly) query.favorites = true;
   if (inputs.showHidden) query.includeHidden = true;
+  if (inputs.originFilter) query.origin = inputs.originFilter;
   const start = inputs.dateRange.start?.toISOString() ?? null;
   const end = inputs.dateRange.end?.toISOString() ?? null;
   if (start || end) query.dateRange = { start, end };

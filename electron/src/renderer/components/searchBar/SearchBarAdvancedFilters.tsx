@@ -1,21 +1,36 @@
 import { useEffect, useState } from 'react';
-import { Person } from 'shared';
+import { OriginKind, Person } from 'shared';
 import { showIpcError } from '../../ipc';
-import { useUIStore } from '../../stores/uiStore';
+import { ORIGIN_KIND_LABELS } from '../originLabels';
+import { useUIStore, type OriginFilter } from '../../stores/uiStore';
 import { TagInput } from '../TagInput';
 import { PaletteSearchPicker } from '../PaletteSearchPicker';
 import { buildFaceThumbUrl } from '../faceThumb';
 import { HeartIcon, PersonIcon } from '../icons';
 import { useSearchFilterData } from './useSearchFilterData';
 
+function serializeOrigin(origin: OriginFilter): string {
+  if (origin?.kind) return `kind:${origin.kind}`;
+  if (origin?.domain) return `domain:${origin.domain}`;
+  return '';
+}
+
+function parseOrigin(value: string): OriginFilter {
+  if (value.startsWith('kind:')) return { kind: value.slice('kind:'.length) as OriginKind };
+  if (value.startsWith('domain:')) return { domain: value.slice('domain:'.length) };
+  return null;
+}
+
 export function SearchBarAdvancedFilters({ showDivider }: { showDivider: boolean }) {
   const {
     dateRange,
     folderFilter,
+    originFilter,
     paletteFilters,
     personFilter,
     setDateRange,
     setFolderFilter,
+    setOriginFilter,
     setPaletteFilters,
     setPersonFilter,
     setShowFavoritesOnly,
@@ -25,7 +40,7 @@ export function SearchBarAdvancedFilters({ showDivider }: { showDivider: boolean
     showHidden,
     tagFilters,
   } = useUIStore();
-  const { folders, persons } = useSearchFilterData();
+  const { folders, origins, persons } = useSearchFilterData();
   const [thumbsByPersonId, setThumbsByPersonId] = useState<Record<number, string>>({});
 
   useEffect(() => {
@@ -85,6 +100,37 @@ export function SearchBarAdvancedFilters({ showDivider }: { showDivider: boolean
                 {folder.folder_name} ({folder.image_count})
               </option>
             ))}
+          </select>
+        </div>
+      )}
+
+      {(origins.kinds.length > 0 || origins.domains.length > 0) && (
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1.5">Filter by source</label>
+          <select
+            value={serializeOrigin(originFilter)}
+            onChange={(event) => setOriginFilter(parseOrigin(event.target.value))}
+            className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-300 outline-none transition-colors"
+          >
+            <option value="">All sources</option>
+            {origins.kinds.length > 0 && (
+              <optgroup label="How it arrived">
+                {origins.kinds.map(({ kind, count }) => (
+                  <option key={kind} value={`kind:${kind}`}>
+                    {ORIGIN_KIND_LABELS[kind]} ({count})
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {origins.domains.length > 0 && (
+              <optgroup label="Saved from">
+                {origins.domains.map(({ domain, count }) => (
+                  <option key={domain} value={`domain:${domain}`}>
+                    {domain} ({count})
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
       )}
@@ -189,7 +235,7 @@ function PersonFilterChip({
   return (
     <button
       onClick={onToggle}
-      title={`${label} (${person.face_count})`}
+      title={`${label} (${person.image_count})`}
       className={`relative w-10 h-10 rounded-full overflow-hidden transition-all ${
         selected ? 'ring-2 ring-ink ring-offset-2' : 'ring-1 ring-gray-200 hover:ring-gray-400'
       }`}

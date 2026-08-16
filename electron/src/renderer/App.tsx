@@ -3,6 +3,7 @@ import { useRoutes } from 'react-router-dom';
 import { routes } from './routes';
 import { Toaster } from './components/Toaster';
 import { ExternalImportBridge } from './components/ExternalImportBridge';
+import { OriginBackfillBridge } from './components/OriginBackfillBridge';
 import { OnboardingTakeover } from './components/OnboardingTakeover';
 import { useErrorToastBridge } from './stores/useErrorToastBridge';
 import { useFolderStore } from './stores/folderStore';
@@ -31,6 +32,7 @@ function App() {
     <>
       {element}
       <ExternalImportBridge />
+      <OriginBackfillBridge />
       <OnboardingTakeover />
       <Toaster />
     </>

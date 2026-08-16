@@ -13,22 +13,13 @@ export function useGalleryQuery(scrollContainerRef: RefObject<HTMLDivElement | n
   const personFilter = useUIStore((s) => s.personFilter);
   const folderFilter = useUIStore((s) => s.folderFilter);
   const paletteFilters = useUIStore((s) => s.paletteFilters);
+  const originFilter = useUIStore((s) => s.originFilter);
+  const originDataRevision = useUIStore((s) => s.originDataRevision);
   const activeImageQuery = useImageStore((s) => s.activeImageQuery);
   const runQuery = useImageStore((s) => s.runQuery);
-  const query = useMemo(
-    () =>
-      buildSearchQuery({
-        searchQuery,
-        dateRange,
-        tagFilters,
-        showHidden,
-        showFavoritesOnly,
-        personFilter,
-        folderFilter,
-        paletteFilters,
-        imageBytes: activeImageQuery?.bytes ?? null,
-      }),
-    [
+  const query = useMemo(() => {
+    void originDataRevision;
+    return buildSearchQuery({
       searchQuery,
       dateRange,
       tagFilters,
@@ -37,9 +28,22 @@ export function useGalleryQuery(scrollContainerRef: RefObject<HTMLDivElement | n
       personFilter,
       folderFilter,
       paletteFilters,
-      activeImageQuery,
-    ],
-  );
+      originFilter,
+      imageBytes: activeImageQuery?.bytes ?? null,
+    });
+  }, [
+    searchQuery,
+    dateRange,
+    tagFilters,
+    showHidden,
+    showFavoritesOnly,
+    personFilter,
+    folderFilter,
+    paletteFilters,
+    originFilter,
+    originDataRevision,
+    activeImageQuery,
+  ]);
   useEffect(() => {
     const timer = setTimeout(() => {
       void runQuery(query);

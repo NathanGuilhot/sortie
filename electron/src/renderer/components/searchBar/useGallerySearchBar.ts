@@ -55,6 +55,7 @@ export function useGallerySearchBar({
     personFilter,
     folderFilter,
     paletteFilters,
+    originFilter,
     clearFilters,
   } = useUIStore();
   const loading = useImageStore((state) => state.loading);
@@ -79,7 +80,8 @@ export function useGallerySearchBar({
     showFavoritesOnly ||
     personFilter !== null ||
     folderFilter !== null ||
-    paletteFilters.length > 0;
+    paletteFilters.length > 0 ||
+    originFilter !== null;
 
   const {
     isDragActive,

@@ -1,4 +1,7 @@
 import { create } from 'zustand';
+import type { OriginKind } from 'shared';
+
+export type OriginFilter = { kind?: OriginKind; domain?: string } | null;
 
 interface UIStore {
   searchQuery: string;
@@ -9,6 +12,8 @@ interface UIStore {
   personFilter: number | null;
   folderFilter: number | null;
   paletteFilters: string[];
+  originFilter: OriginFilter;
+  originDataRevision: number;
   setSearchQuery: (query: string) => void;
   setDateRange: (range: { start: Date | null; end: Date | null }) => void;
   setTagFilters: (tags: string[]) => void;
@@ -17,6 +22,8 @@ interface UIStore {
   setPersonFilter: (personId: number | null) => void;
   setFolderFilter: (folderId: number | null) => void;
   setPaletteFilters: (colors: string[]) => void;
+  setOriginFilter: (origin: OriginFilter) => void;
+  incrementOriginDataRevision: () => void;
   clearFilters: () => void;
 }
 
@@ -29,6 +36,8 @@ export const useUIStore = create<UIStore>()((set) => ({
   personFilter: null,
   folderFilter: null,
   paletteFilters: [],
+  originFilter: null,
+  originDataRevision: 0,
   setSearchQuery: (query) => set({ searchQuery: query }),
   setDateRange: (range) => set({ dateRange: range }),
   setTagFilters: (tags) => set({ tagFilters: tags }),
@@ -37,6 +46,9 @@ export const useUIStore = create<UIStore>()((set) => ({
   setPersonFilter: (personId) => set({ personFilter: personId }),
   setFolderFilter: (folderId) => set({ folderFilter: folderId }),
   setPaletteFilters: (colors) => set({ paletteFilters: colors }),
+  setOriginFilter: (origin) => set({ originFilter: origin }),
+  incrementOriginDataRevision: () =>
+    set((state) => ({ originDataRevision: state.originDataRevision + 1 })),
   clearFilters: () =>
     set({
       searchQuery: '',
@@ -47,5 +59,6 @@ export const useUIStore = create<UIStore>()((set) => ({
       personFilter: null,
       folderFilter: null,
       paletteFilters: [],
+      originFilter: null,
     }),
 }));

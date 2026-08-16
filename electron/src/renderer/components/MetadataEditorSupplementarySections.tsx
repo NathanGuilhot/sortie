@@ -1,6 +1,7 @@
 import type { Image } from 'shared';
 import { CopyText } from './CopyText';
 import { MetadataDisclosureSection } from './MetadataEditorPrimitives';
+import { describeOrigin } from './originLabels';
 import { AlertIcon, CheckIcon } from './icons';
 
 function saveButtonLabel(isSaving: boolean, saveSuccess: boolean, isDirty: boolean): string {
@@ -35,6 +36,8 @@ export function MetadataEditorSupplementarySections({
   onRecomputeEmbedding,
   onSave,
 }: MetadataEditorSupplementarySectionsProps) {
+  const origin = describeOrigin(image);
+
   return (
     <>
       {image.embedded === false && (
@@ -110,6 +113,12 @@ export function MetadataEditorSupplementarySections({
       <div className="mb-6">
         <MetadataDisclosureSection title="File Info">
           <div className="space-y-2">
+            {origin && (
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-gray-400 shrink-0">Origin</span>
+                <span className="text-gray-600 font-medium text-right">{origin}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-400">Created</span>
               <span className="text-gray-600 font-medium">

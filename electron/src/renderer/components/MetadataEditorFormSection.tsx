@@ -152,6 +152,11 @@ export function MetadataEditorFormSection({
           value={websiteLink}
           onChange={(event) => onChangeWebsiteLink(event.target.value)}
         />
+        {image.website_link_source === 'inferred' && (
+          <p className="mt-1 text-[11px] text-gray-400">
+            Recovered from this file&apos;s download record. Editing makes it yours.
+          </p>
+        )}
         {image.website_link && savedWebsiteLink === image.website_link && (
           <LinkPreviewCard url={image.website_link} />
         )}

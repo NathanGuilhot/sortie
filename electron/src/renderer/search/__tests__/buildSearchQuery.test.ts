@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildSearchQuery } from '../buildSearchQuery';
+import { buildSearchQuery, type SearchQueryInputs } from '../buildSearchQuery';
 
-const base = {
+const base: SearchQueryInputs = {
   searchQuery: '',
   personFilter: null,
   folderFilter: null,
@@ -9,6 +9,7 @@ const base = {
   paletteFilters: [],
   showFavoritesOnly: false,
   showHidden: false,
+  originFilter: null,
   dateRange: { start: null, end: null },
   imageBytes: null,
 };
