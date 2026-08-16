@@ -1,4 +1,4 @@
-import type { Image } from './images';
+import type { Image, OriginKind } from './images';
 
 export interface Tag {
   id: number;
@@ -91,6 +91,7 @@ export interface Query {
   palette?: string[];
   favorites?: boolean;
   includeHidden?: boolean;
+  origin?: { kind?: OriginKind; domain?: string };
   dateRange?: { start: string | null; end: string | null };
   limit?: number;
   offset?: number;

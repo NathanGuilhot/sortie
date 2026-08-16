@@ -67,3 +67,115 @@ describe('DatabaseSearchService.findSimilarImages', () => {
     }
   });
 });
+
+describe('DatabaseSearchService origin filtering', () => {
+  function serviceFor(t: ReturnType<typeof createTestDb>, cacheKeys: string[]) {
+    return new DatabaseSearchService({
+      requireDb: () => t.manager,
+      getEmbedder: () => {
+        throw new Error('embedder should not be used');
+      },
+      getOrBuildShuffledIds: (cacheKey, loadIds) => {
+        cacheKeys.push(cacheKey);
+        return loadIds();
+      },
+      fetchImagesByIdsInOrder: (ids) => ids.map((id) => image(id)) as SearchResult[],
+    });
+  }
+
+  it('keys the filter cache per origin', async () => {
+    const t = createTestDb();
+    try {
+      seedImage(t, '/photos/1.jpg', { originKind: 'downloaded', originDomain: 'tumblr.com' });
+      const cacheKeys: string[] = [];
+      const service = serviceFor(t, cacheKeys);
+
+      await service.queryImages({ origin: { kind: 'downloaded' } });
+      await service.queryImages({ origin: { domain: 'tumblr.com' } });
+
+      expect(new Set(cacheKeys).size).toBe(2);
+    } finally {
+      t.close();
+    }
+  });
+
+  it('reaches EXIF-less images through their acquisition date', async () => {
+    const t = createTestDb();
+    try {
+      const saved = seedImage(t, '/photos/1.jpg', {
+        originKind: 'downloaded',
+        originDomain: 'tumblr.com',
+        originAt: '2016-06-01T00:00:00.000Z',
+      });
+      seedImage(t, '/photos/2.jpg', {
+        originKind: 'downloaded',
+        originAt: '2024-06-01T00:00:00.000Z',
+      });
+      const shotThen = seedImage(t, '/photos/3.jpg', {
+        originKind: 'camera',
+        capturedAt: '2016-07-01T00:00:00.000Z',
+      });
+
+      const results = await serviceFor(t, []).queryImages({
+        dateRange: { start: '2016-01-01T00:00:00.000Z', end: '2016-12-31T00:00:00.000Z' },
+      });
+
+      expect(results.images.map((result) => result.id).sort()).toEqual([saved, shotThen].sort());
+    } finally {
+      t.close();
+    }
+  });
+
+  it('counts kinds and domains for the filter control', () => {
+    const t = createTestDb();
+    try {
+      seedImage(t, '/photos/1.jpg', { originKind: 'downloaded', originDomain: 'tumblr.com' });
+      seedImage(t, '/photos/2.jpg', { originKind: 'downloaded', originDomain: 'tumblr.com' });
+      seedImage(t, '/photos/3.jpg', { originKind: 'screenshot' });
+      seedImage(t, '/photos/4.jpg', {
+        originKind: 'downloaded',
+        originDomain: 'x.com',
+        hidden: true,
+      });
+
+      const facets = t.manager.images.getOriginFacets();
+
+      expect(facets.kinds).toEqual([
+        { kind: 'downloaded', count: 2 },
+        { kind: 'screenshot', count: 1 },
+      ]);
+      expect(facets.domains).toEqual([{ domain: 'tumblr.com', count: 2 }]);
+    } finally {
+      t.close();
+    }
+  });
+});
+
+describe('DatabaseSearchService gallery totals', () => {
+  it('reports the full filtered size when only the first page is loaded', async () => {
+    const t = createTestDb();
+    try {
+      for (let index = 0; index < 101; index++) {
+        seedImage(t, `/photos/saved-${index}.jpg`, {
+          originKind: 'downloaded',
+          originDomain: 'tumblr.com',
+        });
+      }
+      seedImage(t, '/photos/screenshot.jpg', { originKind: 'screenshot' });
+
+      const page = await new DatabaseSearchService({
+        requireDb: () => t.manager,
+        getEmbedder: () => {
+          throw new Error('embedder should not be used');
+        },
+        getOrBuildShuffledIds: (_cacheKey, loadIds) => loadIds(),
+        fetchImagesByIdsInOrder: (ids) => ids.map((id) => image(id)) as SearchResult[],
+      }).queryImages({ origin: { kind: 'downloaded' }, limit: 100 });
+
+      expect(page).toMatchObject({ total: 101 });
+      expect(page.images).toHaveLength(100);
+    } finally {
+      t.close();
+    }
+  });
+});

@@ -60,6 +60,8 @@ export class DatabaseSearchService {
       query.personId != null ||
       query.folderId != null ||
       (query.tags && query.tags.length > 0) ||
+      query.origin?.kind ||
+      query.origin?.domain ||
       query.dateRange?.start ||
       query.dateRange?.end
     );
@@ -73,6 +75,8 @@ export class DatabaseSearchService {
     if (query.personId != null) parts.push(`p${query.personId}`);
     if (query.folderId != null) parts.push(`f${query.folderId}`);
     if (query.tags && query.tags.length > 0) parts.push(`t=${[...query.tags].sort().join(',')}`);
+    if (query.origin?.kind) parts.push(`ok=${query.origin.kind}`);
+    if (query.origin?.domain) parts.push(`od=${query.origin.domain}`);
     if (query.dateRange?.start) parts.push(`ds=${query.dateRange.start}`);
     if (query.dateRange?.end) parts.push(`de=${query.dateRange.end}`);
 

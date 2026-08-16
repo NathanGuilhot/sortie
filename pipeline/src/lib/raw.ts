@@ -42,6 +42,11 @@ function tool(): ExifTool {
   return toolInstance;
 }
 
+// Reuse the long-lived exiftool process for tags absent from its bundled types.
+export async function readTags<T extends object>(filePath: string, args: string[]): Promise<T> {
+  return (await tool().read(filePath, args)) as unknown as T;
+}
+
 // Extract the largest embedded JPEG from a RAW file. Tries JpgFromRaw first
 // (DSLR convention, full sensor resolution), then PreviewImage (Sony/Fuji and
 // many others), then ThumbnailImage as last resort. Throws if none present:

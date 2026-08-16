@@ -285,4 +285,21 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
 
     db.pragma('user_version = 20');
   }
+
+  if (version < 21) {
+    const imageColumns = getColumnNames(db, 'images');
+    // NULL drives the backfill queue; `unknown` marks an examined image.
+    addColumnIfMissing(db, 'images', imageColumns, 'origin_kind', 'TEXT');
+    addColumnIfMissing(db, 'images', imageColumns, 'origin_domain', 'TEXT');
+    addColumnIfMissing(db, 'images', imageColumns, 'origin_at', 'TEXT');
+    addColumnIfMissing(db, 'images', imageColumns, 'website_link_source', 'TEXT');
+
+    db.exec('CREATE INDEX IF NOT EXISTS idx_images_origin_kind ON images(origin_kind)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_images_origin_domain ON images(origin_domain)');
+
+    // Existing links predate OS inference and must remain protected.
+    db.exec("UPDATE images SET website_link_source = 'user' WHERE website_link IS NOT NULL");
+
+    db.pragma('user_version = 21');
+  }
 }

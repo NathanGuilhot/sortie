@@ -95,6 +95,10 @@ export function registerImageHandlers({ dbService }: MainIpcContext): void {
     return await dbService.images.getAllTags();
   });
 
+  handleInvoke('getOriginFacets', async () => {
+    return await dbService.images.getOriginFacets();
+  });
+
   handleInvoke('getTagsWithCounts', async () => {
     return await dbService.images.getTagsWithCounts();
   });

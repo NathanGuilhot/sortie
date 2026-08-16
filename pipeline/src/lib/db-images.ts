@@ -3,6 +3,8 @@ import path from 'path';
 import {
   type Image,
   type LinkPreview,
+  type OriginFacets,
+  type OriginKind,
   type PaletteColor,
   parseOptionalJson,
   type Tag,
@@ -34,7 +36,10 @@ export interface ImageScanState {
   embedded: number;
   palette_json: string | null;
   faces_scanned: number;
+  origin_kind: OriginKind | null;
 }
+
+type OriginColumn = 'origin_kind' | 'origin_domain' | 'origin_at' | 'website_link';
 
 export interface ImageSetFilter {
   includeHidden?: boolean;
@@ -42,6 +47,7 @@ export interface ImageSetFilter {
   personId?: number;
   folderId?: number;
   tags?: string[];
+  origin?: { kind?: OriginKind; domain?: string };
   dateRange?: { start?: string | null; end?: string | null };
 }
 
@@ -120,6 +126,7 @@ export class DatabaseImageRepository {
           existing.id,
         );
 
+      this.writeOrigin(existing.id, image);
       return { id: existing.id, created: false, fileHashMatched };
     }
 
@@ -158,14 +165,52 @@ export class DatabaseImageRepository {
         image.focal_length ?? null,
       );
 
-    return { id: result.lastInsertRowid as number, created: true, fileHashMatched: false };
+    const id = result.lastInsertRowid as number;
+    this.writeOrigin(id, image);
+    return { id, created: true, fileHashMatched: false };
+  }
+
+  // SQLite evaluates these guards against the stored source, protecting user links.
+  private writeOrigin(imageId: number, image: Pick<Image, OriginColumn>): void {
+    if (!image.origin_kind) {
+      // Clear stale data so a failed read remains retryable.
+      this.db
+        .prepare(
+          'UPDATE images SET origin_kind = NULL, origin_domain = NULL, origin_at = NULL WHERE id = ?',
+        )
+        .run(imageId);
+      return;
+    }
+
+    const url = image.website_link ?? null;
+    this.db
+      .prepare(
+        `UPDATE images SET
+           origin_kind = ?,
+           origin_domain = ?,
+           origin_at = ?,
+           website_link = CASE
+             WHEN website_link_source = 'inferred'
+               OR (website_link IS NULL AND website_link_source IS NULL)
+               THEN ?
+             ELSE website_link
+           END,
+           website_link_source = CASE
+             WHEN website_link_source = 'inferred'
+               OR (website_link IS NULL AND website_link_source IS NULL)
+               THEN 'inferred'
+             ELSE website_link_source
+           END
+         WHERE id = ?`,
+      )
+      .run(image.origin_kind, image.origin_domain ?? null, image.origin_at ?? null, url, imageId);
   }
 
   getImageScanState(filePath: string): ImageScanState | null {
     const row = this.db
       .prepare(
         `SELECT i.id, i.file_size, i.file_mtime_ms, i.file_hash, i.palette_json,
-                i.faces_scanned,
+                i.faces_scanned, i.origin_kind,
                 ${this.embeddedColumn()}
          FROM images i
          WHERE i.file_path = ?`,
@@ -209,12 +254,22 @@ export class DatabaseImageRepository {
       params.push(...filter.tags, filter.tags.length);
     }
 
+    if (filter.origin?.kind) {
+      where.push('i.origin_kind = ?');
+      params.push(filter.origin.kind);
+    }
+    if (filter.origin?.domain) {
+      where.push('i.origin_domain = ?');
+      params.push(filter.origin.domain);
+    }
+
+    // Acquisition time is the date fallback when capture time is unavailable.
     if (filter.dateRange?.start) {
-      where.push('i.captured_at >= ?');
+      where.push('COALESCE(i.captured_at, i.origin_at) >= ?');
       params.push(filter.dateRange.start);
     }
     if (filter.dateRange?.end) {
-      where.push('i.captured_at <= ?');
+      where.push('COALESCE(i.captured_at, i.origin_at) <= ?');
       params.push(filter.dateRange.end);
     }
 
@@ -327,6 +382,43 @@ export class DatabaseImageRepository {
       .all() as Array<{ id: number; file_path: string; missing: number }>;
   }
 
+  // NULL means pending; `unknown` means examined without evidence.
+  listImagesMissingOrigin(): Array<{ id: number; file_path: string }> {
+    return this.db
+      .prepare(
+        `SELECT id, file_path FROM images
+         WHERE origin_kind IS NULL AND missing = 0
+         ORDER BY file_path`,
+      )
+      .all() as Array<{ id: number; file_path: string }>;
+  }
+
+  setImageOrigin(imageId: number, origin: Pick<Image, OriginColumn>): void {
+    this.writeOrigin(imageId, origin);
+  }
+
+  getOriginFacets(): OriginFacets {
+    const kinds = this.db
+      .prepare(
+        `SELECT origin_kind AS kind, COUNT(*) AS count FROM images
+         WHERE origin_kind IS NOT NULL AND ${visibleImageSql()}
+         GROUP BY origin_kind
+         ORDER BY count DESC`,
+      )
+      .all() as Array<{ kind: OriginKind; count: number }>;
+
+    const domains = this.db
+      .prepare(
+        `SELECT origin_domain AS domain, COUNT(*) AS count FROM images
+         WHERE origin_domain IS NOT NULL AND ${visibleImageSql()}
+         GROUP BY origin_domain
+         ORDER BY count DESC, domain ASC`,
+      )
+      .all() as Array<{ domain: string; count: number }>;
+
+    return { kinds, domains };
+  }
+
   listImagesMissingCameraExif(): Array<{ id: number; file_path: string }> {
     return this.db
       .prepare(
@@ -394,6 +486,8 @@ export class DatabaseImageRepository {
     if (metadata.website_link !== undefined) {
       fields.push('website_link = ?');
       values.push(metadata.website_link);
+      // Manual edits permanently protect the link from inferred updates.
+      fields.push("website_link_source = 'user'");
     }
 
     if (fields.length === 0) return;

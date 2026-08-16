@@ -33,6 +33,7 @@ let availabilityMonitor: FolderAvailabilityMonitor | null = null;
 let externalImportService: ExternalImportService | null = null;
 let hasRunQuitCleanup = false;
 let quitCleanupPromise: Promise<void> | null = null;
+let provenanceBackfillStarted = false;
 const pendingExternalImports: ExternalImportInvocation[] = [];
 
 const initialExternalImport = parseExternalImportArgs(process.argv);
@@ -154,12 +155,30 @@ function createWindow() {
   }
 
   mainWindow.webContents.once('did-stop-loading', () => setImmediate(flushExternalImports));
+  mainWindow.webContents.once('did-finish-load', () => {
+    void startBackgroundProvenanceBackfill();
+  });
 
   if (process.env.NODE_ENV === 'development') {
     void mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
     void mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  }
+}
+
+async function startBackgroundProvenanceBackfill(): Promise<void> {
+  if (provenanceBackfillStarted || !dbService) return;
+  provenanceBackfillStarted = true;
+  const service = dbService;
+  try {
+    const result = await service.maintenance.backfillProvenance();
+    if (result.filled > 0) {
+      console.log(`[provenance] recovered origins for ${result.filled} images`);
+    }
+    emitToRenderer(mainWindow, 'originBackfillComplete', { filled: result.filled });
+  } catch (err) {
+    console.warn('[provenance] backfill failed:', err);
   }
 }
 

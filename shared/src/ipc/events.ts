@@ -25,6 +25,7 @@ export const IPC_EVENT_CHANNELS = {
   ocrUpdated: 'ocr-updated',
   pinterestBulkImportProgress: 'pinterest:bulk-import-progress',
   pinterestBulkImportComplete: 'pinterest:bulk-import-complete',
+  originBackfillComplete: 'origin-backfill-complete',
   externalImportProgress: 'external-import:progress',
   externalImportComplete: 'external-import:complete',
   externalImportBoardRequest: 'external-import:board-request',
@@ -43,6 +44,7 @@ export interface EventPayloadByKey {
   ocrUpdated: OcrUpdatePayload;
   pinterestBulkImportProgress: PinterestBulkImportProgress;
   pinterestBulkImportComplete: PinterestBulkImportSummary;
+  originBackfillComplete: { filled: number };
   externalImportProgress: ExternalImportProgress;
   externalImportComplete: ExternalImportComplete;
   externalImportBoardRequest: ExternalBoardImportRequest;

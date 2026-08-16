@@ -13,6 +13,7 @@ export const IPC_CHANNELS = {
   removeFolder: 'remove-folder',
   getAllTags: 'get-all-tags',
   getTagsWithCounts: 'get-tags-with-counts',
+  getOriginFacets: 'get-origin-facets',
   updateImageTags: 'update-image-tags',
   hideImage: 'hide-image',
   updateImageMetadata: 'update-image-metadata',

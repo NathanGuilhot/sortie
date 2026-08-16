@@ -1,7 +1,20 @@
 import type { ClipEmbedder, DatabaseManager } from 'pipeline';
-import { computeFileHash, extractExif, extractPalette } from 'pipeline';
-import type { BackfillExifResult, DuplicateGroup, HashScanResult, Image } from 'shared';
+import {
+  classifyOrigin,
+  computeFileHash,
+  createProvenanceReader,
+  extractExif,
+  extractPalette,
+} from 'pipeline';
+import {
+  mostSpecificFolderForPath,
+  type BackfillExifResult,
+  type DuplicateGroup,
+  type HashScanResult,
+  type Image,
+} from 'shared';
 import fs from 'fs/promises';
+import path from 'path';
 import type { FileDeletionError } from '../database';
 
 interface DatabaseMaintenanceDeps {
@@ -62,6 +75,65 @@ export class DatabaseMaintenanceService {
     this.deps.invalidateImageCache();
     console.log(
       `[migration] backfilled EXIF for ${filled}/${rows.length} images${cancelled ? ' (cancelled)' : ''}`,
+    );
+    return { filled, cancelled };
+  }
+
+  // Group by folder to reuse each Spotlight prefilter.
+  async backfillProvenance(signal?: AbortSignal): Promise<{ filled: number; cancelled: boolean }> {
+    const db = this.deps.requireDb();
+    const rows = db.images.listImagesMissingOrigin();
+    if (rows.length === 0) return { filled: 0, cancelled: false };
+
+    console.log(`[migration] recovering provenance for ${rows.length} images...`);
+
+    const libraryFolders = db.folders.listFolders();
+    const byFolder = new Map<string, Array<{ id: number; file_path: string }>>();
+    for (const row of rows) {
+      const folder = mostSpecificFolderForPath(libraryFolders, row.file_path)?.path;
+      const readerRoot = folder ?? path.dirname(row.file_path);
+      const group = byFolder.get(readerRoot);
+      if (group) group.push(row);
+      else byFolder.set(readerRoot, [row]);
+    }
+
+    let filled = 0;
+    let cancelled = false;
+
+    for (const [folder, group] of byFolder) {
+      if (signal?.aborted) {
+        cancelled = true;
+        break;
+      }
+
+      const reader = await createProvenanceReader(folder);
+      for (const row of group) {
+        if (signal?.aborted) {
+          cancelled = true;
+          break;
+        }
+
+        try {
+          const exif = await extractExif(row.file_path);
+          const origin = classifyOrigin(await reader.read(row.file_path), {
+            hasCameraExif: !!(exif.cameraMake || exif.cameraModel),
+          });
+          db.images.setImageOrigin(row.id, {
+            origin_kind: origin.kind,
+            origin_domain: origin.domain,
+            origin_at: origin.at,
+            website_link: origin.url,
+          });
+          filled++;
+        } catch (error) {
+          console.warn(`Failed to recover provenance for ${row.file_path}:`, error);
+        }
+      }
+    }
+
+    this.deps.invalidateImageCache();
+    console.log(
+      `[migration] recovered provenance for ${filled}/${rows.length} images${cancelled ? ' (cancelled)' : ''}`,
     );
     return { filled, cancelled };
   }

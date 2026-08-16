@@ -12,6 +12,8 @@ export function createImageApi(): Pick<
   | 'findSimilarImages'
   | 'getAllTags'
   | 'getTagsWithCounts'
+  | 'getOriginFacets'
+  | 'onOriginBackfillComplete'
   | 'updateImageTags'
   | 'hideImage'
   | 'updateImageMetadata'
@@ -38,6 +40,8 @@ export function createImageApi(): Pick<
       invoke('findSimilarImages', { imageId, limit }),
     getAllTags: () => invokeNone('getAllTags'),
     getTagsWithCounts: () => invokeNone('getTagsWithCounts'),
+    getOriginFacets: () => invokeNone('getOriginFacets'),
+    onOriginBackfillComplete: (callback) => subscribeEvent('originBackfillComplete', callback),
     updateImageTags: (imageId: number, tags: string[]) =>
       invoke('updateImageTags', { imageId, tags }),
     hideImage: (imageId: number) => invokeWithImageId('hideImage', imageId),

@@ -2,6 +2,7 @@ import type {
   EmbedderStatus,
   Image,
   LinkPreview,
+  OriginFacets,
   Query,
   ImagePage,
   SearchResult,
@@ -24,6 +25,8 @@ export interface ImageApi {
   findSimilarImages: (imageId: number, limit?: number) => Promise<SearchResult[]>;
   getAllTags: () => Promise<Tag[]>;
   getTagsWithCounts: () => Promise<TagWithCount[]>;
+  getOriginFacets: () => Promise<OriginFacets>;
+  onOriginBackfillComplete: (callback: (result: { filled: number }) => void) => () => void;
   updateImageTags: (imageId: number, tags: string[]) => Promise<{ success: boolean }>;
   hideImage: (imageId: number) => Promise<{ success: boolean }>;
   updateImageMetadata: (
@@ -59,6 +62,7 @@ export const imageInvokeChannels = {
   findSimilarImages: IPC_CHANNELS.findSimilarImages,
   getAllTags: IPC_CHANNELS.getAllTags,
   getTagsWithCounts: IPC_CHANNELS.getTagsWithCounts,
+  getOriginFacets: IPC_CHANNELS.getOriginFacets,
   updateImageTags: IPC_CHANNELS.updateImageTags,
   hideImage: IPC_CHANNELS.hideImage,
   updateImageMetadata: IPC_CHANNELS.updateImageMetadata,
@@ -81,6 +85,7 @@ export interface ImageInvokeArgsByKey {
   findSimilarImages: { imageId: number; limit?: number };
   getAllTags: undefined;
   getTagsWithCounts: undefined;
+  getOriginFacets: undefined;
   updateImageTags: { imageId: number; tags: string[] };
   hideImage: { imageId: number };
   updateImageMetadata: { imageId: number; metadata: SortieImageMetadataUpdate };
@@ -103,6 +108,7 @@ export interface ImageInvokeResultByKey {
   findSimilarImages: SearchResult[];
   getAllTags: Tag[];
   getTagsWithCounts: TagWithCount[];
+  getOriginFacets: OriginFacets;
   updateImageTags: { success: boolean };
   hideImage: { success: boolean };
   updateImageMetadata: { success: boolean };

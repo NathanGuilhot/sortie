@@ -58,3 +58,30 @@ describe('DatabaseImageRepository.getImageIdByPath', () => {
     expect(testDb.manager.images.getImageIdByPath('C:/Photos/a.jpg')).toBe(imageId);
   });
 });
+
+describe('DatabaseTagRepository.getTagsWithCounts', () => {
+  let testDb: TestDb | null = null;
+
+  afterEach(() => {
+    testDb?.close();
+    testDb = null;
+  });
+
+  it('excludes hidden and missing images from usage counts', () => {
+    testDb = createTestDb();
+    const visible = seedImage(testDb, '/photos/visible.jpg');
+    const hidden = seedImage(testDb, '/photos/hidden.jpg', { hidden: true });
+    const missing = seedImage(testDb, '/photos/missing.jpg', { missing: true });
+    const tagId = Number(
+      testDb.raw.prepare("INSERT INTO tags (name) VALUES ('kept')").run().lastInsertRowid,
+    );
+    const link = testDb.raw.prepare(
+      "INSERT INTO image_tags (image_id, tag_id, source) VALUES (?, ?, 'user')",
+    );
+    [visible, hidden, missing].forEach((imageId) => link.run(imageId, tagId));
+
+    expect(testDb.manager.tags.getTagsWithCounts()).toContainEqual(
+      expect.objectContaining({ id: tagId, usage_count: 1 }),
+    );
+  });
+});

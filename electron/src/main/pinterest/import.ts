@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { PinterestImportResult, PinterestResult } from 'shared';
+import { normalizeDomain } from 'pipeline';
 import type { DatabaseService } from '../database';
 
 const USER_AGENT =
@@ -100,6 +101,14 @@ export async function importPin(
   if (existsSync(targetPath)) {
     const imageId = deps.dbService.images.getImageIdByPath(targetPath);
     if (imageId !== null) {
+      const image = await deps.dbService.images.getImage(imageId);
+      if (!image) throw new Error(`Imported image ${imageId} disappeared`);
+      await deps.dbService.images.setImageOrigin(imageId, {
+        kind: 'imported',
+        url: pin.sourceUrl ?? null,
+        domain: pin.sourceUrl ? normalizeDomain(pin.sourceUrl) : null,
+        at: image.origin_at ?? image.created_at,
+      });
       return { imageId, filePath: targetPath, alreadyImported: true };
     }
     // File exists on disk but DB row is missing: fall through and re-add.
@@ -137,10 +146,17 @@ export async function importPin(
   const description = pin.description ?? pin.alt;
   const metadata: {
     description?: string;
-    website_link?: string | null;
   } = {};
   if (description) metadata.description = description;
-  if (pin.sourceUrl) metadata.website_link = pin.sourceUrl;
+
+  const image = await deps.dbService.images.getImage(imageId);
+  if (!image) throw new Error(`Imported image ${imageId} disappeared`);
+  await deps.dbService.images.setImageOrigin(imageId, {
+    kind: 'imported',
+    url: pin.sourceUrl ?? null,
+    domain: pin.sourceUrl ? normalizeDomain(pin.sourceUrl) : null,
+    at: image.origin_at ?? image.created_at,
+  });
 
   if (Object.keys(metadata).length > 0) {
     // Don't swallow failures here: if the patch silently no-ops the user gets

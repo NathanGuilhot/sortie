@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import type { OriginKind } from 'shared';
 import { DatabaseManager } from '../db';
 
 // In-memory database initialized with the production schema and migrations.
@@ -42,13 +43,18 @@ export function seedImage(
     missing: boolean;
     fileSize: number;
     facesScanned: boolean;
+    capturedAt: string | null;
+    originKind: OriginKind;
+    originDomain: string | null;
+    originAt: string | null;
   }> = {},
 ): number {
   const fileName = filePath.split(/[\\/]/).pop() || filePath;
   const result = t.raw
     .prepare(
-      `INSERT INTO images (file_path, file_name, file_size, hidden, missing, faces_scanned)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO images (file_path, file_name, file_size, hidden, missing, faces_scanned,
+                           captured_at, origin_kind, origin_domain, origin_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       filePath,
@@ -57,6 +63,10 @@ export function seedImage(
       opts.hidden ? 1 : 0,
       opts.missing ? 1 : 0,
       opts.facesScanned ? 1 : 0,
+      opts.capturedAt ?? null,
+      opts.originKind ?? null,
+      opts.originDomain ?? null,
+      opts.originAt ?? null,
     );
   return Number(result.lastInsertRowid);
 }

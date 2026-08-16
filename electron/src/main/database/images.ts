@@ -1,15 +1,26 @@
 import {
   type ClipEmbedder,
+  classifyOrigin,
   computeFileHash,
   type DatabaseManager,
   extractExif,
   extractPalette,
   type FaceScanService,
+  type ProvenanceReader,
   type SuggestionEngine,
   loadImageInput,
+  readFileEvidence,
   runWithConcurrency,
 } from 'pipeline';
-import type { Folder, Image, LinkPreview, Tag, TagSuggestion } from 'shared';
+import type {
+  Folder,
+  Image,
+  ImageOrigin,
+  LinkPreview,
+  OriginFacets,
+  Tag,
+  TagSuggestion,
+} from 'shared';
 import { fetchLinkPreview, hashUrl } from '../linkPreview';
 import { MIME_TYPES } from '../database-helpers';
 import fs from 'fs/promises';
@@ -25,6 +36,8 @@ interface DatabaseImagesDeps {
 
 export interface AddImageOptions {
   invalidateCache?: boolean;
+  /** Reuse a folder-scoped reader during scans. */
+  provenance?: ProvenanceReader;
 }
 
 export interface AddImageResult {
@@ -148,6 +161,16 @@ export class DatabaseImagesService {
     this.invalidateMetadataCaches();
   }
 
+  async setImageOrigin(imageId: number, origin: ImageOrigin): Promise<void> {
+    this.deps.requireDb().images.setImageOrigin(imageId, {
+      origin_kind: origin.kind,
+      origin_domain: origin.domain,
+      origin_at: origin.at,
+      website_link: origin.url,
+    });
+    this.invalidateMetadataCaches();
+  }
+
   async getLinkPreview(url: string): Promise<LinkPreview | null> {
     return this.deps.requireDb().images.getLinkPreview(hashUrl(url));
   }
@@ -160,6 +183,10 @@ export class DatabaseImagesService {
 
   async getAllTags(): Promise<Tag[]> {
     return this.deps.requireDb().tags.getAllTags() as Tag[];
+  }
+
+  async getOriginFacets(): Promise<OriginFacets> {
+    return this.deps.requireDb().images.getOriginFacets();
   }
 
   async getTagsWithCounts(): Promise<Array<Tag & { usage_count: number }>> {
@@ -180,6 +207,8 @@ export class DatabaseImagesService {
       state.file_hash !== null &&
       !!state.embedded &&
       state.palette_json !== null &&
+      // NULL origin means this row still needs provenance classification.
+      state.origin_kind !== null &&
       (faceScanExcluded || !!state.faces_scanned)
     );
   }
@@ -201,10 +230,24 @@ export class DatabaseImagesService {
     const mimeType = MIME_TYPES[ext] || null;
     const loaded = await loadImageInput(filePath);
 
-    const [exifData, fileHash] = await Promise.all([
+    const provenance = (
+      options.provenance ? options.provenance.read(filePath) : readFileEvidence(filePath)
+    ).catch((error) => {
+      // Keep failures pending so a later scan can retry them.
+      console.warn(`Failed to read provenance for ${filePath}:`, error);
+      return null;
+    });
+    const [exifData, fileHash, evidence] = await Promise.all([
       extractExif(filePath, loaded),
       computeFileHash(filePath),
+      provenance,
     ]);
+
+    const origin = evidence
+      ? classifyOrigin(evidence, {
+          hasCameraExif: !!(exifData.cameraMake || exifData.cameraModel),
+        })
+      : null;
 
     const imageData: Omit<Image, 'id' | 'created_at' | 'modified_at'> = {
       file_path: normalizedPath,
@@ -231,6 +274,10 @@ export class DatabaseImagesService {
       focal_length: exifData.focalLength,
       file_hash: fileHash,
       dhash: null,
+      origin_kind: origin?.kind ?? null,
+      origin_domain: origin?.domain ?? null,
+      origin_at: origin?.at ?? null,
+      website_link: origin?.url ?? null,
     };
 
     const { id: imageId, created, fileHashMatched } = db.images.upsertImage(imageData);
