@@ -1,5 +1,5 @@
 import type { SortieAPI } from 'shared';
-import { invoke, invokeNone, invokeWithTagId } from '../helpers';
+import { invoke, invokeNone, invokeWithTagId, subscribeEvent } from '../helpers';
 
 export function createBoardApi(): Pick<SortieAPI, 'boards'> {
   return {
@@ -19,6 +19,8 @@ export function createBoardApi(): Pick<SortieAPI, 'boards'> {
       create: (name: string, color?: string) => invoke('boardsCreate', { name, color }),
       rename: (tagId: number, name: string) => invoke('boardsRename', { tagId, name }),
       setColor: (tagId: number, color: string) => invoke('boardsSetColor', { tagId, color }),
+      exportZip: (tagId: number, opId: string) => invoke('boardsExportZip', { tagId, opId }),
+      onExportProgress: (callback) => subscribeEvent('boardExportProgress', callback),
       delete: (tagId: number) => invokeWithTagId('boardsDelete', tagId),
     },
   };

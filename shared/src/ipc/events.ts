@@ -14,6 +14,13 @@ export interface OperationProgress extends SortieProgress {
 
 export type OperationFaceScanProgress = FaceScanProgress & { opId: string };
 
+export interface BoardExportProgress {
+  opId: string;
+  current: number;
+  total: number;
+  currentFile: string;
+}
+
 export const IPC_EVENT_CHANNELS = {
   embedderStatus: 'embedder-status',
   paletteProgress: 'palette-progress',
@@ -29,6 +36,7 @@ export const IPC_EVENT_CHANNELS = {
   externalImportProgress: 'external-import:progress',
   externalImportComplete: 'external-import:complete',
   externalImportBoardRequest: 'external-import:board-request',
+  boardExportProgress: 'board-export-progress',
 } as const;
 
 export type EventKey = keyof typeof IPC_EVENT_CHANNELS;
@@ -48,4 +56,5 @@ export interface EventPayloadByKey {
   externalImportProgress: ExternalImportProgress;
   externalImportComplete: ExternalImportComplete;
   externalImportBoardRequest: ExternalBoardImportRequest;
+  boardExportProgress: BoardExportProgress;
 }

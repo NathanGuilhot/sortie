@@ -66,6 +66,7 @@ export const IPC_CHANNELS = {
     create: 'boards:create',
     rename: 'boards:rename',
     setColor: 'boards:set-color',
+    exportZip: 'boards:export-zip',
     delete: 'boards:delete',
   },
   externalImport: {

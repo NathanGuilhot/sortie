@@ -1,5 +1,17 @@
 import type { Board, Image, ImagePage } from '../types';
 import { IPC_CHANNELS } from '../ipc-channels';
+import type { BoardExportProgress } from './events';
+
+export interface BoardExportFailure {
+  fileName: string;
+  reason: string;
+}
+
+export type BoardExportResult =
+  | { status: 'saved'; filePath: string }
+  | { status: 'dialog-cancelled' }
+  | { status: 'cancelled' }
+  | { status: 'failed'; failures: BoardExportFailure[] };
 
 export interface BoardsApi {
   boards: {
@@ -14,6 +26,8 @@ export interface BoardsApi {
     create: (name: string, color?: string) => Promise<Board>;
     rename: (tagId: number, name: string) => Promise<{ success: boolean }>;
     setColor: (tagId: number, color: string) => Promise<{ success: boolean }>;
+    exportZip: (tagId: number, opId: string) => Promise<BoardExportResult>;
+    onExportProgress: (callback: (progress: BoardExportProgress) => void) => () => void;
     delete: (tagId: number) => Promise<{ success: boolean }>;
   };
 }
@@ -30,6 +44,7 @@ export const boardInvokeChannels = {
   boardsCreate: IPC_CHANNELS.boards.create,
   boardsRename: IPC_CHANNELS.boards.rename,
   boardsSetColor: IPC_CHANNELS.boards.setColor,
+  boardsExportZip: IPC_CHANNELS.boards.exportZip,
   boardsDelete: IPC_CHANNELS.boards.delete,
 } as const;
 
@@ -45,6 +60,7 @@ export interface BoardInvokeArgsByKey {
   boardsCreate: { name: string; color?: string };
   boardsRename: { tagId: number; name: string };
   boardsSetColor: { tagId: number; color: string };
+  boardsExportZip: { tagId: number; opId: string };
   boardsDelete: { tagId: number };
 }
 
@@ -60,5 +76,6 @@ export interface BoardInvokeResultByKey {
   boardsCreate: Board;
   boardsRename: { success: boolean };
   boardsSetColor: { success: boolean };
+  boardsExportZip: BoardExportResult;
   boardsDelete: { success: boolean };
 }

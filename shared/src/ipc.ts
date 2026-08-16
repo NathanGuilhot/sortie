@@ -51,6 +51,8 @@ export type {
   PinterestTarget,
 } from './ipc/pinterest';
 export type { ImageEditEligibility, ImageEditTransform } from './ipc/images';
+export type { BoardExportFailure, BoardExportResult } from './ipc/boards';
+export type { BoardExportProgress } from './ipc/events';
 
 export interface SortieAPI
   extends
