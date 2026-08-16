@@ -1,5 +1,5 @@
 import type { DatabaseManager, FaceMatcher, FaceScanService } from 'pipeline';
-import type { Face, FaceScanProgress, FaceScanResult, Image, Person } from 'shared';
+import type { Face, FaceScanProgress, FaceScanResult, Image, ImagePage, Person } from 'shared';
 
 interface DatabasePeopleDeps {
   requireDb(): DatabaseManager;
@@ -39,12 +39,15 @@ export class DatabasePeopleService {
     personId: number,
     limit: number = 100,
     offset: number = 0,
-  ): Promise<Image[]> {
+  ): Promise<ImagePage<Image>> {
     const db = this.deps.requireDb();
     const allIds = this.deps.getOrBuildShuffledIds(`person:${personId}`, () =>
       db.people.getPersonImageIds(personId),
     );
-    return this.deps.fetchImagesByIdsInOrder(allIds.slice(offset, offset + limit));
+    return {
+      images: this.deps.fetchImagesByIdsInOrder(allIds.slice(offset, offset + limit)),
+      total: allIds.length,
+    };
   }
 
   async getPersonThumbnails(personIds: number[]): Promise<Face[]> {

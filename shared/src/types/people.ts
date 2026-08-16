@@ -3,6 +3,7 @@ export interface Person {
   name: string | null;
   thumbnail_face_id: number | null;
   face_count: number;
+  image_count: number;
   created_at: string;
   updated_at: string;
 }

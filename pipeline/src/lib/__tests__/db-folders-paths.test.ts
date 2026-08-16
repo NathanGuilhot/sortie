@@ -19,10 +19,31 @@ describe('DatabaseFolderRepository path handling', () => {
     seedFolder(t, 'C:\\Photos');
     seedImage(t, 'C:\\Photos\\a.jpg', { fileSize: 10 });
 
-    expect(folders.listFoldersWithStats()[0]).toMatchObject({
+    expect(folders.listFoldersWithStats().folders[0]).toMatchObject({
       path: 'C:\\Photos',
       image_count: 1,
       total_size: 10,
+    });
+  });
+
+  it('counts aggregate images and sizes once across overlapping folders', () => {
+    seedFolder(t, '/photos');
+    seedFolder(t, '/photos/trips');
+    seedImage(t, '/photos/a.jpg', { fileSize: 10 });
+    seedImage(t, '/photos/trips/b.jpg', { fileSize: 20 });
+    seedImage(t, '/photos/hidden.jpg', { fileSize: 40, hidden: true });
+    seedImage(t, '/outside.jpg', { fileSize: 80 });
+
+    const stats = folders.listFoldersWithStats();
+
+    expect(stats).toMatchObject({ totalImages: 2, totalSize: 30 });
+    expect(stats.folders.find((folder) => folder.path === '/photos')).toMatchObject({
+      image_count: 2,
+      total_size: 30,
+    });
+    expect(stats.folders.find((folder) => folder.path === '/photos/trips')).toMatchObject({
+      image_count: 1,
+      total_size: 20,
     });
   });
 

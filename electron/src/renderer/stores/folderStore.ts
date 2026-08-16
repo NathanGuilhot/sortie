@@ -4,6 +4,8 @@ import { Folder, FolderWithStats, mostSpecificFolderForPath } from 'shared';
 interface FolderStore {
   folders: Folder[];
   folderStats: FolderWithStats[];
+  totalImages: number;
+  totalSize: number;
   loaded: boolean;
   statsLoaded: boolean;
   load: () => Promise<void>;
@@ -16,6 +18,8 @@ let availabilityUnsub: (() => void) | null = null;
 export const useFolderStore = create<FolderStore>((set, get) => ({
   folders: [],
   folderStats: [],
+  totalImages: 0,
+  totalSize: 0,
   loaded: false,
   statsLoaded: false,
 
@@ -26,8 +30,13 @@ export const useFolderStore = create<FolderStore>((set, get) => ({
   },
 
   loadStats: async () => {
-    const folderStats = await window.sortieAPI.getFoldersWithStats();
-    set({ folderStats, statsLoaded: true });
+    const stats = await window.sortieAPI.getFoldersWithStats();
+    set({
+      folderStats: stats.folders,
+      totalImages: stats.totalImages,
+      totalSize: stats.totalSize,
+      statsLoaded: true,
+    });
     ensureAvailabilitySubscription(set);
   },
 

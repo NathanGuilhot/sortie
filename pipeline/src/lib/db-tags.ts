@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { visibleImageSql } from './db-visibility';
 
 export interface TagDbRow {
   id: number;
@@ -45,7 +46,7 @@ export class DatabaseTagRepository {
         `SELECT it.image_id AS image_id
          FROM image_tags it
          INNER JOIN images img ON img.id = it.image_id
-         WHERE it.tag_id = ? AND img.hidden = 0 AND img.missing = 0`,
+         WHERE it.tag_id = ? AND ${visibleImageSql('img')}`,
       )
       .all(tagId) as Array<{ image_id: number }>;
     return rows.map((row) => row.image_id);
@@ -67,9 +68,10 @@ export class DatabaseTagRepository {
   getTagsWithCounts(): Array<TagDbRow & { usage_count: number }> {
     return this.db
       .prepare(
-        `SELECT t.*, COUNT(it.image_id) AS usage_count
+        `SELECT t.*, COUNT(i.id) AS usage_count
          FROM tags t
          LEFT JOIN image_tags it ON t.id = it.tag_id
+         LEFT JOIN images i ON i.id = it.image_id AND ${visibleImageSql('i')}
          GROUP BY t.id
          ORDER BY usage_count DESC`,
       )

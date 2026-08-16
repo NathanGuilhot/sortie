@@ -12,10 +12,9 @@ const THUMB_FETCH_WIDTH = 200;
 interface BoardSuggestionsRowProps {
   tagId: number;
   excludeIds: number[];
-  onAdd: (image: Image) => void;
 }
 
-export function BoardSuggestionsRow({ tagId, excludeIds, onAdd }: BoardSuggestionsRowProps) {
+export function BoardSuggestionsRow({ tagId, excludeIds }: BoardSuggestionsRowProps) {
   const addToBoard = useImageStore((s) => s.addToBoard);
   const [suggestions, setSuggestions] = useState<Image[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,7 +39,6 @@ export function BoardSuggestionsRow({ tagId, excludeIds, onAdd }: BoardSuggestio
   const handleAdd = async (image: Image) => {
     setSuggestions((prev) => prev.filter((img) => img.id !== image.id));
     await addToBoard(image.id, tagId);
-    onAdd(image);
   };
 
   const handleDismiss = async (imageId: number) => {

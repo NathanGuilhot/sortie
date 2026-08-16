@@ -1,4 +1,4 @@
-import type { Folder, FolderWithStats, ScanFolderResult } from '../types';
+import type { Folder, FolderStats, ScanFolderResult } from '../types';
 import { IPC_CHANNELS } from '../ipc-channels';
 import type { FolderAvailabilityChange, SuggestDefaultPhotoFolderResult } from './common';
 
@@ -9,7 +9,7 @@ export interface FolderApi {
   }>;
   scanFolder: (path: string, opId: string) => Promise<ScanFolderResult>;
   getFolders: () => Promise<Folder[]>;
-  getFoldersWithStats: () => Promise<FolderWithStats[]>;
+  getFoldersWithStats: () => Promise<FolderStats>;
   removeFolder: (path: string) => Promise<{ success: boolean }>;
   watchFolder: (path: string) => Promise<{ watching: boolean }>;
   unwatchFolder: (path: string) => Promise<{ watching: boolean }>;
@@ -51,7 +51,7 @@ export interface FolderInvokeResultByKey {
   addFolder: { folderId: number; overlap: { parents: string[]; children: string[] } };
   scanFolder: ScanFolderResult;
   getFolders: Folder[];
-  getFoldersWithStats: FolderWithStats[];
+  getFoldersWithStats: FolderStats;
   removeFolder: { success: boolean };
   watchFolder: { watching: boolean };
   unwatchFolder: { watching: boolean };

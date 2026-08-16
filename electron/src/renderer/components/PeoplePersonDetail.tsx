@@ -15,7 +15,16 @@ interface PeoplePersonDetailProps {
 }
 
 export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePersonDetailProps) {
-  const { personImages, renamePerson, deletePerson, fetchPersonImages } = usePeopleStore();
+  const {
+    personImages,
+    personImageTotal,
+    hasMorePersonImages,
+    loading,
+    renamePerson,
+    deletePerson,
+    fetchPersonImages,
+    loadMorePersonImages,
+  } = usePeopleStore();
   const navigate = useNavigate();
   const selectedImage = useImageStore((state) => state.selectedImage);
   const viewerBackStack = useImageStore((state) => state.viewerBackStack);
@@ -96,7 +105,7 @@ export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePers
             </h2>
           )}
           <span className="text-sm text-gray-400">
-            {person.face_count} {person.face_count === 1 ? 'photo' : 'photos'}
+            {personImageTotal} {personImageTotal === 1 ? 'photo' : 'photos'}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -156,6 +165,19 @@ export function PeoplePersonDetail({ person, onClose, onStartMerge }: PeoplePers
           </button>
         ))}
       </div>
+
+      {hasMorePersonImages && (
+        <div className="flex justify-center mt-6">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => void loadMorePersonImages()}
+            className="px-4 py-2 text-sm rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-50"
+          >
+            {loading ? 'Loading…' : `Load more (${personImages.length} of ${personImageTotal})`}
+          </button>
+        </div>
+      )}
 
       {selectedImage && (
         <MetadataModal

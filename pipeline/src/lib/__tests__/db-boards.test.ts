@@ -66,4 +66,22 @@ describe('DatabaseBoardRepository', () => {
       { image_id: third, position: 6 },
     ]);
   });
+
+  it('preserves ordering and reports the visible total beyond one page', () => {
+    const { manager, raw, tagId } = setupBoard();
+    const ids = Array.from({ length: 5 }, (_, index) =>
+      seedImage(testDb!, `/library/${index}.jpg`, {
+        hidden: index === 3,
+        missing: index === 4,
+      }),
+    );
+    const insert = raw.prepare(
+      "INSERT INTO image_tags (image_id, tag_id, source, position) VALUES (?, ?, 'user', ?)",
+    );
+    ids.forEach((id, position) => insert.run(id, tagId, position));
+
+    expect(manager.boards.getBoardImageIdsPaged(tagId, 2, 0)).toEqual(ids.slice(0, 2));
+    expect(manager.boards.countBoardImages(tagId)).toBe(3);
+    expect(manager.boards.listBoards()[0].image_count).toBe(3);
+  });
 });

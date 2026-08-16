@@ -1,11 +1,11 @@
-import type { Board, Image } from '../types';
+import type { Board, Image, ImagePage } from '../types';
 import { IPC_CHANNELS } from '../ipc-channels';
 
 export interface BoardsApi {
   boards: {
     list: () => Promise<Board[]>;
     get: (tagId: number) => Promise<Board | null>;
-    getImages: (tagId: number, limit?: number, offset?: number) => Promise<Image[]>;
+    getImages: (tagId: number, limit?: number, offset?: number) => Promise<ImagePage<Image>>;
     getImageSuggestions: (tagId: number) => Promise<Image[]>;
     reorder: (tagId: number, orderedImageIds: number[]) => Promise<{ success: boolean }>;
     addImage: (imageId: number, tagId: number) => Promise<{ success: boolean }>;
@@ -51,7 +51,7 @@ export interface BoardInvokeArgsByKey {
 export interface BoardInvokeResultByKey {
   boardsList: Board[];
   boardsGet: Board | null;
-  boardsGetImages: Image[];
+  boardsGetImages: ImagePage<Image>;
   boardsGetImageSuggestions: Image[];
   boardsReorder: { success: boolean };
   boardsAddImage: { success: boolean };

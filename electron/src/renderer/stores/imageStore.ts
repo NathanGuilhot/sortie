@@ -17,10 +17,12 @@ const DEFAULT_PAGE = 100;
 
 interface ImageStore {
   images: SearchResult[];
+  totalImages: number;
   loading: boolean;
   error: string | null;
   hasMore: boolean;
   lastQuery: Query | null;
+  activeBoardId: number | null;
   activeImageQuery: ActiveImageQuery | null;
   selectedImage: Image | null;
   viewerBackStack: Image[];
@@ -96,10 +98,12 @@ export const useImageStore = create<ImageStore>((set, get) => {
 
   return {
     images: [],
+    totalImages: 0,
     loading: false,
     error: null,
     hasMore: true,
     lastQuery: null,
+    activeBoardId: null,
     activeImageQuery: null,
     selectedImage: null,
     viewerBackStack: [],
@@ -168,12 +172,14 @@ export const useImageStore = create<ImageStore>((set, get) => {
       set({ loading: true, error: null });
       await runIpcTask({
         run: () => window.sortieAPI.query(query),
-        onSuccess: (results) =>
+        onSuccess: (page) =>
           set({
-            images: results,
+            images: page.images,
+            totalImages: page.total,
             loading: false,
-            hasMore: isPaginatedSearchQuery(query) && results.length >= limit,
+            hasMore: isPaginatedSearchQuery(query) && page.images.length < page.total,
             lastQuery: query,
+            activeBoardId: null,
           }),
         onError: (message) => set({ error: message, loading: false }),
       });
@@ -192,13 +198,15 @@ export const useImageStore = create<ImageStore>((set, get) => {
             limit,
             offset: images.length,
           }),
-        onSuccess: (more) =>
+        onSuccess: (page) =>
           set((state) => {
             const existing = new Set(state.images.map((img) => img.id));
-            const deduped = more.filter((img) => !existing.has(img.id));
+            const deduped = page.images.filter((img) => !existing.has(img.id));
+            const images = [...state.images, ...deduped];
             return {
-              images: [...state.images, ...deduped],
-              hasMore: more.length >= limit,
+              images,
+              totalImages: page.total,
+              hasMore: images.length < page.total,
               loading: false,
             };
           }),
@@ -231,17 +239,19 @@ export const useImageStore = create<ImageStore>((set, get) => {
         await window.sortieAPI.boards.removeImage(imageId, tagId);
       });
     },
-    fetchBoardImages: async (tagId: number, limit = 200, offset = 0) => {
+    fetchBoardImages: async (tagId: number, limit, offset = 0) => {
       set({ loading: true, error: null });
       await runIpcTask({
         run: () => window.sortieAPI.boards.getImages(tagId, limit, offset),
-        onSuccess: (images) => {
+        onSuccess: (page) => {
           releasePreviewUrl(get().activeImageQuery);
           set({
-            images,
+            images: page.images,
+            totalImages: page.total,
             loading: false,
-            hasMore: images.length >= limit,
+            hasMore: false,
             lastQuery: null,
+            activeBoardId: tagId,
             activeImageQuery: null,
           });
         },

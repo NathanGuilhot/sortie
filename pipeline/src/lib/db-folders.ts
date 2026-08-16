@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import path from 'path';
-import type { Folder, FolderWithStats } from 'shared';
+import type { Folder, FolderStats } from 'shared';
 import { folderCoversPath } from 'shared';
 import {
   normalizePathForSqlLike,
@@ -8,6 +8,7 @@ import {
   pathPrefixLikePattern,
   sqlPath,
 } from './db-path-sql';
+import { visibleImageSql } from './db-visibility';
 
 export class DatabaseFolderRepository {
   constructor(
@@ -77,7 +78,7 @@ export class DatabaseFolderRepository {
       .run(watched ? 1 : 0, folderPath);
   }
 
-  listFoldersWithStats(): FolderWithStats[] {
+  listFoldersWithStats(): FolderStats {
     const rows = this.db
       .prepare(
         `SELECT f.*,
@@ -89,17 +90,31 @@ export class DatabaseFolderRepository {
              COUNT(i.id) AS image_count,
              SUM(i.file_size) AS total_size
            FROM folders fo
-           LEFT JOIN images i ON ${sqlPath('i.file_path')} LIKE ${sqlPath('fo.path')} || '/%' AND i.hidden = 0 AND i.missing = 0
+           LEFT JOIN images i ON ${sqlPath('i.file_path')} LIKE ${sqlPath('fo.path')} || '/%' AND ${visibleImageSql('i')}
            GROUP BY fo.id
          ) s ON s.folder_id = f.id
          ORDER BY f.created_at DESC`,
       )
       .all() as Array<Folder & { image_count: number; total_size: number }>;
 
-    return rows.map((row) => ({
+    const folders = rows.map((row) => ({
       ...row,
       folder_name: path.basename(row.path) || row.path,
     }));
+    const totals = this.db
+      .prepare(
+        `SELECT COUNT(DISTINCT i.id) AS totalImages,
+                COALESCE(SUM(i.file_size), 0) AS totalSize
+         FROM images i
+         WHERE ${visibleImageSql('i')}
+           AND EXISTS (
+             SELECT 1 FROM folders f
+             WHERE ${sqlPath('i.file_path')} LIKE ${sqlPath('f.path')} || '/%'
+           )`,
+      )
+      .get() as { totalImages: number; totalSize: number };
+
+    return { folders, ...totals };
   }
 
   findFolderForPath(filePath: string): Folder | null {

@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { visibleImageSql } from './db-visibility';
 import { decodeEmbeddingRows, decodeEmbeddingValue, type EmbeddingRowValue } from './embedding';
 import type { VecMatchRow } from './db-people';
 
@@ -28,7 +29,7 @@ export class DatabaseVectorRepository {
           `SELECT v.rowid AS rowid, v.embedding AS embedding
            FROM vec_images v
            JOIN images img ON img.id = v.rowid
-           WHERE img.hidden = 0 AND img.missing = 0`,
+           WHERE ${visibleImageSql('img')}`,
         )
         .all() as EmbeddingDbRow[],
     );
@@ -64,7 +65,7 @@ export class DatabaseVectorRepository {
            FROM vec_images v
            WHERE v.embedding MATCH ? AND k = ?
          ) sub
-         INNER JOIN images i ON i.id = sub.rowid AND i.hidden = 0 AND i.missing = 0
+         INNER JOIN images i ON i.id = sub.rowid AND ${visibleImageSql('i')}
          WHERE sub.distance < ?
          ORDER BY sub.distance`,
       )

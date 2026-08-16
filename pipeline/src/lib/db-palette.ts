@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { visibleImageSql } from './db-visibility';
 import { type PaletteColor, parseOptionalJson } from 'shared';
 
 export class DatabasePaletteRepository {
@@ -57,7 +58,7 @@ export class DatabasePaletteRepository {
     return this.db
       .prepare(
         `SELECT id, file_path FROM images
-         WHERE palette_json IS NULL AND hidden = 0 AND missing = 0`,
+         WHERE palette_json IS NULL AND ${visibleImageSql()}`,
       )
       .all() as Array<{ id: number; file_path: string }>;
   }
@@ -75,7 +76,7 @@ export class DatabasePaletteRepository {
       FROM vec_palette v
       JOIN palette_colors pc ON pc.id = v.rowid
       JOIN images i ON i.id = pc.image_id
-      WHERE v.lab MATCH ? AND k = ? AND i.hidden = 0 AND i.missing = 0
+      WHERE v.lab MATCH ? AND k = ? AND ${visibleImageSql('i')}
       ORDER BY v.distance
     `);
 

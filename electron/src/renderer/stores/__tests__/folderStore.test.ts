@@ -19,7 +19,14 @@ function folder(path: string, overrides: Partial<Folder> = {}): Folder {
 
 describe('folderStore', () => {
   afterEach(() => {
-    useFolderStore.setState({ folders: [], folderStats: [], loaded: false, statsLoaded: false });
+    useFolderStore.setState({
+      folders: [],
+      folderStats: [],
+      totalImages: 0,
+      totalSize: 0,
+      loaded: false,
+      statsLoaded: false,
+    });
   });
 
   it('matches Windows-style child paths when checking writability', () => {

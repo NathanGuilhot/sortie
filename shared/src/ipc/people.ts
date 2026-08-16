@@ -1,9 +1,9 @@
-import type { Face, Image, Person } from '../types';
+import type { Face, Image, ImagePage, Person } from '../types';
 import { IPC_CHANNELS } from '../ipc-channels';
 
 export interface PeopleApi {
   getPersons: () => Promise<Person[]>;
-  getPersonImages: (personId: number, limit?: number, offset?: number) => Promise<Image[]>;
+  getPersonImages: (personId: number, limit?: number, offset?: number) => Promise<ImagePage<Image>>;
   getPersonThumbnails: (personIds: number[]) => Promise<Face[]>;
   renamePerson: (personId: number, name: string) => Promise<{ success: boolean }>;
   mergePersons: (keepPersonId: number, mergePersonId: number) => Promise<{ success: boolean }>;
@@ -39,7 +39,7 @@ export interface PeopleInvokeArgsByKey {
 
 export interface PeopleInvokeResultByKey {
   getPersons: Person[];
-  getPersonImages: Image[];
+  getPersonImages: ImagePage<Image>;
   getPersonThumbnails: Face[];
   renamePerson: { success: boolean };
   mergePersons: { success: boolean };

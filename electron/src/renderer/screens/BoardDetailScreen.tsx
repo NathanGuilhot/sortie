@@ -23,6 +23,7 @@ export function BoardDetailScreen() {
   const navigate = useNavigate();
 
   const images = useImageStore((s) => s.images);
+  const totalImages = useImageStore((s) => s.totalImages);
   const setImages = useImageStore((s) => s.setImages);
   const fetchBoardImages = useImageStore((s) => s.fetchBoardImages);
   const reorderBoardImages = useImageStore((s) => s.reorderBoardImages);
@@ -71,7 +72,6 @@ export function BoardDetailScreen() {
 
   const handleRemove = async (imageId: number) => {
     await removeFromBoard(imageId, tagId);
-    setImages(images.filter((img) => img.id !== imageId));
   };
 
   const handleRenameSubmit = async () => {
@@ -124,8 +124,8 @@ export function BoardDetailScreen() {
                 </h1>
               )}
               <p className="text-sm text-gray-500 mt-0.5">
-                {images.length} {images.length === 1 ? 'image' : 'images'} · Drag images out or use
-                the handle to reorder
+                {totalImages} {totalImages === 1 ? 'image' : 'images'} · Drag images out or use the
+                handle to reorder
               </p>
             </div>
           </div>
@@ -150,11 +150,7 @@ export function BoardDetailScreen() {
 
           {Number.isFinite(tagId) && images.length > 0 && (
             <div className="px-4">
-              <BoardSuggestionsRow
-                tagId={tagId}
-                excludeIds={images.map((img) => img.id)}
-                onAdd={(img) => setImages([...images, img])}
-              />
+              <BoardSuggestionsRow tagId={tagId} excludeIds={images.map((img) => img.id)} />
             </div>
           )}
         </div>

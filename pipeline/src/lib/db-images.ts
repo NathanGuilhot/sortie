@@ -8,6 +8,7 @@ import {
   type Tag,
 } from 'shared';
 import { sqlPath } from './db-path-sql';
+import { visibleImageSql } from './db-visibility';
 import type { ExifData } from './exif';
 import type { DatabaseTagRepository } from './db-tags';
 
@@ -175,15 +176,13 @@ export class DatabaseImageRepository {
 
   getVisibleImageIds(): number[] {
     const rows = this.db
-      .prepare('SELECT id FROM images WHERE hidden = 0 AND missing = 0')
+      .prepare(`SELECT id FROM images WHERE ${visibleImageSql()}`)
       .all() as Array<{ id: number }>;
     return rows.map((row) => row.id);
   }
 
   getFilteredImageIds(filter: ImageSetFilter): number[] {
-    const where: string[] = [
-      filter.includeHidden ? 'i.missing = 0' : 'i.hidden = 0 AND i.missing = 0',
-    ];
+    const where: string[] = [filter.includeHidden ? 'i.missing = 0' : visibleImageSql('i')];
     const params: Array<string | number> = [];
 
     if (filter.favorites) where.push('i.favorite = 1');
@@ -229,7 +228,7 @@ export class DatabaseImageRepository {
     if (ids.length === 0) return new Set();
     const placeholders = ids.map(() => '?').join(',');
     const rows = this.db
-      .prepare(`SELECT id FROM images WHERE id IN (${placeholders}) AND hidden = 0 AND missing = 0`)
+      .prepare(`SELECT id FROM images WHERE id IN (${placeholders}) AND ${visibleImageSql()}`)
       .all(...ids) as Array<{ id: number }>;
     return new Set(rows.map((row) => row.id));
   }
@@ -360,9 +359,7 @@ export class DatabaseImageRepository {
 
   getImagesMissingFileHash(): Array<{ id: number; file_path: string }> {
     return this.db
-      .prepare(
-        'SELECT id, file_path FROM images WHERE hidden = 0 AND missing = 0 AND file_hash IS NULL',
-      )
+      .prepare(`SELECT id, file_path FROM images WHERE ${visibleImageSql()} AND file_hash IS NULL`)
       .all() as Array<{ id: number; file_path: string }>;
   }
 
@@ -454,7 +451,7 @@ export class DatabaseImageRepository {
                 created_at, modified_at, captured_at, latitude, longitude,
                 city, country, description, favorite, hidden, missing, file_hash
          FROM images
-         WHERE hidden = 0 AND missing = 0`,
+         WHERE ${visibleImageSql()}`,
       )
       .all() as Image[];
   }

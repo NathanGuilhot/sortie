@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { DEFAULT_TAG_COLOR, type Board } from 'shared';
+import { visibleImageSql } from './db-visibility';
 
 interface BoardDbRow {
   id: number;
@@ -28,12 +29,24 @@ export class DatabaseBoardRepository {
         `SELECT i.id AS id
          FROM images i
          INNER JOIN image_tags it ON i.id = it.image_id
-         WHERE it.tag_id = ? AND i.hidden = 0 AND i.missing = 0
+         WHERE it.tag_id = ? AND ${visibleImageSql('i')}
          ORDER BY COALESCE(it.position, 1000000000), it.created_at DESC
          LIMIT ? OFFSET ?`,
       )
       .all(tagId, limit, offset) as Array<{ id: number }>;
     return rows.map((row) => row.id);
+  }
+
+  countBoardImages(tagId: number): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS total
+         FROM image_tags it
+         INNER JOIN images i ON i.id = it.image_id
+         WHERE it.tag_id = ? AND ${visibleImageSql('i')}`,
+      )
+      .get(tagId) as { total: number };
+    return row.total;
   }
 
   reorderBoardImages(tagId: number, orderedImageIds: number[]): void {
@@ -98,7 +111,7 @@ export class DatabaseBoardRepository {
                   ) AS rn
            FROM image_tags it
            INNER JOIN images img ON img.id = it.image_id
-           WHERE img.hidden = 0 AND img.missing = 0
+           WHERE ${visibleImageSql('img')}
          ),
          previews AS (
            SELECT tag_id, json_group_array(file_path) AS paths
@@ -117,7 +130,7 @@ export class DatabaseBoardRepository {
            (SELECT p.paths FROM previews p WHERE p.tag_id = t.id) AS preview_paths_json
          FROM tags t
          LEFT JOIN image_tags it ON t.id = it.tag_id
-         LEFT JOIN images i ON i.id = it.image_id AND i.hidden = 0 AND i.missing = 0
+         LEFT JOIN images i ON i.id = it.image_id AND ${visibleImageSql('i')}
          WHERE t.category IN ('user', 'ai')${extraWhere ? ` AND ${extraWhere}` : ''}
          GROUP BY t.id
          ORDER BY image_count DESC, t.name ASC`,

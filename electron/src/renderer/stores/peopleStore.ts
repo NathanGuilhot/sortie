@@ -7,6 +7,8 @@ interface PeopleStore {
   persons: Person[];
   selectedPerson: Person | null;
   personImages: Image[];
+  personImageTotal: number;
+  hasMorePersonImages: boolean;
   loading: boolean;
   error: string | null;
   scanning: boolean;
@@ -17,6 +19,7 @@ interface PeopleStore {
   fetchPersons: () => Promise<void>;
   selectPerson: (person: Person | null) => void;
   fetchPersonImages: (personId: number, limit?: number, offset?: number) => Promise<void>;
+  loadMorePersonImages: () => Promise<void>;
   renamePerson: (personId: number, name: string) => Promise<void>;
   mergePersons: (keepPersonId: number, mergePersonId: number) => Promise<void>;
   splitFace: (faceId: number) => Promise<void>;
@@ -32,6 +35,8 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
   persons: [],
   selectedPerson: null,
   personImages: [],
+  personImageTotal: 0,
+  hasMorePersonImages: false,
   loading: false,
   error: null,
   scanning: false,
@@ -52,7 +57,12 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
   },
 
   selectPerson: (person) => {
-    set({ selectedPerson: person, personImages: [] });
+    set({
+      selectedPerson: person,
+      personImages: [],
+      personImageTotal: person?.image_count ?? 0,
+      hasMorePersonImages: !!person && person.image_count > 0,
+    });
     if (person) {
       void get().fetchPersonImages(person.id);
     }
@@ -61,9 +71,30 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
   fetchPersonImages: async (personId, limit = 100, offset = 0) => {
     await runIpcTask({
       run: () => window.sortieAPI.getPersonImages(personId, limit, offset),
-      onSuccess: (images) => set({ personImages: images }),
+      onSuccess: (page) =>
+        set((state) => {
+          const existing = offset > 0 ? state.personImages : [];
+          const existingIds = new Set(existing.map((image) => image.id));
+          const images = [
+            ...existing,
+            ...page.images.filter((image) => !existingIds.has(image.id)),
+          ];
+          return {
+            personImages: images,
+            personImageTotal: page.total,
+            hasMorePersonImages: images.length < page.total,
+          };
+        }),
       onError: (message) => set({ error: message }),
     });
+  },
+
+  loadMorePersonImages: async () => {
+    const { selectedPerson, personImages, hasMorePersonImages, loading } = get();
+    if (!selectedPerson || !hasMorePersonImages || loading) return;
+    set({ loading: true });
+    await get().fetchPersonImages(selectedPerson.id, 100, personImages.length);
+    set({ loading: false });
   },
 
   renamePerson: async (personId, name) => {
@@ -88,7 +119,12 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
         await get().fetchPersons();
         const selected = get().selectedPerson;
         if (selected?.id === mergePersonId) {
-          set({ selectedPerson: null, personImages: [] });
+          set({
+            selectedPerson: null,
+            personImages: [],
+            personImageTotal: 0,
+            hasMorePersonImages: false,
+          });
         } else if (selected?.id === keepPersonId) {
           await get().fetchPersonImages(keepPersonId);
         }
@@ -161,7 +197,15 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
     await runIpcTask({
       run: () => window.sortieAPI.resetFaceData(),
       onSuccess: () =>
-        set({ persons: [], selectedPerson: null, personImages: [], scanResult: null, error: null }),
+        set({
+          persons: [],
+          selectedPerson: null,
+          personImages: [],
+          personImageTotal: 0,
+          hasMorePersonImages: false,
+          scanResult: null,
+          error: null,
+        }),
       onError: (message) => set({ error: message }),
     });
   },
@@ -174,6 +218,9 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
           persons: state.persons.filter((p) => p.id !== personId),
           selectedPerson: state.selectedPerson?.id === personId ? null : state.selectedPerson,
           personImages: state.selectedPerson?.id === personId ? [] : state.personImages,
+          personImageTotal: state.selectedPerson?.id === personId ? 0 : state.personImageTotal,
+          hasMorePersonImages:
+            state.selectedPerson?.id === personId ? false : state.hasMorePersonImages,
         })),
       onError: (message) => set({ error: message }),
     });

@@ -40,6 +40,12 @@ export interface FolderWithStats extends Folder {
   folder_name: string;
 }
 
+export interface FolderStats {
+  folders: FolderWithStats[];
+  totalImages: number;
+  totalSize: number;
+}
+
 export interface DismissedSuggestion {
   image_id: number;
   tag_id: number;

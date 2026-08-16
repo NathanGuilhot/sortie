@@ -1,7 +1,7 @@
-import type { DatabaseManager } from 'pipeline';
-import { runWithConcurrency } from 'pipeline';
-import type { Folder, FolderWithStats, ScanFolderResult, SortieProgress } from 'shared';
-import type { AddImageResult } from './images';
+import type { DatabaseManager, ProvenanceReader } from 'pipeline';
+import { createProvenanceReader, runWithConcurrency } from 'pipeline';
+import type { Folder, FolderStats, ScanFolderResult, SortieProgress } from 'shared';
+import type { AddImageOptions, AddImageResult } from './images';
 import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
@@ -9,7 +9,7 @@ import { IMAGE_EXTENSIONS } from '../database-helpers';
 
 interface DatabaseFoldersDeps {
   requireDb(): DatabaseManager;
-  addImage(filePath: string, options?: { invalidateCache?: boolean }): Promise<AddImageResult>;
+  addImage(filePath: string, options?: AddImageOptions): Promise<AddImageResult>;
   invalidateImageCache(): void;
 }
 
@@ -108,6 +108,7 @@ export class DatabaseFoldersService {
 
   private async processImageFiles(
     imageFiles: string[],
+    provenance: ProvenanceReader,
     onProgress?: (progress: SortieProgress) => void,
     signal?: AbortSignal,
   ): Promise<{ processed: number; cancelled: boolean }> {
@@ -120,7 +121,7 @@ export class DatabaseFoldersService {
       IMAGE_PROCESSING_CONCURRENCY,
       async (file) => {
         try {
-          const result = await this.deps.addImage(file, { invalidateCache: false });
+          const result = await this.deps.addImage(file, { invalidateCache: false, provenance });
           if (result.skipped) {
             skipped += 1;
           } else {
@@ -193,7 +194,13 @@ export class DatabaseFoldersService {
     const imageFiles = await this.collectImageFiles(normalized, signal);
     console.log(`Found ${imageFiles.length} image files`);
 
-    const { processed, cancelled } = await this.processImageFiles(imageFiles, onProgress, signal);
+    const provenance = await createProvenanceReader(normalized);
+    const { processed, cancelled } = await this.processImageFiles(
+      imageFiles,
+      provenance,
+      onProgress,
+      signal,
+    );
     this.deps.invalidateImageCache();
 
     this.deps.requireDb().folders.markFolderScanned(normalized);
@@ -206,7 +213,7 @@ export class DatabaseFoldersService {
     return this.deps.requireDb().folders.listFolders();
   }
 
-  async getFoldersWithStats(): Promise<FolderWithStats[]> {
+  async getFoldersWithStats(): Promise<FolderStats> {
     return this.deps.requireDb().folders.listFoldersWithStats();
   }
 

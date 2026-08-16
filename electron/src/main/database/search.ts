@@ -1,5 +1,5 @@
 import { type ClipEmbedder, type DatabaseManager, hexToOklab } from 'pipeline';
-import type { Query, SearchResult } from 'shared';
+import type { ImagePage, Query, SearchResult } from 'shared';
 
 interface DatabaseSearchDeps {
   requireDb(): DatabaseManager;
@@ -11,7 +11,7 @@ interface DatabaseSearchDeps {
 export class DatabaseSearchService {
   constructor(private readonly deps: DatabaseSearchDeps) {}
 
-  async queryImages(query: Query): Promise<SearchResult[]> {
+  async queryImages(query: Query): Promise<ImagePage<SearchResult>> {
     const db = this.deps.requireDb();
     const limit = query.limit ?? 100;
     const offset = query.offset ?? 0;
@@ -25,16 +25,23 @@ export class DatabaseSearchService {
       const embedding = hasText
         ? await embedder.embedText(query.text!)
         : await embedder.embedImage(Buffer.from(query.imageBytes!));
-      return this.embeddingQuery(embedding, setIds, limit, offset);
+      const results = this.embeddingQuery(embedding, setIds, limit, offset);
+      return { images: results, total: results.length };
     }
 
     if (hasPalette) {
-      return this.paletteQuery(query.palette!, setIds, limit, offset);
+      const results = this.paletteQuery(query.palette!, setIds, limit, offset);
+      return { images: results, total: results.length };
     }
 
     const ids =
       setIds ?? this.deps.getOrBuildShuffledIds('default', () => db.images.getVisibleImageIds());
-    return this.deps.fetchImagesByIdsInOrder(ids.slice(offset, offset + limit)) as SearchResult[];
+    return {
+      images: this.deps.fetchImagesByIdsInOrder(
+        ids.slice(offset, offset + limit),
+      ) as SearchResult[],
+      total: ids.length,
+    };
   }
 
   private buildSetFilterIds(query: Query): number[] | null {

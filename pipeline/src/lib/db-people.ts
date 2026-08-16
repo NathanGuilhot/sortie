@@ -3,6 +3,7 @@ import { normalizeVector, type Face, type Person } from 'shared';
 import { clearAllFaceData } from './db-face-reset';
 import { normalizePathForSqlLike, sqlPath } from './db-path-sql';
 import { decodeEmbeddingValue } from './embedding';
+import { visibleImageSql } from './db-visibility';
 
 export interface VecMatchRow {
   rowid: number;
@@ -128,7 +129,20 @@ export class DatabasePeopleRepository {
 
   getAllPersons(): Person[] {
     return this.db
-      .prepare('SELECT * FROM persons WHERE face_count > 0 ORDER BY face_count DESC')
+      .prepare(
+        `SELECT p.*,
+                (SELECT COUNT(DISTINCT f.image_id)
+                 FROM faces f
+                 INNER JOIN images i ON i.id = f.image_id
+                 WHERE f.person_id = p.id AND ${visibleImageSql('i')}) AS image_count
+         FROM persons p
+         WHERE EXISTS (
+           SELECT 1 FROM faces visible_face
+           INNER JOIN images visible_image ON visible_image.id = visible_face.image_id
+           WHERE visible_face.person_id = p.id AND ${visibleImageSql('visible_image')}
+         )
+         ORDER BY image_count DESC, p.face_count DESC`,
+      )
       .all() as Person[];
   }
 
@@ -138,7 +152,7 @@ export class DatabasePeopleRepository {
         `SELECT DISTINCT i.id AS id
          FROM images i
          JOIN faces f ON f.image_id = i.id
-         WHERE f.person_id = ? AND i.hidden = 0 AND i.missing = 0`,
+         WHERE f.person_id = ? AND ${visibleImageSql('i')}`,
       )
       .all(personId) as Array<{ id: number }>;
     return rows.map((row) => row.id);
@@ -160,8 +174,16 @@ export class DatabasePeopleRepository {
 
   getPersonById(personId: number): Person | null {
     return (
-      (this.db.prepare('SELECT * FROM persons WHERE id = ?').get(personId) as Person | undefined) ??
-      null
+      (this.db
+        .prepare(
+          `SELECT p.*,
+                  (SELECT COUNT(DISTINCT f.image_id)
+                   FROM faces f
+                   INNER JOIN images i ON i.id = f.image_id
+                   WHERE f.person_id = p.id AND ${visibleImageSql('i')}) AS image_count
+           FROM persons p WHERE p.id = ?`,
+        )
+        .get(personId) as Person | undefined) ?? null
     );
   }
 

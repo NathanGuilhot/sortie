@@ -26,9 +26,9 @@ export function PeoplePersonCard({
     let cancelled = false;
     window.sortieAPI
       .getPersonImages(person.id, 1)
-      .then(async (images) => {
-        if (cancelled || images.length === 0) return;
-        const faces = await window.sortieAPI.getImageFaces(images[0].id);
+      .then(async (page) => {
+        if (cancelled || page.images.length === 0) return;
+        const faces = await window.sortieAPI.getImageFaces(page.images[0].id);
         const personFace = faces.find((face) => face.person_id === person.id);
         if (!cancelled && personFace) setThumbUrl(buildFaceThumbUrl(personFace));
       })
@@ -70,7 +70,7 @@ export function PeoplePersonCard({
         {person.name || `Person ${person.id}`}
       </span>
       <span className="text-xs text-gray-400 mt-0.5">
-        {person.face_count} {person.face_count === 1 ? 'photo' : 'photos'}
+        {person.image_count} {person.image_count === 1 ? 'photo' : 'photos'}
       </span>
     </button>
   );

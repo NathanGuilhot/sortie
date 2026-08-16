@@ -163,21 +163,21 @@ export function AppLayout() {
   );
 }
 
-function GalleryStatus() {
-  const images = useImageStore((s) => s.images);
+export function GalleryStatus() {
+  const totalImages = useImageStore((s) => s.totalImages);
   const searchQuery = useUIStore((s) => s.searchQuery);
 
-  if (images.length === 0) return <span>No images found</span>;
+  if (totalImages === 0) return <span>No images found</span>;
   if (searchQuery) {
     return (
       <span>
-        {images.length} result{images.length !== 1 ? 's' : ''} for "{searchQuery}"
+        {totalImages} result{totalImages !== 1 ? 's' : ''} for "{searchQuery}"
       </span>
     );
   }
   return (
     <span>
-      {images.length} image{images.length !== 1 ? 's' : ''}
+      {totalImages} image{totalImages !== 1 ? 's' : ''}
     </span>
   );
 }

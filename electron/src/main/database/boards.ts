@@ -1,5 +1,5 @@
 import type { DatabaseManager, SuggestionEngine } from 'pipeline';
-import { type Board, type Image } from 'shared';
+import { type Board, type Image, type ImagePage } from 'shared';
 
 interface DatabaseBoardsDeps {
   requireDb(): DatabaseManager;
@@ -19,9 +19,15 @@ export class DatabaseBoardsService {
     return this.deps.requireDb().boards.getBoard(tagId);
   }
 
-  async getBoardImages(tagId: number, limit: number = 100, offset: number = 0): Promise<Image[]> {
-    const ids = this.deps.requireDb().boards.getBoardImageIdsPaged(tagId, limit, offset);
-    return this.deps.fetchImagesByIdsInOrder(ids);
+  async getBoardImages(
+    tagId: number,
+    limit?: number,
+    offset: number = 0,
+  ): Promise<ImagePage<Image>> {
+    const repository = this.deps.requireDb().boards;
+    const total = repository.countBoardImages(tagId);
+    const ids = repository.getBoardImageIdsPaged(tagId, limit ?? total, offset);
+    return { images: this.deps.fetchImagesByIdsInOrder(ids), total };
   }
 
   async reorderBoardImages(tagId: number, orderedImageIds: number[]): Promise<void> {

@@ -7,6 +7,7 @@ import { showIpcError } from '../ipc';
 import { FolderScannerCard } from './FolderScannerCard';
 import { PlusIcon as PlusIconSvg, FolderPlusIcon as FolderPlusIconSvg } from './icons';
 import { formatSize } from './folderScannerUtils';
+import { invalidateCollections } from '../collectionInvalidation';
 
 const PlusIcon = <PlusIconSvg />;
 const FolderPlusIcon = <FolderPlusIconSvg />;
@@ -76,7 +77,8 @@ export function FolderScanner() {
     try {
       await window.sortieAPI.removeFolder(folderPath);
       setRemovingFolder(null);
-      await loadFolders();
+      await refreshFolderStore();
+      await invalidateCollections();
     } catch (error) {
       showIpcError(error);
       setRemovingFolder(null);
@@ -100,8 +102,8 @@ export function FolderScanner() {
     }
   };
 
-  const totalImages = folders.reduce((sum, f) => sum + f.image_count, 0);
-  const totalSize = folders.reduce((sum, f) => sum + f.total_size, 0);
+  const totalImages = useFolderStore((state) => state.totalImages);
+  const totalSize = useFolderStore((state) => state.totalSize);
 
   return (
     <ScreenShell>

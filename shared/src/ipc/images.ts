@@ -3,6 +3,7 @@ import type {
   Image,
   LinkPreview,
   Query,
+  ImagePage,
   SearchResult,
   Tag,
   TagSuggestion,
@@ -17,7 +18,7 @@ export interface ImageApi {
   getImages: (limit?: number, offset?: number) => Promise<Image[]>;
   getImage: (id: number) => Promise<Image | null>;
   reshuffleImages: () => Promise<{ success: boolean }>;
-  query: (query: Query) => Promise<SearchResult[]>;
+  query: (query: Query) => Promise<ImagePage<SearchResult>>;
   getEmbedderStatus: () => Promise<EmbedderStatus>;
   onEmbedderStatus: (callback: (status: EmbedderStatus) => void) => () => void;
   findSimilarImages: (imageId: number, limit?: number) => Promise<SearchResult[]>;
@@ -97,7 +98,7 @@ export interface ImageInvokeResultByKey {
   getImages: Image[];
   getImage: Image | null;
   reshuffleImages: { success: boolean };
-  queryImages: SearchResult[];
+  queryImages: ImagePage<SearchResult>;
   getEmbedderStatus: EmbedderStatus;
   findSimilarImages: SearchResult[];
   getAllTags: Tag[];

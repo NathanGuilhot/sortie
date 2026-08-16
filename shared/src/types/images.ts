@@ -55,3 +55,8 @@ export type SearchResult = Image & {
   distance?: number;
   tags?: Tag[];
 };
+
+export interface ImagePage<T extends Image = Image> {
+  images: T[];
+  total: number;
+}
