@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Person, Image, FaceScanProgress, FaceScanResult } from 'shared';
 import { runIpcTask } from '../ipc';
 import { type OperationHandle, runOperation } from '../operations/runOperation';
+import { onCollectionInvalidation } from '../collectionInvalidation';
 
 interface PeopleStore {
   persons: Person[];
@@ -10,6 +11,7 @@ interface PeopleStore {
   personImageTotal: number;
   hasMorePersonImages: boolean;
   loading: boolean;
+  loaded: boolean;
   error: string | null;
   scanning: boolean;
   scanProgress: FaceScanProgress | null;
@@ -38,6 +40,7 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
   personImageTotal: 0,
   hasMorePersonImages: false,
   loading: false,
+  loaded: false,
   error: null,
   scanning: false,
   scanProgress: null,
@@ -51,7 +54,15 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
     set({ loading: true, error: null });
     await runIpcTask({
       run: () => window.sortieAPI.getPersons(),
-      onSuccess: (persons) => set({ persons, loading: false }),
+      onSuccess: (persons) =>
+        set((state) => ({
+          persons,
+          selectedPerson: state.selectedPerson
+            ? (persons.find((person) => person.id === state.selectedPerson?.id) ?? null)
+            : null,
+          loading: false,
+          loaded: true,
+        })),
       onError: (message) => set({ error: message, loading: false }),
     });
   },
@@ -226,3 +237,15 @@ export const usePeopleStore = create<PeopleStore>((set, get) => ({
     });
   },
 }));
+
+onCollectionInvalidation(async () => {
+  const state = usePeopleStore.getState();
+  if (!state.loaded) return;
+  await state.fetchPersons();
+  const selected = usePeopleStore.getState().selectedPerson;
+  if (selected) {
+    await usePeopleStore
+      .getState()
+      .fetchPersonImages(selected.id, Math.max(100, state.personImages.length), 0);
+  }
+});

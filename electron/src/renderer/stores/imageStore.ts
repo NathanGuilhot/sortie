@@ -7,6 +7,7 @@ import {
   type SortieImageMetadataUpdate,
 } from 'shared';
 import { runIpcTask } from '../ipc';
+import { invalidateCollections, onCollectionInvalidation } from '../collectionInvalidation';
 
 interface ActiveImageQuery {
   previewUrl: string;
@@ -72,9 +73,8 @@ export const useImageStore = create<ImageStore>((set, get) => {
     }));
   };
 
-  const removeImageFromState = (imageId: number) => {
+  const removeImageFromViewer = (imageId: number) => {
     set((state) => ({
-      images: state.images.filter((img) => img.id !== imageId),
       selectedImage: state.selectedImage?.id === imageId ? null : state.selectedImage,
       viewerBackStack: state.viewerBackStack.filter((img) => img.id !== imageId),
       viewerForwardStack: state.viewerForwardStack.filter((img) => img.id !== imageId),
@@ -90,7 +90,10 @@ export const useImageStore = create<ImageStore>((set, get) => {
         await mutate();
         return await window.sortieAPI.getImage(imageId);
       },
-      onSuccess: (updated) => patchUpdatedImage(imageId, updated),
+      onSuccess: async (updated) => {
+        patchUpdatedImage(imageId, updated);
+        await invalidateCollections();
+      },
       onError: (message) => set({ error: message }),
     });
     return updated !== null;
@@ -273,14 +276,20 @@ export const useImageStore = create<ImageStore>((set, get) => {
     hideImage: async (imageId: number) => {
       await runIpcTask({
         run: () => window.sortieAPI.hideImage(imageId),
-        onSuccess: () => removeImageFromState(imageId),
+        onSuccess: async () => {
+          removeImageFromViewer(imageId);
+          await invalidateCollections();
+        },
         onError: (message) => set({ error: message }),
       });
     },
     deleteImage: async (imageId: number) => {
       await runIpcTask({
         run: () => window.sortieAPI.deleteImage(imageId),
-        onSuccess: () => removeImageFromState(imageId),
+        onSuccess: async () => {
+          removeImageFromViewer(imageId);
+          await invalidateCollections();
+        },
         onError: (message) => set({ error: message }),
       });
     },
@@ -294,4 +303,13 @@ export const useImageStore = create<ImageStore>((set, get) => {
         await window.sortieAPI.recomputeEmbedding(imageId);
       }),
   };
+});
+
+onCollectionInvalidation(async () => {
+  const state = useImageStore.getState();
+  if (state.activeBoardId !== null) {
+    await state.fetchBoardImages(state.activeBoardId);
+  } else if (state.lastQuery) {
+    await state.runQuery(state.lastQuery);
+  }
 });

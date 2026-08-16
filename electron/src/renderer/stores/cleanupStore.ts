@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { invalidateCollections } from '../collectionInvalidation';
 import { DuplicateGroup, DuplicateScanProgress, HashScanResult } from 'shared';
 import { getIpcErrorMessage, runIpcTask } from '../ipc';
 import { type OperationHandle, runOperation } from '../operations/runOperation';
@@ -103,6 +104,7 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
   deleteImage: async (imageId: number) => {
     try {
       await window.sortieAPI.deleteImage(imageId);
+      await invalidateCollections();
       set((state) => ({
         duplicateGroups: state.duplicateGroups
           .map((g) => ({

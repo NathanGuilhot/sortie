@@ -4,6 +4,7 @@ import { showIpcError } from '../ipc';
 import { type OperationHandle, runOperation } from '../operations/runOperation';
 import { useFolderStore } from './folderStore';
 import { toast } from './toastStore';
+import { invalidateCollections } from '../collectionInvalidation';
 
 export interface FolderScanOptions {
   onMilestone?: () => void | Promise<void>;
@@ -58,7 +59,8 @@ export const useFolderScanStore = create<FolderScanStore>((set, get) => ({
 
     try {
       await handle.result;
-      await refreshFolders();
+      await useFolderStore.getState().load();
+      await invalidateCollections();
     } catch (error) {
       showIpcError(error);
       throw error;

@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import { Board } from 'shared';
+import { invalidateCollections, onCollectionInvalidation } from '../collectionInvalidation';
 
 interface BoardStore {
   boards: Board[];
   loading: boolean;
+  loaded: boolean;
   error: string | null;
   setError: (error: string | null) => void;
   fetchBoards: () => Promise<void>;
@@ -16,13 +18,14 @@ interface BoardStore {
 export const useBoardStore = create<BoardStore>((set) => ({
   boards: [],
   loading: false,
+  loaded: false,
   error: null,
   setError: (error) => set({ error }),
   fetchBoards: async () => {
     set({ loading: true, error: null });
     try {
       const boards = await window.sortieAPI.boards.list();
-      set({ boards, loading: false });
+      set({ boards, loading: false, loaded: true });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       set({ error: message, loading: false });
@@ -32,6 +35,7 @@ export const useBoardStore = create<BoardStore>((set) => ({
     try {
       const board = await window.sortieAPI.boards.create(name, color);
       set((state) => ({ boards: [...state.boards, board] }));
+      await invalidateCollections();
       return board;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -45,6 +49,7 @@ export const useBoardStore = create<BoardStore>((set) => ({
       set((state) => ({
         boards: state.boards.map((b) => (b.id === id ? { ...b, name } : b)),
       }));
+      await invalidateCollections();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       set({ error: message });
@@ -56,6 +61,7 @@ export const useBoardStore = create<BoardStore>((set) => ({
       set((state) => ({
         boards: state.boards.map((b) => (b.id === id ? { ...b, color } : b)),
       }));
+      await invalidateCollections();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       set({ error: message });
@@ -65,9 +71,15 @@ export const useBoardStore = create<BoardStore>((set) => ({
     try {
       await window.sortieAPI.boards.delete(id);
       set((state) => ({ boards: state.boards.filter((b) => b.id !== id) }));
+      await invalidateCollections();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       set({ error: message });
     }
   },
 }));
+
+onCollectionInvalidation(async () => {
+  const state = useBoardStore.getState();
+  if (state.loaded) await state.fetchBoards();
+});

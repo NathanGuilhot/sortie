@@ -7,6 +7,7 @@ import type {
   PinterestTarget,
 } from 'shared';
 import { toast } from './toastStore';
+import { invalidateCollections } from '../collectionInvalidation';
 
 export interface PinterestImportError {
   code: PinterestErrorCode;
@@ -191,6 +192,7 @@ export const usePinterestImportStore = create<PinterestImportStore>()((set, get)
         [pin.pinId]: { status: 'imported', imageId: response.result.imageId },
       },
     }));
+    await invalidateCollections();
   },
 
   startBulkImport: async (hideAiGenerated) => {
@@ -292,5 +294,6 @@ export const usePinterestImportStore = create<PinterestImportStore>()((set, get)
         },
       };
     });
+    if (summary.imported > 0) void invalidateCollections();
   },
 }));

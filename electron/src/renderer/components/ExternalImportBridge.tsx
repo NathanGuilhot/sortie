@@ -9,9 +9,7 @@ import type {
 import { BoardPickerModal } from './BoardPickerModal';
 import { toast } from '../stores/toastStore';
 import { showIpcError } from '../ipc';
-import { useBoardStore } from '../stores/boardStore';
-import { useFolderStore } from '../stores/folderStore';
-import { useImageStore } from '../stores/imageStore';
+import { invalidateCollections } from '../collectionInvalidation';
 
 const PROGRESS_LABELS: Record<ExternalImportAction, string> = {
   'add-images-to-gallery': 'Adding to gallery',
@@ -96,16 +94,6 @@ function ExternalImportProgressPill({ progress }: { progress: ExternalImportProg
 export function ExternalImportBridge() {
   const [boardRequest, setBoardRequest] = useState<ExternalBoardImportRequest | null>(null);
   const [progressByJob, setProgressByJob] = useState<Record<string, ExternalImportProgress>>({});
-  const fetchBoards = useBoardStore((s) => s.fetchBoards);
-  const loadFolders = useFolderStore((s) => s.load);
-
-  const refreshGallery = useCallback((): void => {
-    const { lastQuery, runQuery } = useImageStore.getState();
-    void runQuery(lastQuery ?? {});
-    void fetchBoards();
-    void loadFolders();
-  }, [fetchBoards, loadFolders]);
-
   useEffect(() => {
     void window.sortieAPI.externalImport.getPendingBoardImport().then((request) => {
       if (request) setBoardRequest(request);
@@ -130,7 +118,7 @@ export function ExternalImportBridge() {
         return rest;
       });
       showCompleteToast(complete);
-      refreshGallery();
+      void invalidateCollections();
     });
 
     return () => {
@@ -138,7 +126,7 @@ export function ExternalImportBridge() {
       unsubscribeProgress();
       unsubscribeComplete();
     };
-  }, [refreshGallery]);
+  }, []);
 
   const handleAddToBoard = useCallback(
     async (board: Board) => {
@@ -146,12 +134,12 @@ export function ExternalImportBridge() {
       try {
         await window.sortieAPI.externalImport.addPendingImagesToBoard(boardRequest.jobId, board.id);
         setBoardRequest(null);
-        refreshGallery();
+        await invalidateCollections();
       } catch (error) {
         showIpcError(error, 'Failed to add images to board');
       }
     },
-    [boardRequest, refreshGallery],
+    [boardRequest],
   );
 
   const handleClose = useCallback(() => {

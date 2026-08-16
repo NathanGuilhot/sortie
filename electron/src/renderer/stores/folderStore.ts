@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Folder, FolderWithStats, mostSpecificFolderForPath } from 'shared';
+import { onCollectionInvalidation } from '../collectionInvalidation';
 
 interface FolderStore {
   folders: Folder[];
@@ -46,6 +47,11 @@ export const useFolderStore = create<FolderStore>((set, get) => ({
     return best.writable && best.available;
   },
 }));
+
+onCollectionInvalidation(async () => {
+  const state = useFolderStore.getState();
+  if (state.statsLoaded) await state.loadStats();
+});
 
 function ensureAvailabilitySubscription(
   set: (partial: Partial<FolderStore> | ((state: FolderStore) => Partial<FolderStore>)) => void,

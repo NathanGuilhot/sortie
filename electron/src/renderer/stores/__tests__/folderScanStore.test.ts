@@ -19,7 +19,14 @@ describe('folderScanStore', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     useFolderScanStore.setState({ scanningFolder: null, scanProgress: null, scanHandle: null });
-    useFolderStore.setState({ folders: [], folderStats: [], loaded: false, statsLoaded: false });
+    useFolderStore.setState({
+      folders: [],
+      folderStats: [],
+      totalImages: 0,
+      totalSize: 0,
+      loaded: false,
+      statsLoaded: false,
+    });
   });
 
   it('filters foreign progress, refreshes on completion, and clears scan state', async () => {
@@ -28,8 +35,9 @@ describe('folderScanStore', () => {
       () => result.promise,
     );
     const getFolders = vi.fn(async () => []);
-    const getFoldersWithStats = vi.fn(async () => []);
+    const getFoldersWithStats = vi.fn(async () => ({ folders: [], totalImages: 0, totalSize: 0 }));
     const stub = installSortieAPIStub({ scanFolder, getFolders, getFoldersWithStats });
+    useFolderStore.setState({ statsLoaded: true });
 
     const scan = useFolderScanStore.getState().scanFolder('/photos');
     const opId = scanFolder.mock.calls[0][1];
@@ -58,7 +66,7 @@ describe('folderScanStore', () => {
       scanFolder,
       cancelOperation,
       getFolders: vi.fn(async () => []),
-      getFoldersWithStats: vi.fn(async () => []),
+      getFoldersWithStats: vi.fn(async () => ({ folders: [], totalImages: 0, totalSize: 0 })),
     });
 
     const first = useFolderScanStore.getState().scanFolder('/first');
