@@ -6,6 +6,8 @@ import { DatabaseFoldersService } from './database/folders';
 import { DatabaseImagesService } from './database/images';
 import { DatabaseMaintenanceService } from './database/maintenance';
 import { DatabaseSearchService } from './database/search';
+import { DatabaseDuplicateService } from './database/duplicates';
+import { shell } from 'electron';
 
 export class DatabaseService {
   private db: DatabaseManager | null = null;
@@ -14,8 +16,14 @@ export class DatabaseService {
   private embedderStatus: EmbedderStatus = { state: 'idle' };
   private embedderStatusListeners = new Set<(status: EmbedderStatus) => void>();
   private ocrService: DatabaseOcrService | null = null;
+  readonly duplicates = new DatabaseDuplicateService({
+    requireDb: () => this.requireDb(),
+    invalidateImageCache: () => this.images.invalidateImageCache(),
+    trashItem: (filePath) => shell.trashItem(filePath),
+  });
   readonly images = new DatabaseImagesService({
     requireDb: () => this.requireDb(),
+    analysis: this.duplicates,
     getEmbedder: () => {
       if (!this.embedder) throw new Error('Embedder not initialized');
       return this.embedder;
@@ -69,6 +77,7 @@ export class DatabaseService {
 
   async runStartupMaintenance(): Promise<void> {
     if (!this.db) return;
+    await this.duplicates.recover();
     const result = await this.db.runStartupMaintenance();
     if (result.fixedImageDimensions > 0) {
       this.images.invalidateImageCache();
@@ -118,6 +127,7 @@ export class DatabaseService {
   }
 
   async close(): Promise<void> {
+    await this.duplicates.close();
     await this.embedder?.dispose();
     this.db?.close();
     this.suggestionEngine?.close();

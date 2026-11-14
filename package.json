@@ -40,10 +40,10 @@
     "lint:fix": "eslint --fix shared/src pipeline/src electron/src",
     "format": "prettier --write \"shared/src/**/*.ts\" \"pipeline/src/**/*.ts\" \"electron/src/**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"shared/src/**/*.ts\" \"pipeline/src/**/*.ts\" \"electron/src/**/*.{ts,tsx}\"",
-    "test": "yarn test:rebuild-node && (vitest run; code=$?; yarn test:rebuild-electron; exit $code)",
+    "test": "yarn test:rebuild-node && (vitest run; code=$?; yarn test:rebuild-electron || exit $?; exit $code)",
     "test:watch": "yarn test:rebuild-node && vitest",
     "test:rebuild-node": "cd node_modules/better-sqlite3 && ../.bin/node-gyp rebuild --release",
-    "test:rebuild-electron": "yarn --cwd electron exec electron-builder install-app-deps"
+    "test:rebuild-electron": "electron-rebuild --force --which-module better-sqlite3 --only better-sqlite3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

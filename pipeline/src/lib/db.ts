@@ -11,6 +11,7 @@ import { DatabasePaletteRepository } from './db-palette';
 import { setupDatabaseSchema } from './db-schema';
 import { DatabaseTagRepository } from './db-tags';
 import { DatabaseVectorRepository } from './db-vectors';
+import { DatabaseDuplicateRepository } from './db-duplicates';
 
 export class DatabaseManager {
   private db: Database.Database;
@@ -22,6 +23,7 @@ export class DatabaseManager {
   readonly ocr: DatabaseOcrRepository;
   readonly folders: DatabaseFolderRepository;
   readonly boards: DatabaseBoardRepository;
+  readonly duplicates: DatabaseDuplicateRepository;
 
   constructor(dbPath: string) {
     this.db = new Database(dbPath);
@@ -36,6 +38,8 @@ export class DatabaseManager {
     this.ocr = new DatabaseOcrRepository(this.db);
     this.folders = new DatabaseFolderRepository(this.db, this.vecLoaded);
     this.boards = new DatabaseBoardRepository(this.db);
+    this.duplicates = new DatabaseDuplicateRepository(this.db, this.vecLoaded);
+    this.duplicates.removeOrphanVectors();
   }
 
   private setupPragmas() {

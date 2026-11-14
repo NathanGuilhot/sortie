@@ -64,9 +64,21 @@ export interface TagSuggestion {
 }
 
 export interface DuplicateGroup {
-  groupId: number;
+  groupId: string;
   images: Image[];
   matchType: 'exact' | 'visual';
+}
+
+export interface DuplicateScanResult {
+  groups: DuplicateGroup[];
+  failed: number;
+  exactOnly: number;
+  cancelled: boolean;
+}
+
+export interface DuplicateCleanupResult {
+  removedIds: number[];
+  failed: Array<{ imageId: number; message: string }>;
 }
 
 export interface DuplicateScanProgress {

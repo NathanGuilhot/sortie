@@ -30,6 +30,7 @@ describe('OriginBackfillBridge', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     useUIStore.setState({ originDataRevision: 0 });
     useImageStore.setState({ selectedImage: null, images: [] });
   });
@@ -44,10 +45,7 @@ describe('OriginBackfillBridge', () => {
         return vi.fn();
       },
     );
-    window.sortieAPI = {
-      onOriginBackfillComplete,
-      getImage,
-    } as unknown as typeof window.sortieAPI;
+    vi.stubGlobal('sortieAPI', { onOriginBackfillComplete, getImage });
     useImageStore.setState({ selectedImage: selected, images: [selected] });
     render(<OriginBackfillBridge />);
 

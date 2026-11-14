@@ -100,6 +100,7 @@ export class DatabaseImageRepository {
              exposure_time = ?,
              focal_length = ?,
              missing = 0,
+             trashed = 0,
              modified_at = datetime('now')
            WHERE id = ?`,
         )
@@ -225,7 +226,9 @@ export class DatabaseImageRepository {
   }
 
   getFilteredImageIds(filter: ImageSetFilter): number[] {
-    const where: string[] = [filter.includeHidden ? 'i.missing = 0' : visibleImageSql('i')];
+    const where: string[] = [
+      filter.includeHidden ? 'i.missing = 0 AND i.trashed = 0' : visibleImageSql('i'),
+    ];
     const params: Array<string | number> = [];
 
     if (filter.favorites) where.push('i.favorite = 1');
@@ -351,7 +354,7 @@ export class DatabaseImageRepository {
   }
 
   clearMissingFlag(imageId: number): void {
-    this.db.prepare('UPDATE images SET missing = 0 WHERE id = ? AND missing <> 0').run(imageId);
+    this.db.prepare('UPDATE images SET missing = 0, trashed = 0 WHERE id = ?').run(imageId);
   }
 
   setMissingFlag(imageId: number, missing: boolean): void {
@@ -365,7 +368,7 @@ export class DatabaseImageRepository {
       .prepare(
         `SELECT i.id, i.file_path, i.missing
          FROM images i
-         WHERE i.hidden = 0
+         WHERE i.hidden = 0 AND i.trashed = 0
            AND NOT EXISTS (
              SELECT 1 FROM folders f
              WHERE ${sqlPath('i.file_path')} = ${sqlPath('f.path')}
@@ -380,7 +383,7 @@ export class DatabaseImageRepository {
     return this.db
       .prepare(
         `SELECT id, file_path FROM images
-         WHERE origin_kind IS NULL AND missing = 0
+         WHERE origin_kind IS NULL AND missing = 0 AND trashed = 0
          ORDER BY file_path`,
       )
       .all() as Array<{ id: number; file_path: string }>;
@@ -440,16 +443,6 @@ export class DatabaseImageRepository {
         exif.focalLength,
         imageId,
       );
-  }
-
-  getImagesMissingFileHash(): Array<{ id: number; file_path: string }> {
-    return this.db
-      .prepare(`SELECT id, file_path FROM images WHERE ${visibleImageSql()} AND file_hash IS NULL`)
-      .all() as Array<{ id: number; file_path: string }>;
-  }
-
-  updateImageFileHash(imageId: number, fileHash: string): void {
-    this.db.prepare('UPDATE images SET file_hash = ? WHERE id = ?').run(fileHash, imageId);
   }
 
   updateImageMetadata(imageId: number, metadata: DatabaseImageMetadataUpdate): void {
@@ -519,24 +512,12 @@ export class DatabaseImageRepository {
       );
   }
 
-  getDismissedDuplicatePairs(): Array<{ image_id_1: number; image_id_2: number }> {
-    return this.db
-      .prepare('SELECT image_id_1, image_id_2 FROM dismissed_duplicates')
-      .all() as Array<{ image_id_1: number; image_id_2: number }>;
-  }
-
-  dismissDuplicatePair(imageId1: number, imageId2: number): void {
-    this.db
-      .prepare('INSERT OR IGNORE INTO dismissed_duplicates (image_id_1, image_id_2) VALUES (?, ?)')
-      .run(imageId1, imageId2);
-  }
-
   getVisibleImagesForDuplicates(): Image[] {
     return this.db
       .prepare(
         `SELECT id, file_path, file_name, file_size, mime_type, width, height,
                 created_at, modified_at, captured_at, latitude, longitude,
-                city, country, description, favorite, hidden, missing, file_hash
+                city, country, description, favorite, hidden, missing, file_hash, file_mtime_ms
          FROM images
          WHERE ${visibleImageSql()}`,
       )

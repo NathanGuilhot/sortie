@@ -228,4 +228,34 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
   }
 
   removeObsoleteSchema(db, vecLoaded);
+  if (version < 23) {
+    db.transaction(() => {
+      addColumnIfMissing(
+        db,
+        'images',
+        getColumnNames(db, 'images'),
+        'trashed',
+        'BOOLEAN NOT NULL DEFAULT 0',
+      );
+      const columns = getColumnNames(db, 'dismissed_duplicates');
+      addColumnIfMissing(db, 'dismissed_duplicates', columns, 'file_hash_1', 'TEXT');
+      addColumnIfMissing(db, 'dismissed_duplicates', columns, 'file_hash_2', 'TEXT');
+      db.exec(`UPDATE dismissed_duplicates SET
+        file_hash_1 = (SELECT file_hash FROM images WHERE id = image_id_1),
+        file_hash_2 = (SELECT file_hash FROM images WHERE id = image_id_2)`);
+      db.exec(`CREATE TABLE IF NOT EXISTS image_analysis (
+        image_id INTEGER PRIMARY KEY REFERENCES images(id) ON DELETE CASCADE,
+        source_hash TEXT NOT NULL, source_stamp TEXT NOT NULL,
+        file_size INTEGER NOT NULL, file_mtime_ms REAL NOT NULL, version INTEGER NOT NULL,
+        width INTEGER, height INTEGER, fingerprint TEXT, pixels BLOB, visual_error TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_image_analysis_hash ON image_analysis(source_hash);
+      CREATE TABLE IF NOT EXISTS cleanup_moves (
+        id TEXT PRIMARY KEY, image_id INTEGER NOT NULL, keeper_id INTEGER NOT NULL, keeper_hash TEXT NOT NULL,
+        file_path TEXT NOT NULL, source_hash TEXT NOT NULL, state TEXT NOT NULL,
+        error TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );`);
+      db.pragma('user_version = 23');
+    })();
+  }
 }

@@ -12,9 +12,9 @@ const LINUX_POLL_INTERVAL_MS = 30_000;
 export class WatcherService {
   private watchers: Map<string, chokidar.FSWatcher> = new Map();
   private linuxPollers: Map<string, NodeJS.Timeout> = new Map();
-  private linuxSnapshots: Map<string, Set<string>> = new Map();
+  private linuxSnapshots: Map<string, Map<string, string>> = new Map();
+  private pollingFolders = new Set<string>();
   private dbService: DatabaseService | null = null;
-  private inflightAdds: Set<string> = new Set();
   private inflightRemoves: Set<string> = new Set();
 
   setDatabaseService(dbService: DatabaseService) {
@@ -44,6 +44,9 @@ export class WatcherService {
 
     watcher
       .on('add', (filePath) => {
+        void this.onFileAdded(filePath);
+      })
+      .on('change', (filePath) => {
         void this.onFileAdded(filePath);
       })
       .on('unlink', (filePath) => {
@@ -91,35 +94,30 @@ export class WatcherService {
   }
 
   private async pollFolder(folderPath: string) {
+    if (this.pollingFolders.has(folderPath)) return;
     const previous = this.linuxSnapshots.get(folderPath);
     if (!previous) return;
+    this.pollingFolders.add(folderPath);
 
-    let current: Set<string>;
     try {
-      current = await this.collectImageFiles(folderPath);
+      const current = await this.collectImageFiles(folderPath);
+      if (!this.linuxPollers.has(folderPath)) return;
+      this.linuxSnapshots.set(folderPath, current);
+      for (const [filePath, stamp] of current) {
+        if (previous.get(filePath) !== stamp) await this.onFileAdded(filePath);
+      }
+      for (const filePath of previous.keys()) {
+        if (!current.has(filePath)) await this.onFileRemoved(filePath);
+      }
     } catch (error) {
       console.error('Watcher poll error:', error);
-      return;
-    }
-
-    if (!this.linuxPollers.has(folderPath)) return;
-    this.linuxSnapshots.set(folderPath, current);
-
-    for (const filePath of current) {
-      if (!previous.has(filePath)) {
-        await this.onFileAdded(filePath);
-      }
-    }
-
-    for (const filePath of previous) {
-      if (!current.has(filePath)) {
-        await this.onFileRemoved(filePath);
-      }
+    } finally {
+      this.pollingFolders.delete(folderPath);
     }
   }
 
-  private async collectImageFiles(folderPath: string): Promise<Set<string>> {
-    const files = new Set<string>();
+  private async collectImageFiles(folderPath: string): Promise<Map<string, string>> {
+    const files = new Map<string, string>();
     const pending = [folderPath];
 
     while (pending.length > 0) {
@@ -131,7 +129,7 @@ export class WatcherService {
         entries = await fs.readdir(dir, { withFileTypes: true });
       } catch (error) {
         console.error('Watcher poll read error:', error);
-        continue;
+        throw error;
       }
 
       for (const entry of entries) {
@@ -140,7 +138,15 @@ export class WatcherService {
         if (entry.isDirectory()) {
           pending.push(fullPath);
         } else if (entry.isFile() && IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
-          files.add(path.resolve(fullPath));
+          try {
+            const stat = await fs.stat(fullPath);
+            files.set(
+              path.resolve(fullPath),
+              [stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(':'),
+            );
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+          }
         }
       }
     }
@@ -153,13 +159,11 @@ export class WatcherService {
     if (!IMAGE_EXTENSIONS.has(ext) || !this.dbService) return;
     const abs = path.resolve(filePath);
     const dbService = this.dbService;
-    await coalesceByPath(this.inflightAdds, abs, async (p) => {
-      try {
-        await dbService.images.addImage(p);
-      } catch (error) {
-        console.error('Failed to process image:', p, error);
-      }
-    });
+    try {
+      await dbService.images.addImage(abs);
+    } catch (error) {
+      console.error('Failed to process image:', abs, error);
+    }
   }
 
   private async onFileRemoved(filePath: string) {

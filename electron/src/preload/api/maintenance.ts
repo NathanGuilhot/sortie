@@ -6,9 +6,9 @@ export function createMaintenanceApi(): Pick<
   | 'cancelOperation'
   | 'computeMissingPalettes'
   | 'onPaletteProgress'
-  | 'computeMissingHashes'
-  | 'findDuplicateGroups'
-  | 'dismissDuplicatePair'
+  | 'scanDuplicates'
+  | 'dismissDuplicateGroup'
+  | 'keepDuplicate'
   | 'deleteImage'
   | 'onHashProgress'
   | 'onScanProgress'
@@ -20,10 +20,10 @@ export function createMaintenanceApi(): Pick<
     computeMissingPalettes: (opId: string) => invokeWithOpId('computeMissingPalettes', opId),
     onPaletteProgress: (callback: (progress: OperationProgress) => void) =>
       subscribeEvent('paletteProgress', callback),
-    computeMissingHashes: (opId: string) => invokeWithOpId('computeMissingHashes', opId),
-    findDuplicateGroups: () => invokeNone('findDuplicateGroups'),
-    dismissDuplicatePair: (imageId1: number, imageId2: number) =>
-      invoke('dismissDuplicatePair', { imageId1, imageId2 }),
+    scanDuplicates: (opId: string) => invokeWithOpId('scanDuplicates', opId),
+    dismissDuplicateGroup: (groupId: string) => invoke('dismissDuplicateGroup', { groupId }),
+    keepDuplicate: (groupId: string, keepId: number) =>
+      invoke('keepDuplicate', { groupId, keepId }),
     deleteImage: (imageId: number) => invokeWithImageId('deleteImage', imageId),
     onHashProgress: (callback: (progress: OperationProgress) => void) =>
       subscribeEvent('hashProgress', callback),

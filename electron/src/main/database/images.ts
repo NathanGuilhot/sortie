@@ -1,7 +1,6 @@
 import {
   type ClipEmbedder,
   classifyOrigin,
-  computeFileHash,
   type DatabaseManager,
   extractExif,
   extractPalette,
@@ -16,11 +15,14 @@ import { fetchLinkPreview, hashUrl } from '../linkPreview';
 import { MIME_TYPES } from '../database-helpers';
 import fs from 'fs/promises';
 import path from 'path';
+import type { DatabaseDuplicateService } from './duplicates';
+import { PathTaskQueue } from '../pathTaskQueue';
 
 interface DatabaseImagesDeps {
   requireDb(): DatabaseManager;
   getEmbedder(): ClipEmbedder;
   getSuggestionEngine(): SuggestionEngine;
+  analysis: Pick<DatabaseDuplicateService, 'refresh' | 'publish'>;
 }
 
 export interface AddImageOptions {
@@ -37,6 +39,7 @@ export interface AddImageResult {
 export class DatabaseImagesService {
   private readonly imageCache = new Map<string, Image[]>();
   private readonly shuffledIdCache = new Map<string, number[]>();
+  private readonly queue = new PathTaskQueue<AddImageResult>();
 
   constructor(private readonly deps: DatabaseImagesDeps) {}
 
@@ -172,7 +175,7 @@ export class DatabaseImagesService {
   private isUnchangedScanComplete(
     state: ReturnType<DatabaseManager['images']['getImageScanState']>,
     stats: Awaited<ReturnType<typeof fs.stat>>,
-  ): state is NonNullable<typeof state> {
+  ): boolean {
     if (!state) return false;
     if (state.file_size !== Number(stats.size)) return false;
     if (state.file_mtime_ms === null) return false;
@@ -187,14 +190,19 @@ export class DatabaseImagesService {
     );
   }
 
-  async addImage(filePath: string, options: AddImageOptions = {}): Promise<AddImageResult> {
+  addImage(filePath: string, options: AddImageOptions = {}): Promise<AddImageResult> {
+    const normalized = path.resolve(filePath);
+    return this.queue.run(normalized, () => this.processImage(normalized, options));
+  }
+
+  private async processImage(filePath: string, options: AddImageOptions): Promise<AddImageResult> {
     const db = this.deps.requireDb();
-    const embedder = this.deps.getEmbedder();
     const normalizedPath = path.resolve(filePath);
     const fileName = path.basename(filePath);
+    const analysis = await this.deps.analysis.refresh(normalizedPath);
     const stats = await fs.stat(filePath);
     const existingState = db.images.getImageScanState(normalizedPath);
-    if (this.isUnchangedScanComplete(existingState, stats)) {
+    if (existingState && this.isUnchangedScanComplete(existingState, stats)) {
       db.images.clearMissingFlag(existingState.id);
       return { imageId: existingState.id, skipped: true };
     }
@@ -210,11 +218,7 @@ export class DatabaseImagesService {
       console.warn(`Failed to read provenance for ${filePath}:`, error);
       return null;
     });
-    const [exifData, fileHash, evidence] = await Promise.all([
-      extractExif(filePath, loaded),
-      computeFileHash(filePath),
-      provenance,
-    ]);
+    const [exifData, evidence] = await Promise.all([extractExif(filePath, loaded), provenance]);
 
     const origin = evidence
       ? classifyOrigin(evidence, {
@@ -225,11 +229,11 @@ export class DatabaseImagesService {
     const imageData: Omit<Image, 'id' | 'created_at' | 'modified_at'> = {
       file_path: normalizedPath,
       file_name: fileName,
-      file_size: Number(stats.size),
-      file_mtime_ms: Number(stats.mtimeMs),
+      file_size: analysis.file_size,
+      file_mtime_ms: analysis.file_mtime_ms,
       mime_type: mimeType,
-      width: exifData.width,
-      height: exifData.height,
+      width: analysis.width ?? exifData.width,
+      height: analysis.height ?? exifData.height,
       captured_at: exifData.capturedAt ? exifData.capturedAt.toISOString() : null,
       latitude: exifData.latitude,
       longitude: exifData.longitude,
@@ -245,7 +249,7 @@ export class DatabaseImagesService {
       iso: exifData.iso,
       exposure_time: exifData.exposureTime,
       focal_length: exifData.focalLength,
-      file_hash: fileHash,
+      file_hash: analysis.source_hash,
       dhash: null,
       origin_kind: origin?.kind ?? null,
       origin_domain: origin?.domain ?? null,
@@ -253,19 +257,27 @@ export class DatabaseImagesService {
       website_link: origin?.url ?? null,
     };
 
-    const { id: imageId, created, fileHashMatched } = db.images.upsertImage(imageData);
-    if (!created && fileHashMatched) {
-      if (options.invalidateCache !== false) {
-        this.invalidateImageCache();
+    const imageId = await this.deps.analysis.publish(normalizedPath, analysis, () => {
+      const existing = existingState ? db.images.getImageById(existingState.id) : null;
+      if (existing) {
+        imageData.captured_at = existing.captured_at;
+        imageData.latitude = existing.latitude;
+        imageData.longitude = existing.longitude;
       }
-      return { imageId, skipped: true };
-    }
+      return db.images.upsertImage(imageData).id;
+    });
+    if (imageId === null) throw new Error('The image could not be indexed.');
 
     const [embeddingResult, paletteResult] = await Promise.allSettled([
-      embedder.embedImage(loaded),
+      Promise.resolve().then(() => this.deps.getEmbedder().embedImage(loaded)),
       extractPalette(loaded),
     ]);
 
+    const current = await this.deps.analysis.refresh(normalizedPath);
+    if (current.source_hash !== analysis.source_hash) {
+      // The queued watcher pass will retry enrichment against the new revision.
+      return { imageId, skipped: false };
+    }
     if (embeddingResult.status === 'fulfilled') {
       try {
         db.vectors.insertEmbedding(imageId, embeddingResult.value);

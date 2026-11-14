@@ -7,10 +7,6 @@ export interface ScanFolderResult extends CancellableResult {
   processed: number;
 }
 
-export interface HashScanResult extends CancellableResult {
-  computed: number;
-}
-
 export interface BackfillExifResult extends CancellableResult {
   filled: number;
 }

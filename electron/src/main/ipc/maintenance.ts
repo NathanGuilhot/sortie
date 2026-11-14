@@ -35,28 +35,25 @@ export function registerMaintenanceHandlers({ dbService, watcherService }: MainI
     return { success: true };
   });
 
-  handleInvoke('computeMissingHashes', async (event, { opId }) => {
+  handleInvoke('scanDuplicates', async (event, { opId }) => {
     const emitter = createThrottledEmitter(event.sender, 'hashProgress');
     try {
       return await withOperation(opId, (signal) =>
-        dbService.maintenance.computeMissingHashes(
-          (progress) => emitter.emit({ ...progress, opId }),
-          signal,
-        ),
+        dbService.duplicates.scan((progress) => emitter.emit({ ...progress, opId }), signal),
       );
     } finally {
       emitter.flush();
     }
   });
 
-  handleInvoke('findDuplicateGroups', async () => {
-    return await dbService.maintenance.findDuplicateGroups();
-  });
-
-  handleInvoke('dismissDuplicatePair', async (_event, { imageId1, imageId2 }) => {
-    await dbService.maintenance.dismissDuplicatePair(imageId1, imageId2);
+  handleInvoke('dismissDuplicateGroup', async (_event, { groupId }) => {
+    await dbService.duplicates.dismiss(groupId);
     return { success: true };
   });
+
+  handleInvoke('keepDuplicate', async (_event, { groupId, keepId }) =>
+    dbService.duplicates.keep(groupId, keepId),
+  );
 
   handleInvoke('revealInFinder', async (_event, { filePath }) => {
     shell.showItemInFolder(filePath);
