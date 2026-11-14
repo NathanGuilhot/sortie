@@ -3,7 +3,6 @@ import type { OriginFilter } from '../stores/uiStore';
 
 export interface SearchQueryInputs {
   searchQuery: string;
-  personFilter: number | null;
   folderFilter: number | null;
   tagFilters: string[];
   paletteFilters: string[];
@@ -19,7 +18,6 @@ export function buildSearchQuery(inputs: SearchQueryInputs): Query {
   const text = inputs.searchQuery.trim();
   if (inputs.imageBytes) query.imageBytes = inputs.imageBytes;
   else if (text) query.text = text;
-  if (inputs.personFilter !== null) query.personId = inputs.personFilter;
   if (inputs.folderFilter !== null) query.folderId = inputs.folderFilter;
   if (inputs.tagFilters.length) query.tags = inputs.tagFilters;
   if (inputs.paletteFilters.length) query.palette = inputs.paletteFilters;

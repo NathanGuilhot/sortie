@@ -4,7 +4,6 @@ import { GalleryScreen } from './screens/GalleryScreen';
 import { BoardsIndexScreen } from './screens/BoardsIndexScreen';
 import { BoardDetailScreen } from './screens/BoardDetailScreen';
 import { ImportScreen } from './screens/ImportScreen';
-import { PeopleScreen } from './components/PeopleScreen';
 import { CleanupScreen } from './components/CleanupScreen';
 import { FolderScanner } from './components/FolderScanner';
 
@@ -21,7 +20,6 @@ export const routes: RouteObject[] = [
       { path: 'folders', element: wrap(<FolderScanner />) },
       { path: 'import', element: <ImportScreen /> },
       { path: 'cleanup', element: wrap(<CleanupScreen />) },
-      { path: 'people', element: wrap(<PeopleScreen />) },
       { path: '*', element: <Navigate to="/gallery" replace /> },
     ],
   },

@@ -3,7 +3,6 @@ import { Query } from 'shared';
 
 interface UseBuiltSearchQueryArgs {
   searchQuery: string;
-  personFilter: number | null;
   folderFilter: number | null;
   tagFilters: string[];
   paletteFilters: string[];
@@ -15,7 +14,6 @@ interface UseBuiltSearchQueryArgs {
 
 export function useBuiltSearchQuery({
   searchQuery,
-  personFilter,
   folderFilter,
   tagFilters,
   paletteFilters,
@@ -34,7 +32,6 @@ export function useBuiltSearchQuery({
     if (imageBytes) query.imageBytes = imageBytes;
     else if (text) query.text = text;
 
-    if (personFilter !== null) query.personId = personFilter;
     if (folderFilter !== null) query.folderId = folderFilter;
     if (tagFilters.length > 0) query.tags = tagFilters;
     if (paletteFilters.length > 0) query.palette = paletteFilters;
@@ -46,7 +43,6 @@ export function useBuiltSearchQuery({
   }, [
     searchQuery,
     imageBytes,
-    personFilter,
     folderFilter,
     tagFilters,
     paletteFilters,

@@ -21,8 +21,6 @@ A local and private embeddings model scans your images and allows you to search 
 
 Pin your images to Pinterest-style boards, and get smart suggestion for other images to add!
 
-How about family pictures? Sortie runs on-device face detection to allow you to filter your pictures by people.
-
 <p align="center">
 <img src="assets/image_view.jpeg" alt="Gallery view" width="740" />
 </p>
@@ -66,7 +64,7 @@ See [`docs/RELEASE.md`](docs/RELEASE.md) for versioning, cross-building, and the
 
 ```
 shared/     TypeScript types shared across workspaces
-pipeline/   CLIP + face embedding pipeline
+pipeline/   CLIP embedding pipeline
 electron/   Main process, IPC, React renderer, packaging
 docs/       Release guide
 ```

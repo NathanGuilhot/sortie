@@ -52,7 +52,6 @@ export function useGallerySearchBar({
     tagFilters,
     showHidden,
     showFavoritesOnly,
-    personFilter,
     folderFilter,
     paletteFilters,
     originFilter,
@@ -78,7 +77,6 @@ export function useGallerySearchBar({
     dateRange.end !== null ||
     showHidden ||
     showFavoritesOnly ||
-    personFilter !== null ||
     folderFilter !== null ||
     paletteFilters.length > 0 ||
     originFilter !== null;

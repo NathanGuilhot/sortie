@@ -57,7 +57,6 @@ export class DatabaseSearchService {
     return !!(
       query.includeHidden ||
       query.favorites ||
-      query.personId != null ||
       query.folderId != null ||
       (query.tags && query.tags.length > 0) ||
       query.origin?.kind ||
@@ -72,7 +71,6 @@ export class DatabaseSearchService {
 
     if (query.favorites) parts.push('fav');
     if (query.includeHidden) parts.push('hid');
-    if (query.personId != null) parts.push(`p${query.personId}`);
     if (query.folderId != null) parts.push(`f${query.folderId}`);
     if (query.tags && query.tags.length > 0) parts.push(`t=${[...query.tags].sort().join(',')}`);
     if (query.origin?.kind) parts.push(`ok=${query.origin.kind}`);

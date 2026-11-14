@@ -19,8 +19,6 @@ export function installSortieAPIStub(overrides: Partial<SortieAPI> = {}) {
       on('hashProgress', callback),
     onPaletteProgress: (callback: (payload: EventPayloadByKey['paletteProgress']) => void) =>
       on('paletteProgress', callback),
-    onFaceScanProgress: (callback: (payload: EventPayloadByKey['faceScanProgress']) => void) =>
-      on('faceScanProgress', callback),
     onEmbedderStatus: (callback: (payload: EventPayloadByKey['embedderStatus']) => void) =>
       on('embedderStatus', callback),
     onFolderAvailability: (

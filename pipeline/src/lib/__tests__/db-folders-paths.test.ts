@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DatabaseFolderRepository } from '../db-folders';
-import { createTestDb, seedFace, seedFolder, seedImage, type TestDb } from '../testing/test-db';
+import { createTestDb, seedFolder, seedImage, type TestDb } from '../testing/test-db';
 
 describe('DatabaseFolderRepository path handling', () => {
   let t: TestDb;
@@ -54,22 +54,15 @@ describe('DatabaseFolderRepository path handling', () => {
     expect(folders.findFolderForPath('C:\\Photos\\Trips\\a.jpg')?.path).toBe('C:\\Photos\\Trips');
   });
 
-  it('updates missing and face-scan rows under Windows-style folder paths', () => {
+  it('marks rows missing under Windows-style folder paths', () => {
     seedFolder(t, 'C:\\Photos');
-    const imageId = seedImage(t, 'C:\\Photos\\a.jpg', { facesScanned: true });
-    seedFace(t, imageId);
+    const imageId = seedImage(t, 'C:\\Photos\\a.jpg');
 
     folders.markMissingUnderFolder('C:\\Photos');
-    folders.markFacesUnscannedUnderFolder('C:\\Photos');
-    folders.deleteFacesUnderFolder('C:\\Photos');
 
-    expect(
-      t.raw.prepare('SELECT missing, faces_scanned FROM images WHERE id = ?').get(imageId),
-    ).toEqual({
+    expect(t.raw.prepare('SELECT missing FROM images WHERE id = ?').get(imageId)).toEqual({
       missing: 1,
-      faces_scanned: 0,
     });
-    expect(t.raw.prepare('SELECT COUNT(*) AS count FROM faces').get()).toEqual({ count: 0 });
   });
 
   it('clears missing rows under a folder given the folder path', () => {

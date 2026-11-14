@@ -67,8 +67,4 @@ export function registerFolderHandlers({
     watcherService.stopWatching(path);
     return { watching: false };
   });
-
-  handleInvoke('setFolderFaceScanExclusion', async (_event, { path, excluded }) => {
-    return await dbService.folders.setFolderFaceScanExclusion(path, excluded);
-  });
 }

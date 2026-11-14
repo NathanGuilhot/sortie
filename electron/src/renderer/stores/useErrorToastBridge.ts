@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useImageStore } from './imageStore';
 import { useBoardStore } from './boardStore';
 import { useCleanupStore } from './cleanupStore';
-import { usePeopleStore } from './peopleStore';
 import { useTagStore } from './tagStore';
 import { toast } from './toastStore';
 
@@ -15,7 +14,7 @@ type HasError = { error: string | null; setError?: (e: string | null) => void };
  */
 export function useErrorToastBridge() {
   useEffect(() => {
-    const stores = [useImageStore, useBoardStore, useCleanupStore, usePeopleStore, useTagStore];
+    const stores = [useImageStore, useBoardStore, useCleanupStore, useTagStore];
 
     const unsubs = stores.map((store) =>
       store.subscribe((state: HasError, prev: HasError) => {

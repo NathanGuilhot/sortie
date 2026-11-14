@@ -42,7 +42,6 @@ export function seedImage(
     hidden: boolean;
     missing: boolean;
     fileSize: number;
-    facesScanned: boolean;
     capturedAt: string | null;
     originKind: OriginKind;
     originDomain: string | null;
@@ -52,9 +51,9 @@ export function seedImage(
   const fileName = filePath.split(/[\\/]/).pop() || filePath;
   const result = t.raw
     .prepare(
-      `INSERT INTO images (file_path, file_name, file_size, hidden, missing, faces_scanned,
+      `INSERT INTO images (file_path, file_name, file_size, hidden, missing,
                            captured_at, origin_kind, origin_domain, origin_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       filePath,
@@ -62,21 +61,10 @@ export function seedImage(
       opts.fileSize ?? null,
       opts.hidden ? 1 : 0,
       opts.missing ? 1 : 0,
-      opts.facesScanned ? 1 : 0,
       opts.capturedAt ?? null,
       opts.originKind ?? null,
       opts.originDomain ?? null,
       opts.originAt ?? null,
     );
-  return Number(result.lastInsertRowid);
-}
-
-export function seedFace(t: TestDb, imageId: number): number {
-  const result = t.raw
-    .prepare(
-      `INSERT INTO faces (image_id, person_id, bbox_x, bbox_y, bbox_w, bbox_h, confidence)
-       VALUES (?, NULL, 0, 0, 1, 1, 1)`,
-    )
-    .run(imageId);
   return Number(result.lastInsertRowid);
 }

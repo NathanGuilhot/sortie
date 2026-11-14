@@ -31,10 +31,6 @@ interface DatabaseMaintenanceDeps {
 export class DatabaseMaintenanceService {
   constructor(private readonly deps: DatabaseMaintenanceDeps) {}
 
-  async resetFaceData(): Promise<void> {
-    this.deps.requireDb().resetFaceData();
-  }
-
   async resetDatabase(): Promise<void> {
     this.deps.requireDb().resetAllData();
     this.deps.invalidateImageCache();

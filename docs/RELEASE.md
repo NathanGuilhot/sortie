@@ -34,7 +34,7 @@ For each platform, after install:
 - [ ] Menu bar / taskbar shows **Sortie** (never "Electron")
 - [ ] `About Sortie` shows the correct version
 - [ ] External links open in the system browser
-- [ ] Add a folder, scan it, verify images + tags + faces pipelines work
+- [ ] Add a folder, scan it, verify images + tags pipelines work
 - [ ] macOS: `Sortie.app/Contents/PlugIns/SortieFinderSync.appex` exists
 - [ ] macOS: launch Sortie once, then enable **Sortie Finder Sync** in System Settings if macOS has not enabled it automatically
 - [ ] macOS: right-click images/folders in Finder and verify Sortie actions appear

@@ -8,7 +8,6 @@ function folder(path: string, overrides: Partial<Folder> = {}): Folder {
     path,
     watched: true,
     ignored: false,
-    exclude_from_face_scan: false,
     available: true,
     writable: true,
     last_scanned: null,

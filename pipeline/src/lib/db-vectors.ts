@@ -1,7 +1,11 @@
 import type Database from 'better-sqlite3';
 import { visibleImageSql } from './db-visibility';
 import { decodeEmbeddingRows, decodeEmbeddingValue, type EmbeddingRowValue } from './embedding';
-import type { VecMatchRow } from './db-people';
+
+export interface VecMatchRow {
+  rowid: number;
+  distance: number;
+}
 
 interface EmbeddingDbRow extends EmbeddingRowValue {
   rowid: number;

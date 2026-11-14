@@ -146,19 +146,6 @@ export class DatabaseFolderRepository {
       .run(available ? 1 : 0, writable ? 1 : 0, folderPath);
   }
 
-  getFolderFaceScanExclusion(folderPath: string): boolean | null {
-    const row = this.db
-      .prepare('SELECT exclude_from_face_scan FROM folders WHERE path = ?')
-      .get(folderPath) as { exclude_from_face_scan: number } | undefined;
-    return row ? !!row.exclude_from_face_scan : null;
-  }
-
-  setFolderFaceScanExclusionFlag(folderPath: string, excluded: boolean): void {
-    this.db
-      .prepare('UPDATE folders SET exclude_from_face_scan = ? WHERE path = ?')
-      .run(excluded ? 1 : 0, folderPath);
-  }
-
   clearMissingUnderFolder(folderPath: string): void {
     this.db
       .prepare(`UPDATE images SET missing = 0 WHERE ${sqlPath('file_path')} LIKE ?`)
@@ -180,22 +167,6 @@ export class DatabaseFolderRepository {
          )`,
       )
       .run(pathPrefixLikePattern(folderPath), folderPath);
-  }
-
-  deleteFacesUnderFolder(folderPath: string): void {
-    this.db
-      .prepare(
-        `DELETE FROM faces WHERE image_id IN (
-           SELECT id FROM images WHERE ${sqlPath('file_path')} LIKE ?
-         )`,
-      )
-      .run(pathPrefixLikePattern(folderPath));
-  }
-
-  markFacesUnscannedUnderFolder(folderPath: string): void {
-    this.db
-      .prepare(`UPDATE images SET faces_scanned = 0 WHERE ${sqlPath('file_path')} LIKE ?`)
-      .run(pathPrefixLikePattern(folderPath));
   }
 
   findOverlappingFolders(folderPath: string): { parents: string[]; children: string[] } {

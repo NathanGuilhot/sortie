@@ -1,12 +1,9 @@
-import { useEffect, useState } from 'react';
-import { OriginKind, Person } from 'shared';
-import { showIpcError } from '../../ipc';
+import { OriginKind } from 'shared';
 import { ORIGIN_KIND_LABELS } from '../originLabels';
 import { useUIStore, type OriginFilter } from '../../stores/uiStore';
 import { TagInput } from '../TagInput';
 import { PaletteSearchPicker } from '../PaletteSearchPicker';
-import { buildFaceThumbUrl } from '../faceThumb';
-import { HeartIcon, PersonIcon } from '../icons';
+import { HeartIcon } from '../icons';
 import { useSearchFilterData } from './useSearchFilterData';
 
 function serializeOrigin(origin: OriginFilter): string {
@@ -27,12 +24,10 @@ export function SearchBarAdvancedFilters({ showDivider }: { showDivider: boolean
     folderFilter,
     originFilter,
     paletteFilters,
-    personFilter,
     setDateRange,
     setFolderFilter,
     setOriginFilter,
     setPaletteFilters,
-    setPersonFilter,
     setShowFavoritesOnly,
     setShowHidden,
     setTagFilters,
@@ -40,40 +35,7 @@ export function SearchBarAdvancedFilters({ showDivider }: { showDivider: boolean
     showHidden,
     tagFilters,
   } = useUIStore();
-  const { folders, origins, persons } = useSearchFilterData();
-  const [thumbsByPersonId, setThumbsByPersonId] = useState<Record<number, string>>({});
-
-  useEffect(() => {
-    const thumbnailIds = persons
-      .filter((person) => person.thumbnail_face_id !== null)
-      .map((person) => person.id);
-    if (thumbnailIds.length === 0) {
-      return;
-    }
-
-    let active = true;
-    void window.sortieAPI
-      .getPersonThumbnails(thumbnailIds)
-      .then((faces) => {
-        if (!active) return;
-
-        const nextThumbs = faces.reduce<Record<number, string>>((result, face) => {
-          if (face.person_id === null) return result;
-          result[face.person_id] = buildFaceThumbUrl(face);
-          return result;
-        }, {});
-        setThumbsByPersonId(nextThumbs);
-      })
-      .catch((error) => {
-        if (!active) return;
-        showIpcError(error, 'Failed to load person thumbnails');
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [persons]);
-
+  const { folders, origins } = useSearchFilterData();
   function handleDateChange(field: 'start' | 'end', value: string): void {
     const nextDate = value ? new Date(value) : null;
     setDateRange({
@@ -145,23 +107,6 @@ export function SearchBarAdvancedFilters({ showDivider }: { showDivider: boolean
         />
       </div>
 
-      {persons.length > 0 && (
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1.5">Filter by person</label>
-          <div className="flex flex-wrap gap-2">
-            {persons.map((person) => (
-              <PersonFilterChip
-                key={person.id}
-                person={person}
-                thumbUrl={thumbsByPersonId[person.id] ?? null}
-                selected={personFilter === person.id}
-                onToggle={() => setPersonFilter(personFilter === person.id ? null : person.id)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
       <div>
         <label className="block text-xs font-medium text-gray-500 mb-1.5">Filter by color</label>
         <PaletteSearchPicker colors={paletteFilters} onChange={setPaletteFilters} />
@@ -216,37 +161,5 @@ export function SearchBarAdvancedFilters({ showDivider }: { showDivider: boolean
         </label>
       </div>
     </div>
-  );
-}
-
-function PersonFilterChip({
-  person,
-  thumbUrl,
-  selected,
-  onToggle,
-}: {
-  person: Person;
-  thumbUrl: string | null;
-  selected: boolean;
-  onToggle: () => void;
-}) {
-  const label = person.name || `Person ${person.id}`;
-
-  return (
-    <button
-      onClick={onToggle}
-      title={`${label} (${person.image_count})`}
-      className={`relative w-10 h-10 rounded-full overflow-hidden transition-all ${
-        selected ? 'ring-2 ring-ink ring-offset-2' : 'ring-1 ring-gray-200 hover:ring-gray-400'
-      }`}
-    >
-      {thumbUrl ? (
-        <img src={thumbUrl} alt={label} className="w-full h-full object-cover" />
-      ) : (
-        <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
-          <PersonIcon className="w-5 h-5" />
-        </div>
-      )}
-    </button>
   );
 }

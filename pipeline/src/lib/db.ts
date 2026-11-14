@@ -8,7 +8,6 @@ import { DatabaseFolderRepository } from './db-folders';
 import { runDatabaseMigrations } from './db-migrations';
 import { DatabaseOcrRepository } from './db-ocr';
 import { DatabasePaletteRepository } from './db-palette';
-import { DatabasePeopleRepository } from './db-people';
 import { setupDatabaseSchema } from './db-schema';
 import { DatabaseTagRepository } from './db-tags';
 import { DatabaseVectorRepository } from './db-vectors';
@@ -20,7 +19,6 @@ export class DatabaseManager {
   readonly tags: DatabaseTagRepository;
   readonly vectors: DatabaseVectorRepository;
   readonly palettes: DatabasePaletteRepository;
-  readonly people: DatabasePeopleRepository;
   readonly ocr: DatabaseOcrRepository;
   readonly folders: DatabaseFolderRepository;
   readonly boards: DatabaseBoardRepository;
@@ -35,7 +33,6 @@ export class DatabaseManager {
     this.images = new DatabaseImageRepository(this.db, this.tags, this.vecLoaded);
     this.vectors = new DatabaseVectorRepository(this.db, this.vecLoaded);
     this.palettes = new DatabasePaletteRepository(this.db, this.vecLoaded);
-    this.people = new DatabasePeopleRepository(this.db, this.vecLoaded);
     this.ocr = new DatabaseOcrRepository(this.db);
     this.folders = new DatabaseFolderRepository(this.db, this.vecLoaded);
     this.boards = new DatabaseBoardRepository(this.db);
@@ -133,10 +130,6 @@ export class DatabaseManager {
     }
 
     return { fixedImageDimensions: fixed };
-  }
-
-  resetFaceData(): void {
-    this.people.clearAllFaceData();
   }
 
   resetAllData(): void {

@@ -10,7 +10,6 @@ import {
   FolderIcon,
   BookIcon,
   ClipboardIcon,
-  PeopleIcon,
   SettingsIcon,
 } from '../components/icons';
 import { useImageStore } from '../stores/imageStore';
@@ -30,7 +29,6 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/folders', label: 'Folders', Icon: FolderIcon },
   { to: '/import', label: 'Add from web', Icon: BookIcon },
   { to: '/cleanup', label: 'Cleanup', Icon: ClipboardIcon },
-  { to: '/people', label: 'People', Icon: PeopleIcon },
 ];
 
 const STATUS_COPY: Record<string, string> = {
@@ -38,7 +36,6 @@ const STATUS_COPY: Record<string, string> = {
   '/folders': 'Manage your photo folders',
   '/import': 'Pull images from Pinterest into your library',
   '/cleanup': 'Find and remove duplicate images',
-  '/people': 'Detect and manage people in your photos',
 };
 
 export function AppLayout() {

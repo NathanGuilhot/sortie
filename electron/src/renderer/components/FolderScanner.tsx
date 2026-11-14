@@ -54,21 +54,6 @@ export function FolderScanner() {
     }
   };
 
-  const handleFaceScanExclusionToggle = async (path: string, currentlyExcluded: boolean) => {
-    if (!currentlyExcluded) {
-      const ok = window.confirm(
-        'Exclude this folder from face scanning? Existing face detections in this folder will be deleted.',
-      );
-      if (!ok) return;
-    }
-    try {
-      await window.sortieAPI.setFolderFaceScanExclusion(path, !currentlyExcluded);
-      await loadFolders();
-    } catch (error) {
-      showIpcError(error);
-    }
-  };
-
   const handleRemoveFolder = async (folderPath: string) => {
     if (removingFolder !== folderPath) {
       setRemovingFolder(folderPath);
@@ -156,9 +141,6 @@ export function FolderScanner() {
               onWatchToggle={(folderPath, watched) => void handleWatchToggle(folderPath, watched)}
               onScanFolder={(folderPath) => void scanFolder(folderPath)}
               onCancelScan={() => void cancelScan()}
-              onFaceScanToggle={(folderPath, excluded) =>
-                void handleFaceScanExclusionToggle(folderPath, excluded)
-              }
             />
           ))}
         </div>

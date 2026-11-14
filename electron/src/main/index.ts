@@ -19,6 +19,7 @@ import { getAppIconPath } from './appIcon';
 import { createProtocolPathGuard } from './protocol-guard';
 import { registerExternalImportEntrypoints } from './shellContextMenu';
 import { getSortieUserDataPaths } from './userDataPaths';
+import { cleanupUserData } from './cleanupUserData';
 
 app.setName('Sortie');
 
@@ -183,15 +184,10 @@ async function startBackgroundProvenanceBackfill(): Promise<void> {
 }
 
 async function initializeServices() {
+  await cleanupUserData(app.getPath('userData'));
   const userDataPaths = getSortieUserDataPaths(app.getPath('userData'));
   const dbPath = userDataPaths.database;
 
-  const faceModelsPath = path.join(
-    path.dirname(require.resolve('@vladmandic/face-api/package.json')),
-    'model',
-  );
-
-  const thumbDir = userDataPaths.thumbs;
   const clipCacheDir = userDataPaths.models;
   fs.mkdirSync(clipCacheDir, { recursive: true });
   migrateLegacyClipCache(clipCacheDir);
@@ -205,13 +201,7 @@ async function initializeServices() {
   }
 
   dbService = new DatabaseService();
-  dbService.initialize(
-    dbPath,
-    faceModelsPath,
-    thumbDir,
-    clipCacheDir,
-    ocrAvailable ? ocrModelsPath : undefined,
-  );
+  dbService.initialize(dbPath, clipCacheDir, ocrAvailable ? ocrModelsPath : undefined);
 
   watcherService = new WatcherService();
   watcherService.setDatabaseService(dbService);

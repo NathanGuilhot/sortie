@@ -10,7 +10,6 @@ export function createFolderApi(): Pick<
   | 'removeFolder'
   | 'watchFolder'
   | 'unwatchFolder'
-  | 'setFolderFaceScanExclusion'
   | 'suggestDefaultPhotoFolder'
   | 'recheckFolderAvailability'
   | 'onFolderAvailability'
@@ -23,8 +22,6 @@ export function createFolderApi(): Pick<
     removeFolder: (path: string) => invokeWithPath('removeFolder', path),
     watchFolder: (path: string) => invokeWithPath('watchFolder', path),
     unwatchFolder: (path: string) => invokeWithPath('unwatchFolder', path),
-    setFolderFaceScanExclusion: (path: string, excluded: boolean) =>
-      invoke('setFolderFaceScanExclusion', { path, excluded }),
     suggestDefaultPhotoFolder: () => invokeNone('suggestDefaultPhotoFolder'),
     recheckFolderAvailability: (folderPath?: string) =>
       invoke('recheckFolderAvailability', { path: folderPath }),

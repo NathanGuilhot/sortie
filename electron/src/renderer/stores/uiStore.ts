@@ -9,7 +9,6 @@ interface UIStore {
   tagFilters: string[];
   showHidden: boolean;
   showFavoritesOnly: boolean;
-  personFilter: number | null;
   folderFilter: number | null;
   paletteFilters: string[];
   originFilter: OriginFilter;
@@ -19,7 +18,6 @@ interface UIStore {
   setTagFilters: (tags: string[]) => void;
   setShowHidden: (show: boolean) => void;
   setShowFavoritesOnly: (show: boolean) => void;
-  setPersonFilter: (personId: number | null) => void;
   setFolderFilter: (folderId: number | null) => void;
   setPaletteFilters: (colors: string[]) => void;
   setOriginFilter: (origin: OriginFilter) => void;
@@ -33,7 +31,6 @@ export const useUIStore = create<UIStore>()((set) => ({
   tagFilters: [],
   showHidden: false,
   showFavoritesOnly: false,
-  personFilter: null,
   folderFilter: null,
   paletteFilters: [],
   originFilter: null,
@@ -43,7 +40,6 @@ export const useUIStore = create<UIStore>()((set) => ({
   setTagFilters: (tags) => set({ tagFilters: tags }),
   setShowHidden: (show) => set({ showHidden: show }),
   setShowFavoritesOnly: (show) => set({ showFavoritesOnly: show }),
-  setPersonFilter: (personId) => set({ personFilter: personId }),
   setFolderFilter: (folderId) => set({ folderFilter: folderId }),
   setPaletteFilters: (colors) => set({ paletteFilters: colors }),
   setOriginFilter: (origin) => set({ originFilter: origin }),
@@ -56,7 +52,6 @@ export const useUIStore = create<UIStore>()((set) => ({
       tagFilters: [],
       showHidden: false,
       showFavoritesOnly: false,
-      personFilter: null,
       folderFilter: null,
       paletteFilters: [],
       originFilter: null,

@@ -3,7 +3,6 @@ import path from 'path';
 export interface SortieUserDataPaths {
   thumbs: string;
   rawPreviews: string;
-  faceThumbs: string;
   dragIcons: string;
   dragExports: string;
   linkPreviews: string;
@@ -15,7 +14,6 @@ export function getSortieUserDataPaths(userDataRoot: string): SortieUserDataPath
   return {
     thumbs: path.join(userDataRoot, 'thumbs'),
     rawPreviews: path.join(userDataRoot, 'raw-previews'),
-    faceThumbs: path.join(userDataRoot, 'face-thumbs'),
     dragIcons: path.join(userDataRoot, 'drag-icons'),
     dragExports: path.join(userDataRoot, 'drag-exports'),
     linkPreviews: path.join(userDataRoot, 'link-previews'),

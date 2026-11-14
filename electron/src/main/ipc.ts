@@ -7,7 +7,6 @@ import { registerExternalImportHandlers } from './ipc/externalImport';
 import { registerImageHandlers } from './ipc/images';
 import { registerMaintenanceHandlers } from './ipc/maintenance';
 import { registerOcrHandlers } from './ipc/ocr';
-import { registerPeopleHandlers } from './ipc/people';
 import { registerPinterestHandlers } from './ipc/pinterest';
 import { registerSystemHandlers } from './ipc/system';
 import type { ExternalImportService } from './externalImport';
@@ -33,7 +32,6 @@ export function setupIpcHandlers(
   registerExternalImportHandlers(context);
   registerImageHandlers(context);
   registerBoardHandlers(context);
-  registerPeopleHandlers(context);
   registerMaintenanceHandlers(context);
   registerPinterestHandlers(context);
   registerOcrHandlers(context);

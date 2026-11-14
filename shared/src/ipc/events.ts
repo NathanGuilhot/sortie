@@ -1,4 +1,4 @@
-import type { EmbedderStatus, FaceScanProgress, OcrUpdatePayload } from '../types';
+import type { EmbedderStatus, OcrUpdatePayload } from '../types';
 import type {
   ExternalBoardImportRequest,
   ExternalImportComplete,
@@ -12,8 +12,6 @@ export interface OperationProgress extends SortieProgress {
   opId: string;
 }
 
-export type OperationFaceScanProgress = FaceScanProgress & { opId: string };
-
 export interface BoardExportProgress {
   opId: string;
   current: number;
@@ -26,7 +24,6 @@ export const IPC_EVENT_CHANNELS = {
   paletteProgress: 'palette-progress',
   hashProgress: 'hash-progress',
   scanProgress: 'scan-progress',
-  faceScanProgress: 'face-scan-progress',
   folderAvailabilityChanged: 'folder-availability-changed',
   showAbout: 'show-about',
   ocrUpdated: 'ocr-updated',
@@ -46,7 +43,6 @@ export interface EventPayloadByKey {
   paletteProgress: OperationProgress;
   hashProgress: OperationProgress;
   scanProgress: OperationProgress;
-  faceScanProgress: OperationFaceScanProgress;
   folderAvailabilityChanged: FolderAvailabilityChange;
   showAbout: void;
   ocrUpdated: OcrUpdatePayload;

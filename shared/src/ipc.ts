@@ -18,8 +18,6 @@ import type {
 import { maintenanceInvokeChannels } from './ipc/maintenance';
 import type { OcrApi, OcrInvokeArgsByKey, OcrInvokeResultByKey } from './ipc/ocr';
 import { ocrInvokeChannels } from './ipc/ocr';
-import type { PeopleApi, PeopleInvokeArgsByKey, PeopleInvokeResultByKey } from './ipc/people';
-import { peopleInvokeChannels } from './ipc/people';
 import type {
   PinterestApi,
   PinterestInvokeArgsByKey,
@@ -60,7 +58,6 @@ export interface SortieAPI
     BoardsApi,
     FolderApi,
     MaintenanceApi,
-    PeopleApi,
     SystemApi,
     OcrApi,
     PinterestApi,
@@ -72,7 +69,6 @@ export const IPC_INVOKE_CHANNELS = {
   ...folderInvokeChannels,
   ...externalImportInvokeChannels,
   ...maintenanceInvokeChannels,
-  ...peopleInvokeChannels,
   ...systemInvokeChannels,
   ...ocrInvokeChannels,
   ...pinterestInvokeChannels,
@@ -83,7 +79,6 @@ export type InvokeArgsByKey = ImageInvokeArgsByKey &
   FolderInvokeArgsByKey &
   ExternalImportInvokeArgsByKey &
   MaintenanceInvokeArgsByKey &
-  PeopleInvokeArgsByKey &
   SystemInvokeArgsByKey &
   OcrInvokeArgsByKey &
   PinterestInvokeArgsByKey;
@@ -93,7 +88,6 @@ export type InvokeResultByKey = ImageInvokeResultByKey &
   FolderInvokeResultByKey &
   ExternalImportInvokeResultByKey &
   MaintenanceInvokeResultByKey &
-  PeopleInvokeResultByKey &
   SystemInvokeResultByKey &
   OcrInvokeResultByKey &
   PinterestInvokeResultByKey;

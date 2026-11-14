@@ -1,4 +1,4 @@
-import { type OperationFaceScanProgress, type OperationProgress, type SortieAPI } from 'shared';
+import { type OperationProgress, type SortieAPI } from 'shared';
 import { invoke, invokeNone, invokeWithImageId, invokeWithOpId, subscribeEvent } from '../helpers';
 
 export function createMaintenanceApi(): Pick<
@@ -13,9 +13,6 @@ export function createMaintenanceApi(): Pick<
   | 'onHashProgress'
   | 'onScanProgress'
   | 'backfillExif'
-  | 'processFaces'
-  | 'resetFaceData'
-  | 'onFaceScanProgress'
   | 'resetDatabase'
 > {
   return {
@@ -33,10 +30,6 @@ export function createMaintenanceApi(): Pick<
     onScanProgress: (callback: (progress: OperationProgress) => void) =>
       subscribeEvent('scanProgress', callback),
     backfillExif: (opId: string) => invokeWithOpId('backfillExif', opId),
-    processFaces: (opId: string) => invokeWithOpId('processFaces', opId),
-    resetFaceData: () => invokeNone('resetFaceData'),
-    onFaceScanProgress: (callback: (progress: OperationFaceScanProgress) => void) =>
-      subscribeEvent('faceScanProgress', callback),
     resetDatabase: () => invokeNone('resetDatabase'),
   };
 }

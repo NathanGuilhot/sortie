@@ -1,27 +1,16 @@
-import {
-  DatabaseManager,
-  ClipEmbedder,
-  SuggestionEngine,
-  FaceDetector,
-  FaceMatcher,
-  FaceScanService,
-} from 'pipeline';
-import { Folder, EmbedderStatus, type AppSettingKey } from 'shared';
+import { DatabaseManager, ClipEmbedder, SuggestionEngine } from 'pipeline';
+import { EmbedderStatus, type AppSettingKey } from 'shared';
 import { DatabaseOcrService } from './database-ocr';
 import { DatabaseBoardsService } from './database/boards';
 import { DatabaseFoldersService } from './database/folders';
 import { DatabaseImagesService } from './database/images';
 import { DatabaseMaintenanceService } from './database/maintenance';
-import { DatabasePeopleService } from './database/people';
 import { DatabaseSearchService } from './database/search';
 
 export class DatabaseService {
   private db: DatabaseManager | null = null;
   private embedder: ClipEmbedder | null = null;
   private suggestionEngine: SuggestionEngine | null = null;
-  private faceDetector: FaceDetector | null = null;
-  private faceMatcher: FaceMatcher | null = null;
-  private faceScan: FaceScanService | null = null;
   private embedderStatus: EmbedderStatus = { state: 'idle' };
   private embedderStatusListeners = new Set<(status: EmbedderStatus) => void>();
   private ocrService: DatabaseOcrService | null = null;
@@ -31,19 +20,10 @@ export class DatabaseService {
       if (!this.embedder) throw new Error('Embedder not initialized');
       return this.embedder;
     },
-    getFaceScan: () => {
-      if (!this.faceScan) {
-        throw new Error(
-          'Face detection is not available. The face-api models may have failed to load.',
-        );
-      }
-      return this.faceScan;
-    },
     getSuggestionEngine: () => {
       if (!this.suggestionEngine) throw new Error('SuggestionEngine not initialized');
       return this.suggestionEngine;
     },
-    getFolderForPath: (filePath) => this.getFolderForPath(filePath),
   });
   readonly search = new DatabaseSearchService({
     requireDb: () => this.requireDb(),
@@ -69,26 +49,6 @@ export class DatabaseService {
     addImage: (filePath, options) => this.images.addImage(filePath, options),
     invalidateImageCache: () => this.images.invalidateImageCache(),
   });
-  readonly people = new DatabasePeopleService({
-    requireDb: () => this.requireDb(),
-    getOrBuildShuffledIds: (cacheKey, loadIds) =>
-      this.images.getOrBuildShuffledIds(cacheKey, loadIds),
-    fetchImagesByIdsInOrder: (ids) => this.images.fetchImagesByIdsInOrder(ids),
-    deleteShuffledIds: (prefixOrKey, exact = false) =>
-      this.images.deleteShuffledIds(prefixOrKey, exact),
-    getFaceMatcher: () => {
-      if (!this.faceMatcher) throw new Error('FaceMatcher not initialized');
-      return this.faceMatcher;
-    },
-    getFaceScan: () => {
-      if (!this.faceScan) {
-        throw new Error(
-          'Face detection is not available. The face-api models may have failed to load.',
-        );
-      }
-      return this.faceScan;
-    },
-  });
   readonly maintenance = new DatabaseMaintenanceService({
     requireDb: () => this.requireDb(),
     invalidateImageCache: () => this.images.invalidateImageCache(),
@@ -100,24 +60,10 @@ export class DatabaseService {
       new FileDeletionError(filePath, code, cause),
   });
 
-  initialize(
-    dbPath: string,
-    faceModelsPath: string,
-    faceCacheDir?: string,
-    clipCacheDir?: string,
-    ocrModelsPath?: string,
-  ) {
+  initialize(dbPath: string, clipCacheDir?: string, ocrModelsPath?: string) {
     this.db = new DatabaseManager(dbPath);
     this.embedder = new ClipEmbedder(clipCacheDir);
     this.suggestionEngine = new SuggestionEngine(this.db);
-    this.faceDetector = new FaceDetector(faceModelsPath, faceCacheDir);
-    this.faceMatcher = new FaceMatcher(this.db);
-    this.faceScan = new FaceScanService(
-      this.db,
-      this.faceDetector,
-      this.faceMatcher,
-      this.embedder,
-    );
     this.ocrService = new DatabaseOcrService(this.db, ocrModelsPath);
   }
 
@@ -180,11 +126,6 @@ export class DatabaseService {
   private requireDb(): DatabaseManager {
     if (!this.db) throw new Error('Database not initialized');
     return this.db;
-  }
-
-  getFolderForPath(filePath: string): Folder | null {
-    if (!this.db) return null;
-    return this.folders.getFolderForPath(filePath);
   }
 
   getSetting(key: AppSettingKey): string | null {

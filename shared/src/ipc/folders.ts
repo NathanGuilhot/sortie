@@ -13,7 +13,6 @@ export interface FolderApi {
   removeFolder: (path: string) => Promise<{ success: boolean }>;
   watchFolder: (path: string) => Promise<{ watching: boolean }>;
   unwatchFolder: (path: string) => Promise<{ watching: boolean }>;
-  setFolderFaceScanExclusion: (path: string, excluded: boolean) => Promise<{ changed: boolean }>;
   suggestDefaultPhotoFolder: () => Promise<SuggestDefaultPhotoFolderResult>;
   recheckFolderAvailability: (
     folderPath?: string,
@@ -29,7 +28,6 @@ export const folderInvokeChannels = {
   removeFolder: IPC_CHANNELS.removeFolder,
   watchFolder: IPC_CHANNELS.watchFolder,
   unwatchFolder: IPC_CHANNELS.unwatchFolder,
-  setFolderFaceScanExclusion: IPC_CHANNELS.setFolderFaceScanExclusion,
   suggestDefaultPhotoFolder: IPC_CHANNELS.suggestDefaultPhotoFolder,
   recheckFolderAvailability: IPC_CHANNELS.recheckFolderAvailability,
 } as const;
@@ -42,7 +40,6 @@ export interface FolderInvokeArgsByKey {
   removeFolder: { path: string };
   watchFolder: { path: string };
   unwatchFolder: { path: string };
-  setFolderFaceScanExclusion: { path: string; excluded: boolean };
   suggestDefaultPhotoFolder: undefined;
   recheckFolderAvailability: { path?: string } | undefined;
 }
@@ -55,7 +52,6 @@ export interface FolderInvokeResultByKey {
   removeFolder: { success: boolean };
   watchFolder: { watching: boolean };
   unwatchFolder: { watching: boolean };
-  setFolderFaceScanExclusion: { changed: boolean };
   suggestDefaultPhotoFolder: SuggestDefaultPhotoFolderResult;
   recheckFolderAvailability: { changes: FolderAvailabilityChange[] };
 }

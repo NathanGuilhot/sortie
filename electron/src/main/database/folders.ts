@@ -268,27 +268,4 @@ export class DatabaseFoldersService {
 
     return { changed: true };
   }
-
-  async setFolderFaceScanExclusion(
-    folderPath: string,
-    excluded: boolean,
-  ): Promise<{ changed: boolean }> {
-    const db = this.deps.requireDb();
-    const normalized = path.resolve(folderPath);
-    const current = db.folders.getFolderFaceScanExclusion(normalized);
-    if (current === null) return { changed: false };
-    if (current === excluded) return { changed: false };
-
-    db.runInTransaction(() => {
-      db.folders.setFolderFaceScanExclusionFlag(normalized, excluded);
-      if (excluded) {
-        db.folders.deleteFacesUnderFolder(normalized);
-        db.folders.markFacesUnscannedUnderFolder(normalized);
-      }
-    });
-
-    if (excluded) db.people.cleanupOrphanedPersons();
-    this.deps.invalidateImageCache();
-    return { changed: true };
-  }
 }

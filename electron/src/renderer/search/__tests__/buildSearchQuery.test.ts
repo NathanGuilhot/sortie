@@ -3,7 +3,6 @@ import { buildSearchQuery, type SearchQueryInputs } from '../buildSearchQuery';
 
 const base: SearchQueryInputs = {
   searchQuery: '',
-  personFilter: null,
   folderFilter: null,
   tagFilters: [],
   paletteFilters: [],

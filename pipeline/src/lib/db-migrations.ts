@@ -1,6 +1,4 @@
 import type Database from 'better-sqlite3';
-import { CLIP_EMBEDDING_DIM, FACE_EMBEDDING_DIM } from 'shared';
-import { clearAllFaceData } from './db-face-reset';
 
 function getColumnNames(db: Database.Database, table: string): Set<string> {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
@@ -17,6 +15,32 @@ function addColumnIfMissing(
   if (columnNames.has(column)) return;
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   columnNames.add(column);
+}
+
+function removeObsoleteSchema(db: Database.Database, vecLoaded: boolean): void {
+  const tables = ['vec_face_clips', 'vec_faces', 'vec_persons', 'faces', 'persons'];
+  const existingTables = tables.filter((name) =>
+    db.prepare('SELECT 1 FROM sqlite_master WHERE type = ? AND name = ?').get('table', name),
+  );
+  if (!vecLoaded && existingTables.some((name) => name.startsWith('vec_'))) {
+    console.warn('[migration] schema cleanup will retry when sqlite-vec is available');
+    return;
+  }
+
+  db.transaction(() => {
+    for (const table of existingTables) db.exec(`DROP TABLE "${table}"`);
+    for (const [table, column] of [
+      ['images', 'faces_scanned'],
+      ['folders', 'exclude_from_face_scan'],
+    ]) {
+      if (getColumnNames(db, table).has(column)) {
+        db.exec(`ALTER TABLE "${table}" DROP COLUMN "${column}"`);
+      }
+    }
+    if ((db.pragma('user_version', { simple: true }) as number) < 22) {
+      db.pragma('user_version = 22');
+    }
+  })();
 }
 
 // Migrations `user_version` : inchrémental, idempotent par version.
@@ -57,79 +81,6 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
     db.pragma('user_version = 3');
   }
 
-  if (version < 4) {
-    const imageColumns = getColumnNames(db, 'images');
-    addColumnIfMissing(db, 'images', imageColumns, 'faces_scanned', 'BOOLEAN DEFAULT 0');
-
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS persons (
-          id INTEGER PRIMARY KEY,
-          name TEXT,
-          thumbnail_face_id INTEGER,
-          face_count INTEGER DEFAULT 0,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS faces (
-          id INTEGER PRIMARY KEY,
-          image_id INTEGER NOT NULL,
-          person_id INTEGER,
-          bbox_x REAL NOT NULL,
-          bbox_y REAL NOT NULL,
-          bbox_w REAL NOT NULL,
-          bbox_h REAL NOT NULL,
-          confidence REAL NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
-          FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE SET NULL
-        )
-      `);
-
-    if (vecLoaded) {
-      db.exec(`
-          CREATE VIRTUAL TABLE IF NOT EXISTS vec_faces USING vec0(
-            embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
-          )
-        `);
-
-      db.exec(`
-          CREATE VIRTUAL TABLE IF NOT EXISTS vec_persons USING vec0(
-            embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
-          )
-        `);
-    }
-
-    db.exec('CREATE INDEX IF NOT EXISTS idx_faces_image ON faces(image_id)');
-    db.exec('CREATE INDEX IF NOT EXISTS idx_faces_person ON faces(person_id)');
-    db.exec('CREATE INDEX IF NOT EXISTS idx_persons_name ON persons(name)');
-
-    db.pragma('user_version = 5');
-  }
-
-  if (version >= 4 && version < 5 && vecLoaded) {
-    // Vec tables were created with default (L2) distance. Recreate with cosine
-    // and wipe all persons so clustering is re-run on next scan.
-    db.exec('DROP TABLE IF EXISTS vec_faces');
-    db.exec('DROP TABLE IF EXISTS vec_persons');
-    db.exec(`
-        CREATE VIRTUAL TABLE vec_faces USING vec0(
-          embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
-        )
-      `);
-    db.exec(`
-        CREATE VIRTUAL TABLE vec_persons USING vec0(
-          embedding float[${FACE_EMBEDDING_DIM}] distance_metric=cosine
-        )
-      `);
-    db.exec('DELETE FROM faces');
-    db.exec('DELETE FROM persons');
-    db.exec('UPDATE images SET faces_scanned = 0');
-    db.pragma('user_version = 5');
-  }
-
   if (version < 6) {
     const folderColumns = getColumnNames(db, 'folders');
     addColumnIfMissing(db, 'folders', folderColumns, 'available', 'BOOLEAN DEFAULT 1');
@@ -161,12 +112,6 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
     db.pragma('user_version = 7');
   }
 
-  if (version < 8) {
-    const folderColumns = getColumnNames(db, 'folders');
-    addColumnIfMissing(db, 'folders', folderColumns, 'exclude_from_face_scan', 'BOOLEAN DEFAULT 0');
-    db.pragma('user_version = 8');
-  }
-
   if (version < 9) {
     const imageTagColumns = getColumnNames(db, 'image_tags');
     addColumnIfMissing(db, 'image_tags', imageTagColumns, 'position', 'INTEGER');
@@ -184,9 +129,6 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
     const imageColumns = getColumnNames(db, 'images');
     addColumnIfMissing(db, 'images', imageColumns, 'palette_json', 'TEXT');
 
-    // Authoritative vec_palette invariant: palette_colors.id is the matching
-    // vec_palette.rowid. This regular table owns the autoincrement id; mirror
-    // the faces + vec_faces split and bind vec_palette rowids as BigInt.
     db.exec(`
         CREATE TABLE IF NOT EXISTS palette_colors (
           id INTEGER PRIMARY KEY,
@@ -258,24 +200,6 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
     db.pragma('user_version = 14');
   }
 
-  if (version < 16) {
-    if (vecLoaded) {
-      db.exec(`
-          CREATE VIRTUAL TABLE IF NOT EXISTS vec_face_clips USING vec0(
-            embedding float[${CLIP_EMBEDDING_DIM}] distance_metric=cosine
-          )
-        `);
-    }
-    clearAllFaceData(db, vecLoaded);
-
-    db.pragma('user_version = 16');
-  }
-
-  if (version < 19) {
-    clearAllFaceData(db, vecLoaded);
-    db.pragma('user_version = 19');
-  }
-
   if (version < 20) {
     const imageColumns = getColumnNames(db, 'images');
     addColumnIfMissing(db, 'images', imageColumns, 'file_mtime_ms', 'REAL');
@@ -302,4 +226,6 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
 
     db.pragma('user_version = 21');
   }
+
+  removeObsoleteSchema(db, vecLoaded);
 }

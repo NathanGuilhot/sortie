@@ -33,7 +33,6 @@ export function MetadataEditor({ image, onClose }: MetadataEditorProps) {
         image={image}
         date={state.date}
         description={state.description}
-        faces={state.faces}
         location={state.location}
         savedWebsiteLink={state.savedWebsiteLink}
         suggestions={state.suggestions}

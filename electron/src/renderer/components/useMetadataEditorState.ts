@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Face, Image, TagSuggestion } from 'shared';
+import type { Image, TagSuggestion } from 'shared';
 import { useBoardStore } from '../stores/boardStore';
 import { useFolderStore } from '../stores/folderStore';
 import { useImageStore } from '../stores/imageStore';
@@ -35,7 +35,6 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
     'idle',
   );
   const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
-  const [faces, setFaces] = useState<Face[]>([]);
 
   useEffect(() => {
     setEmbeddingStatus('idle');
@@ -62,18 +61,13 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
   useEffect(() => {
     if (!image) {
       setSuggestions([]);
-      setFaces([]);
       return;
     }
 
     let cancelled = false;
-    void Promise.all([
-      window.sortieAPI.getSuggestions(image.id),
-      window.sortieAPI.getImageFaces(image.id),
-    ]).then(([nextSuggestions, nextFaces]: [TagSuggestion[], Face[]]) => {
+    void window.sortieAPI.getSuggestions(image.id).then((nextSuggestions) => {
       if (cancelled) return;
       setSuggestions(nextSuggestions);
-      setFaces(nextFaces);
     });
 
     return () => {
@@ -208,7 +202,6 @@ export function useMetadataEditorState({ image }: UseMetadataEditorStateArgs) {
     deleteMode,
     description,
     embeddingStatus,
-    faces,
     hasCamera,
     cameraName,
     cameraSettings,

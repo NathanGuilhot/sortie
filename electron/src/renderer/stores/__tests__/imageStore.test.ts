@@ -4,7 +4,6 @@ import { useImageStore } from '../imageStore';
 import { installSortieAPIStub } from '../../test/sortieApiStub';
 import { useBoardStore } from '../boardStore';
 import { useFolderStore } from '../folderStore';
-import { usePeopleStore } from '../peopleStore';
 import { useTagStore } from '../tagStore';
 
 const image: Image = {
@@ -61,7 +60,6 @@ describe('imageStore gallery totals', () => {
     });
     useBoardStore.setState({ loaded: false });
     useFolderStore.setState({ statsLoaded: false });
-    usePeopleStore.setState({ loaded: false });
     useTagStore.setState({ loaded: false });
   });
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Face, Image, TagSuggestion } from 'shared';
+import type { Image, TagSuggestion } from 'shared';
 import { AddToBoardButton } from './AddToBoardButton';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import {
@@ -9,7 +9,6 @@ import {
   FolderOpenIcon,
   LinkIcon,
   MapPinIcon,
-  PersonIcon,
   PlusIcon,
   XIcon,
 } from './icons';
@@ -21,7 +20,6 @@ interface MetadataEditorFormSectionProps {
   image: Image;
   date: string;
   description: string;
-  faces: Face[];
   location: string;
   savedWebsiteLink: string | null;
   suggestions: TagSuggestion[];
@@ -38,7 +36,6 @@ export function MetadataEditorFormSection({
   image,
   date,
   description,
-  faces,
   location,
   savedWebsiteLink,
   suggestions,
@@ -85,41 +82,6 @@ export function MetadataEditorFormSection({
                 </button>
               </span>
             ))}
-          </div>
-        </MetadataField>
-      )}
-
-      {faces.length > 0 && (
-        <MetadataField
-          icon={<PersonIcon className="w-3.5 h-3.5" strokeWidth={2} />}
-          label={`Faces (${faces.length})`}
-        >
-          <div className="flex flex-wrap gap-2">
-            {faces.map((face) => {
-              const params = new URLSearchParams({
-                path: image.file_path,
-                x: String(face.bbox_x),
-                y: String(face.bbox_y),
-                w: String(face.bbox_w),
-                h: String(face.bbox_h),
-                size: '80',
-              });
-
-              return (
-                <div key={face.id} className="flex flex-col items-center gap-1">
-                  <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-gray-200">
-                    <img
-                      src={`sortie-face://${face.id}?${params.toString()}`}
-                      alt={face.person_name || 'Unknown'}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <span className="text-[10px] text-gray-500 truncate max-w-[60px]">
-                    {face.person_name || `#${face.person_id ?? '?'}`}
-                  </span>
-                </div>
-              );
-            })}
           </div>
         </MetadataField>
       )}

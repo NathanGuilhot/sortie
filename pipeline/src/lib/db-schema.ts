@@ -68,7 +68,6 @@ export function setupDatabaseSchema(db: Database.Database, vecLoaded: boolean): 
         path TEXT UNIQUE NOT NULL,
         watched BOOLEAN DEFAULT 1,
         ignored BOOLEAN DEFAULT 0,
-        exclude_from_face_scan BOOLEAN DEFAULT 0,
         last_scanned DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         available BOOLEAN DEFAULT 1,

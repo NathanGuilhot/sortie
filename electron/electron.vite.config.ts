@@ -7,7 +7,6 @@ const nativeOrRuntimeExternals = [
   'electron',
   'pipeline',
   'better-sqlite3',
-  'canvas',
   'sharp',
   'onnxruntime-node',
   'sqlite-vec',
@@ -15,10 +14,6 @@ const nativeOrRuntimeExternals = [
   'electron-updater',
   'chokidar',
   '@xenova/transformers',
-  '@tensorflow/tfjs',
-  '@tensorflow/tfjs-core',
-  '@tensorflow/tfjs-backend-wasm',
-  '@vladmandic/face-api',
 ];
 
 export default defineConfig({

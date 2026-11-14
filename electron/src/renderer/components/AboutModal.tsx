@@ -40,7 +40,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
           <h1 className="text-2xl font-semibold text-gray-900">Sortie</h1>
           <p className="text-sm text-gray-500 mt-1">Version {version || '…'}</p>
           <p className="text-sm text-gray-600 mt-4 leading-relaxed">
-            Local-first photo tagger with CLIP embeddings and face detection.
+            Local-first photo tagger with CLIP embeddings.
           </p>
         </div>
 
@@ -81,14 +81,6 @@ export function AboutModal({ onClose }: AboutModalProps) {
               className="text-ink hover:underline"
             >
               @xenova/transformers
-            </a>
-            . Face detection via{' '}
-            <a
-              href="https://github.com/vladmandic/face-api"
-              onClick={openExternal('https://github.com/vladmandic/face-api')}
-              className="text-ink hover:underline"
-            >
-              @vladmandic/face-api
             </a>
             . Built with Electron.
           </p>

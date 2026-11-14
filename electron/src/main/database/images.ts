@@ -5,22 +5,13 @@ import {
   type DatabaseManager,
   extractExif,
   extractPalette,
-  type FaceScanService,
   type ProvenanceReader,
   type SuggestionEngine,
   loadImageInput,
   readFileEvidence,
   runWithConcurrency,
 } from 'pipeline';
-import type {
-  Folder,
-  Image,
-  ImageOrigin,
-  LinkPreview,
-  OriginFacets,
-  Tag,
-  TagSuggestion,
-} from 'shared';
+import type { Image, ImageOrigin, LinkPreview, OriginFacets, Tag, TagSuggestion } from 'shared';
 import { fetchLinkPreview, hashUrl } from '../linkPreview';
 import { MIME_TYPES } from '../database-helpers';
 import fs from 'fs/promises';
@@ -29,9 +20,7 @@ import path from 'path';
 interface DatabaseImagesDeps {
   requireDb(): DatabaseManager;
   getEmbedder(): ClipEmbedder;
-  getFaceScan(): FaceScanService;
   getSuggestionEngine(): SuggestionEngine;
-  getFolderForPath(filePath: string): Folder | null;
 }
 
 export interface AddImageOptions {
@@ -66,19 +55,6 @@ export class DatabaseImagesService {
     this.shuffleInPlace(ids);
     this.shuffledIdCache.set(cacheKey, ids);
     return ids;
-  }
-
-  deleteShuffledIds(prefixOrKey: string, exact: boolean = false): void {
-    if (exact) {
-      this.shuffledIdCache.delete(prefixOrKey);
-      return;
-    }
-
-    for (const key of Array.from(this.shuffledIdCache.keys())) {
-      if (key.startsWith(prefixOrKey)) {
-        this.shuffledIdCache.delete(key);
-      }
-    }
   }
 
   fetchImagesByIdsInOrder(ids: number[]): Image[] {
@@ -196,7 +172,6 @@ export class DatabaseImagesService {
   private isUnchangedScanComplete(
     state: ReturnType<DatabaseManager['images']['getImageScanState']>,
     stats: Awaited<ReturnType<typeof fs.stat>>,
-    faceScanExcluded: boolean,
   ): state is NonNullable<typeof state> {
     if (!state) return false;
     if (state.file_size !== Number(stats.size)) return false;
@@ -208,8 +183,7 @@ export class DatabaseImagesService {
       !!state.embedded &&
       state.palette_json !== null &&
       // NULL origin means this row still needs provenance classification.
-      state.origin_kind !== null &&
-      (faceScanExcluded || !!state.faces_scanned)
+      state.origin_kind !== null
     );
   }
 
@@ -219,9 +193,8 @@ export class DatabaseImagesService {
     const normalizedPath = path.resolve(filePath);
     const fileName = path.basename(filePath);
     const stats = await fs.stat(filePath);
-    const folder = this.deps.getFolderForPath(filePath);
     const existingState = db.images.getImageScanState(normalizedPath);
-    if (this.isUnchangedScanComplete(existingState, stats, !!folder?.exclude_from_face_scan)) {
+    if (this.isUnchangedScanComplete(existingState, stats)) {
       db.images.clearMissingFlag(existingState.id);
       return { imageId: existingState.id, skipped: true };
     }
@@ -311,20 +284,6 @@ export class DatabaseImagesService {
       }
     } else {
       console.error(`Failed to extract palette for ${filePath}:`, paletteResult.reason);
-    }
-
-    if (!folder?.exclude_from_face_scan) {
-      try {
-        const faceScan = this.deps.getFaceScan();
-        const result = created
-          ? await faceScan.processImage(imageId, filePath, loaded)
-          : await faceScan.rescanImage(imageId, filePath, loaded);
-        for (const personId of result.personIds) {
-          this.deleteShuffledIds(`person:${personId}`, true);
-        }
-      } catch (error) {
-        console.error(`Failed face detection for ${filePath}:`, error);
-      }
     }
 
     if (options.invalidateCache !== false) {

@@ -10,7 +10,6 @@ export function useGalleryQuery(scrollContainerRef: RefObject<HTMLDivElement | n
   const tagFilters = useUIStore((s) => s.tagFilters);
   const showHidden = useUIStore((s) => s.showHidden);
   const showFavoritesOnly = useUIStore((s) => s.showFavoritesOnly);
-  const personFilter = useUIStore((s) => s.personFilter);
   const folderFilter = useUIStore((s) => s.folderFilter);
   const paletteFilters = useUIStore((s) => s.paletteFilters);
   const originFilter = useUIStore((s) => s.originFilter);
@@ -25,7 +24,6 @@ export function useGalleryQuery(scrollContainerRef: RefObject<HTMLDivElement | n
       tagFilters,
       showHidden,
       showFavoritesOnly,
-      personFilter,
       folderFilter,
       paletteFilters,
       originFilter,
@@ -37,7 +35,6 @@ export function useGalleryQuery(scrollContainerRef: RefObject<HTMLDivElement | n
     tagFilters,
     showHidden,
     showFavoritesOnly,
-    personFilter,
     folderFilter,
     paletteFilters,
     originFilter,

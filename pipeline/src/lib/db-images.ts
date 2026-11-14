@@ -35,7 +35,6 @@ export interface ImageScanState {
   file_hash: string | null;
   embedded: number;
   palette_json: string | null;
-  faces_scanned: number;
   origin_kind: OriginKind | null;
 }
 
@@ -44,7 +43,6 @@ type OriginColumn = 'origin_kind' | 'origin_domain' | 'origin_at' | 'website_lin
 export interface ImageSetFilter {
   includeHidden?: boolean;
   favorites?: boolean;
-  personId?: number;
   folderId?: number;
   tags?: string[];
   origin?: { kind?: OriginKind; domain?: string };
@@ -210,7 +208,7 @@ export class DatabaseImageRepository {
     const row = this.db
       .prepare(
         `SELECT i.id, i.file_size, i.file_mtime_ms, i.file_hash, i.palette_json,
-                i.faces_scanned, i.origin_kind,
+                i.origin_kind,
                 ${this.embeddedColumn()}
          FROM images i
          WHERE i.file_path = ?`,
@@ -231,11 +229,6 @@ export class DatabaseImageRepository {
     const params: Array<string | number> = [];
 
     if (filter.favorites) where.push('i.favorite = 1');
-
-    if (filter.personId != null) {
-      where.push('EXISTS (SELECT 1 FROM faces f WHERE f.image_id = i.id AND f.person_id = ?)');
-      params.push(filter.personId);
-    }
 
     if (filter.folderId != null) {
       where.push(

@@ -2,11 +2,6 @@ export interface CancellableResult {
   cancelled: boolean;
 }
 
-export interface FaceScanResult extends CancellableResult {
-  scanned: number;
-  detected: number;
-}
-
 export interface ScanFolderResult extends CancellableResult {
   folderId: number;
   processed: number;

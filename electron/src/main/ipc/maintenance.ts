@@ -22,18 +22,11 @@ async function wipeCacheDir(dirPath: string): Promise<void> {
 export function registerMaintenanceHandlers({ dbService, watcherService }: MainIpcContext): void {
   const userDataPaths = getSortieUserDataPaths(app.getPath('userData'));
 
-  handleInvoke('resetFaceData', async () => {
-    await dbService.maintenance.resetFaceData();
-    await wipeCacheDir(userDataPaths.faceThumbs);
-    return { success: true };
-  });
-
   handleInvoke('resetDatabase', async () => {
     watcherService.stopAll();
     await dbService.maintenance.resetDatabase();
     await Promise.all([
       wipeCacheDir(userDataPaths.thumbs),
-      wipeCacheDir(userDataPaths.faceThumbs),
       wipeCacheDir(userDataPaths.rawPreviews),
       wipeCacheDir(userDataPaths.linkPreviews),
       wipeCacheDir(userDataPaths.dragIcons),

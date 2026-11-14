@@ -13,7 +13,6 @@ function resetUiStore() {
     tagFilters: [],
     showHidden: false,
     showFavoritesOnly: false,
-    personFilter: null,
     folderFilter: null,
     paletteFilters: [],
   });

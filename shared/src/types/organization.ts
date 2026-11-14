@@ -27,7 +27,6 @@ export interface Folder {
   path: string;
   watched: boolean;
   ignored: boolean;
-  exclude_from_face_scan: boolean;
   available: boolean;
   writable: boolean;
   last_scanned: string | null;
@@ -85,7 +84,6 @@ export interface DuplicateScanProgress {
 export interface Query {
   text?: string;
   imageBytes?: Uint8Array;
-  personId?: number;
   folderId?: number;
   tags?: string[];
   palette?: string[];
