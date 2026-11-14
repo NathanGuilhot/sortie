@@ -64,8 +64,6 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
         const notices: string[] = [];
         if (result.failed)
           notices.push(`${result.failed} images could not be checked. Try scanning again.`);
-        if (result.exactOnly)
-          notices.push(`${result.exactOnly} images could only be checked for identical copies.`);
         set({
           duplicateGroups: result.groups,
           hasScanned: true,
