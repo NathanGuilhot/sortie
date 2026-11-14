@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { invalidateCollections } from '../collectionInvalidation';
-import type { DuplicateGroup, DuplicateScanProgress, DuplicateScanResult } from 'shared';
+import type {
+  DuplicateGroup,
+  DuplicateScanProgress,
+  DuplicateScanResult,
+  DuplicateGroupUpdate,
+} from 'shared';
 import { getIpcErrorMessage } from '../ipc';
 import { type OperationHandle, runOperation } from '../operations/runOperation';
 
@@ -11,6 +16,8 @@ interface CleanupStore {
   hasScanned: boolean;
   scanning: boolean;
   working: boolean;
+  activeGroupId: string | null;
+  hasReviewed: boolean;
   scanProgress: DuplicateScanProgress | null;
   scanHandle: OperationHandle<DuplicateScanResult> | null;
   setError: (error: string | null) => void;
@@ -27,6 +34,8 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
   hasScanned: false,
   scanning: false,
   working: false,
+  activeGroupId: null,
+  hasReviewed: false,
   scanProgress: null,
   scanHandle: null,
   setError: (error) => set({ error }),
@@ -38,6 +47,7 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
       error: null,
       notice: null,
       hasScanned: false,
+      hasReviewed: false,
       duplicateGroups: [],
       scanProgress: { phase: 'hashing', current: 0, total: 0 },
     });
@@ -80,37 +90,71 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
 
   dismissGroup: async (groupId) => {
     if (get().working || get().scanning) return;
-    set({ working: true, error: null });
+    set({ working: true, activeGroupId: groupId, error: null });
     try {
-      await window.sortieAPI.dismissDuplicateGroup(groupId);
-      set({ working: false, duplicateGroups: [] });
-      await get().scanForDuplicates();
+      const update = await window.sortieAPI.dismissDuplicateGroup(groupId);
+      set((state) => ({
+        duplicateGroups: applyGroupUpdate(state.duplicateGroups, update),
+        hasReviewed: state.hasReviewed || update.removedGroupIds.length > 0,
+        error: update.error ?? null,
+      }));
     } catch (error) {
       set({ error: getIpcErrorMessage(error) });
     } finally {
-      set({ working: false });
+      set({ working: false, activeGroupId: null });
     }
   },
 
   keepImage: async (groupId, keepId) => {
     if (get().working || get().scanning) return;
-    set({ working: true, error: null });
+    set({ working: true, activeGroupId: groupId, error: null });
     try {
       const result = await window.sortieAPI.keepDuplicate(groupId, keepId);
-      if (result.removedIds.length) {
-        set({ duplicateGroups: [] });
-        await invalidateCollections();
-        set({ working: false });
-        await get().scanForDuplicates();
+      set((state) => ({
+        duplicateGroups: applyGroupUpdate(state.duplicateGroups, result),
+        hasReviewed: state.hasReviewed || result.removedGroupIds.length > 0,
+        error:
+          result.error ??
+          (result.failed.length
+            ? `Couldn't finish cleanup for ${result.failed.length} images. ${result.failed[0].message}`
+            : null),
+      }));
+      if (result.removedIds.length || result.pendingRecoveryIds.length) {
+        try {
+          await invalidateCollections();
+        } catch (error) {
+          set((state) => ({
+            error: [
+              state.error,
+              `Cleanup results were saved, but library views could not refresh. ${getIpcErrorMessage(error)}`,
+            ]
+              .filter(Boolean)
+              .join(' '),
+          }));
+        }
       }
-      if (result.failed.length)
-        set({
-          error: `Couldn't move ${result.failed.length} images to Trash. ${result.failed[0].message}`,
-        });
     } catch (error) {
-      set({ duplicateGroups: [], error: getIpcErrorMessage(error) });
+      set({ error: getIpcErrorMessage(error) });
     } finally {
-      set({ working: false });
+      set({ working: false, activeGroupId: null });
     }
   },
 }));
+
+function applyGroupUpdate(
+  groups: DuplicateGroup[],
+  update: DuplicateGroupUpdate,
+): DuplicateGroup[] {
+  if (!update.removedGroupIds.length && !update.groups.length) return groups;
+  const removed = new Set(update.removedGroupIds);
+  const next: DuplicateGroup[] = [];
+  let inserted = false;
+  for (const group of groups) {
+    if (removed.has(group.groupId)) {
+      if (!inserted) next.push(...update.groups);
+      inserted = true;
+    } else next.push(group);
+  }
+  if (!inserted) next.push(...update.groups);
+  return next;
+}

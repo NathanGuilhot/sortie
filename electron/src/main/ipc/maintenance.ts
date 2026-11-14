@@ -46,10 +46,9 @@ export function registerMaintenanceHandlers({ dbService, watcherService }: MainI
     }
   });
 
-  handleInvoke('dismissDuplicateGroup', async (_event, { groupId }) => {
-    await dbService.duplicates.dismiss(groupId);
-    return { success: true };
-  });
+  handleInvoke('dismissDuplicateGroup', async (_event, { groupId }) =>
+    dbService.duplicates.dismiss(groupId),
+  );
 
   handleInvoke('keepDuplicate', async (_event, { groupId, keepId }) =>
     dbService.duplicates.keep(groupId, keepId),

@@ -1,9 +1,17 @@
-import { ReactNode } from 'react';
+import { ReactNode, type Ref, type UIEventHandler } from 'react';
 import { XIcon, SpinnerIcon } from './icons';
 
-export function ScreenShell({ children }: { children: ReactNode }) {
+export function ScreenShell({
+  children,
+  scrollRef,
+  onScroll,
+}: {
+  children: ReactNode;
+  scrollRef?: Ref<HTMLDivElement>;
+  onScroll?: UIEventHandler<HTMLDivElement>;
+}) {
   return (
-    <div className="h-full overflow-y-auto">
+    <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto">
       <div className="max-w-5xl mx-auto px-6 py-8">{children}</div>
     </div>
   );

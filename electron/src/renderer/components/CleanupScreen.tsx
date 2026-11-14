@@ -1,20 +1,30 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { DuplicateGroup, Image } from 'shared';
 import { useCleanupStore } from '../stores/cleanupStore';
 import { useFolderStore } from '../stores/folderStore';
 import { formatSize } from './folderScannerUtils';
 import { buildSortieThumbUrl } from './sortieImageUrl';
-import { ScreenShell, ProgressPanel, PrimaryButton } from './screen';
+import {
+  ScreenShell,
+  StatHeader,
+  EmptyState,
+  ProgressPanel,
+  PrimaryButton,
+  CancelButton,
+} from './screen';
+import { SearchIcon, ClipboardIcon, CheckIcon } from './icons';
 import { MetadataModal } from './MetadataModal';
 
 export function DuplicateGroupCard({
   group,
   busy,
+  moving = false,
   onKeep,
   onDismiss,
 }: {
   group: DuplicateGroup;
   busy: boolean;
+  moving?: boolean;
   onKeep: (groupId: string, keepId: number) => void;
   onDismiss: (groupId: string) => void;
 }) {
@@ -28,7 +38,10 @@ export function DuplicateGroupCard({
       : group.images.filter((image) => image.id !== keepId && isWritable(image.file_path)).length;
 
   return (
-    <section className="bg-white rounded-lg border border-gray-200 p-5">
+    <section
+      data-duplicate-group={group.groupId}
+      className="bg-white rounded-lg border border-gray-200 p-5"
+    >
       <div className="flex items-center justify-between gap-3 mb-4">
         <h2 className="text-sm font-medium text-ink">Choose an image to keep</h2>
         <span className="text-xs text-gray-500">{group.images.length} images</span>
@@ -104,7 +117,7 @@ export function DuplicateGroupCard({
                 if (keepId !== null) onKeep(group.groupId, keepId);
               }}
             >
-              {busy ? 'Moving…' : `Move ${removalCount} to Trash`}
+              {moving ? 'Moving…' : `Move ${removalCount} to Trash`}
             </PrimaryButton>
           </div>
         </div>
@@ -143,6 +156,8 @@ export function CleanupScreen() {
     duplicateGroups,
     scanning,
     working,
+    activeGroupId,
+    hasReviewed,
     scanProgress,
     hasScanned,
     notice,
@@ -151,17 +166,81 @@ export function CleanupScreen() {
     dismissGroup,
     keepImage,
   } = useCleanupStore();
+  const { isWritable } = useFolderStore();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const anchors = useRef<Array<{ id: string; top: number }>>([]);
+  const capturePosition = () => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const top = container.getBoundingClientRect().top;
+    anchors.current = Array.from(container.querySelectorAll<HTMLElement>('[data-duplicate-group]'))
+      .filter((element) => element.getBoundingClientRect().bottom > top)
+      .map((element) => ({
+        id: element.dataset.duplicateGroup!,
+        top: element.getBoundingClientRect().top,
+      }));
+  };
+  useLayoutEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !anchors.current.length) return;
+    const elements = Array.from(container.querySelectorAll<HTMLElement>('[data-duplicate-group]'));
+    for (const anchor of anchors.current) {
+      const element = elements.find((item) => item.dataset.duplicateGroup === anchor.id);
+      if (element) {
+        container.scrollTop += element.getBoundingClientRect().top - anchor.top;
+        break;
+      }
+    }
+    anchors.current = [];
+  }, [duplicateGroups]);
+  const uniqueImages = new Map(
+    duplicateGroups.flatMap((group) => group.images.map((image) => [image.id, image] as const)),
+  );
+  // Estimate a feasible cleanup once per image, retaining a keeper for each group.
+  const removed = new Set<number>();
+  const retained = new Set<number>();
+  for (const group of duplicateGroups) {
+    const remaining = group.images.filter((image) => !removed.has(image.id));
+    const keeper =
+      remaining.find((image) => retained.has(image.id) || !isWritable(image.file_path)) ??
+      [...remaining].sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0))[0];
+    if (!keeper) continue;
+    retained.add(keeper.id);
+    for (const image of remaining)
+      if (image.id !== keeper.id && !retained.has(image.id) && isWritable(image.file_path))
+        removed.add(image.id);
+  }
+  const reclaimableBytes = [...removed].reduce(
+    (sum, id) => sum + (uniqueImages.get(id)?.file_size ?? 0),
+    0,
+  );
   return (
-    <ScreenShell>
-      <header className="flex items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-medium text-ink">Cleanup</h1>
-        <PrimaryButton
-          disabled={working}
-          onClick={() => void (scanning ? cancelScan() : scanForDuplicates())}
-        >
-          {scanning ? 'Cancel' : 'Scan'}
-        </PrimaryButton>
-      </header>
+    <ScreenShell
+      scrollRef={scrollRef}
+      onScroll={() => {
+        if (anchors.current.length) capturePosition();
+      }}
+    >
+      <StatHeader
+        stats={[
+          { value: duplicateGroups.length, label: 'Duplicate Groups' },
+          { value: uniqueImages.size, label: 'Total Files' },
+          { value: formatSize(reclaimableBytes), label: 'Reclaimable' },
+        ]}
+        action={
+          scanning ? (
+            <CancelButton onClick={() => void cancelScan()}>Cancel</CancelButton>
+          ) : (
+            <PrimaryButton
+              icon={<SearchIcon />}
+              disabled={working}
+              onClick={() => void scanForDuplicates()}
+            >
+              Scan for Duplicates
+            </PrimaryButton>
+          )
+        }
+      />
       {scanning && (
         <ProgressPanel
           label="Scanning images…"
@@ -174,14 +253,36 @@ export function CleanupScreen() {
           {notice}
         </p>
       )}
-      {!scanning && duplicateGroups.length === 0 && (
-        <p className="text-sm text-gray-500 text-center py-20">
-          {hasScanned
-            ? notice
-              ? 'No matches found in the images checked.'
-              : 'No duplicates found.'
-            : 'Scan your library to review duplicate images.'}
-        </p>
+      {!hasScanned && !scanning && duplicateGroups.length === 0 && (
+        <EmptyState
+          icon={<ClipboardIcon className="w-8 h-8" strokeWidth={1.5} />}
+          title="Find duplicate images"
+          description="Find exact and visual duplicates."
+          action={
+            <PrimaryButton
+              icon={<SearchIcon />}
+              size="lg"
+              disabled={working}
+              onClick={() => void scanForDuplicates()}
+            >
+              Scan for Duplicates
+            </PrimaryButton>
+          }
+        />
+      )}
+      {hasScanned && !scanning && duplicateGroups.length === 0 && (
+        <EmptyState
+          icon={<CheckIcon className="w-8 h-8" />}
+          iconTone={notice ? 'default' : 'success'}
+          title={hasReviewed ? 'No remaining matches to review' : 'No duplicates found'}
+          description={
+            notice
+              ? 'No matches remain in the images checked.'
+              : hasReviewed
+                ? undefined
+                : 'Your library is clean!'
+          }
+        />
       )}
       <div className="space-y-4 pb-8">
         {duplicateGroups.map((group) => (
@@ -189,8 +290,21 @@ export function CleanupScreen() {
             key={group.groupId}
             group={group}
             busy={scanning || working}
-            onKeep={(groupId, keepId) => void keepImage(groupId, keepId)}
-            onDismiss={(groupId) => void dismissGroup(groupId)}
+            moving={working && activeGroupId === group.groupId}
+            onKeep={(groupId, keepId) => {
+              capturePosition();
+              void keepImage(groupId, keepId).finally(() => {
+                if (useCleanupStore.getState().duplicateGroups === duplicateGroups)
+                  anchors.current = [];
+              });
+            }}
+            onDismiss={(groupId) => {
+              capturePosition();
+              void dismissGroup(groupId).finally(() => {
+                if (useCleanupStore.getState().duplicateGroups === duplicateGroups)
+                  anchors.current = [];
+              });
+            }}
           />
         ))}
       </div>

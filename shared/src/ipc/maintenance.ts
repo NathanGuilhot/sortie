@@ -1,4 +1,9 @@
-import type { BackfillExifResult, DuplicateCleanupResult, DuplicateScanResult } from '../types';
+import type {
+  BackfillExifResult,
+  DuplicateCleanupResult,
+  DuplicateGroupUpdate,
+  DuplicateScanResult,
+} from '../types';
 import { IPC_CHANNELS } from '../ipc-channels';
 import type { OperationProgress } from './events';
 
@@ -7,7 +12,7 @@ export interface MaintenanceApi {
   computeMissingPalettes: (opId: string) => Promise<{ computed: number; cancelled: boolean }>;
   onPaletteProgress: (callback: (progress: OperationProgress) => void) => () => void;
   scanDuplicates: (opId: string) => Promise<DuplicateScanResult>;
-  dismissDuplicateGroup: (groupId: string) => Promise<{ success: boolean }>;
+  dismissDuplicateGroup: (groupId: string) => Promise<DuplicateGroupUpdate>;
   keepDuplicate: (groupId: string, keepId: number) => Promise<DuplicateCleanupResult>;
   deleteImage: (imageId: number) => Promise<{ success: boolean }>;
   onHashProgress: (callback: (progress: OperationProgress) => void) => () => void;
@@ -42,7 +47,7 @@ export interface MaintenanceInvokeResultByKey {
   cancelOperation: { cancelled: boolean };
   computeMissingPalettes: { computed: number; cancelled: boolean };
   scanDuplicates: DuplicateScanResult;
-  dismissDuplicateGroup: { success: boolean };
+  dismissDuplicateGroup: DuplicateGroupUpdate;
   keepDuplicate: DuplicateCleanupResult;
   deleteImage: { success: boolean };
   backfillExif: BackfillExifResult;

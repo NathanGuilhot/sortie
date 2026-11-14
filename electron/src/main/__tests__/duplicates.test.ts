@@ -70,7 +70,7 @@ describe('duplicate scans and cleanup', () => {
     expect((await service.scan()).groups).toHaveLength(1);
     const fresh = (await service.scan()).groups[0];
     await fs.writeFile(b, 'replaced externally');
-    await expect(service.keep(fresh.groupId, left)).rejects.toThrow('changed');
+    expect((await service.keep(fresh.groupId, left)).error).toContain('changed');
     expect(trash).not.toHaveBeenCalled();
   });
 
@@ -84,7 +84,7 @@ describe('duplicate scans and cleanup', () => {
     t.manager.images.updateImageMetadata(right, { description: 'other description' });
     const group = (await service.scan()).groups[0];
     const result = await service.keep(group.groupId, left);
-    expect(result).toEqual({ removedIds: [right], failed: [] });
+    expect(result).toMatchObject({ removedIds: [right], pendingRecoveryIds: [], failed: [] });
     expect(t.manager.boards.getBoardImageIdsPaged(one, 100, 0)).toEqual([left]);
     expect(t.manager.boards.getBoardImageIdsPaged(two, 100, 0)).toEqual([left]);
     expect(t.manager.images.getImageById(left)!.description).toBe('selected description');
@@ -104,7 +104,7 @@ describe('duplicate scans and cleanup', () => {
     t.raw.prepare('UPDATE images SET file_path=? WHERE id=?').run(keeper, left);
     seedFolder(t, keeperFolder, { writable: false });
     const group = (await service.scan()).groups[0];
-    await expect(service.keep(group.groupId, right)).rejects.toThrow('read-only');
+    expect((await service.keep(group.groupId, right)).error).toContain('read-only');
     expect(trash).not.toHaveBeenCalled();
     expect((await service.keep(group.groupId, left)).removedIds).toEqual([right]);
     await expect(fs.stat(b)).rejects.toMatchObject({ code: 'ENOENT' });

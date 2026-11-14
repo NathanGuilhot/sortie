@@ -15,6 +15,8 @@ import {
   type DuplicateGroup,
   type DuplicateScanResult,
   type DuplicateCleanupResult,
+  type DuplicateGroupUpdate,
+  type Image,
 } from 'shared';
 import { PathTaskQueue } from '../pathTaskQueue';
 
@@ -158,18 +160,94 @@ export class DatabaseDuplicateService {
     return group;
   }
 
-  async dismiss(groupId: string): Promise<void> {
+  private reconcile(excluded: Set<number>, dismissed: number[] = []): DuplicateGroupUpdate {
+    const update: DuplicateGroupUpdate = { removedGroupIds: [], groups: [] };
+    const dismissedIds = new Set(dismissed);
+    const replacements: DuplicateGroup[] = [];
+    for (const [id, group] of this.groups) {
+      if (
+        !group.images.some((image) => excluded.has(image.id)) &&
+        group.images.filter((image) => dismissedIds.has(image.id)).length < 2
+      )
+        continue;
+      this.groups.delete(id);
+      update.removedGroupIds.push(id);
+      const images = group.images.filter((image) => !excluded.has(image.id));
+      const replacement = (members: Image[]): DuplicateGroup => ({
+        groupId: createHash('sha256')
+          .update(members.map((image) => `${image.id}:${image.file_hash}`).join('|'))
+          .digest('hex'),
+        images: members,
+        matchType: members.every((image) => image.file_hash === members[0].file_hash)
+          ? 'exact'
+          : 'visual',
+      });
+      if (!dismissedIds.size) {
+        if (images.length > 1) replacements.push(replacement(images));
+        continue;
+      }
+      const covered = new Set<string>();
+      const pair = (a: number, b: number) => `${Math.min(a, b)}:${Math.max(a, b)}`;
+      const allowed = (a: Image, b: Image) => !(dismissedIds.has(a.id) && dismissedIds.has(b.id));
+      // Every pair in the original group was verified. Only subtract evidence here.
+      for (let i = 0; i < images.length; i++) {
+        for (let j = i + 1; j < images.length; j++) {
+          if (!allowed(images[i], images[j]) || covered.has(pair(images[i].id, images[j].id)))
+            continue;
+          const members = [images[i], images[j]];
+          for (const candidate of images) {
+            if (
+              !members.includes(candidate) &&
+              members.every((member) => allowed(member, candidate))
+            )
+              members.push(candidate);
+          }
+          members.sort((a, b) => a.id - b.id);
+          for (let a = 0; a < members.length; a++)
+            for (let b = a + 1; b < members.length; b++)
+              covered.add(pair(members[a].id, members[b].id));
+          replacements.push(replacement(members));
+        }
+      }
+    }
+    for (const group of replacements) {
+      if (this.groups.has(group.groupId)) continue;
+      this.groups.set(group.groupId, group);
+      update.groups.push(group);
+    }
+    return update;
+  }
+
+  private async revalidate(image: Image, invalid: Set<number>): Promise<FileAnalysis> {
+    try {
+      if (!this.deps.requireDb().images.getVisibleImageIds().includes(image.id))
+        throw new Error('An image is no longer available. Scan again.');
+      const current = await this.refresh(image.file_path, true);
+      if (current.source_hash !== image.file_hash) throw new Error('An image changed. Scan again.');
+      return current;
+    } catch (error) {
+      invalid.add(image.id);
+      throw error;
+    }
+  }
+
+  async dismiss(groupId: string): Promise<DuplicateGroupUpdate> {
     if (this.busy) throw new Error('Another cleanup operation is running.');
     const group = this.getGroup(groupId);
+    const invalid = new Set<number>();
     this.busy = true;
     try {
-      for (const image of group.images) {
-        const current = await this.refresh(image.file_path, true);
-        if (current.source_hash !== image.file_hash)
-          throw new Error('An image changed. Scan again.');
-      }
+      for (const image of group.images) await this.revalidate(image, invalid);
       this.deps.requireDb().duplicates.dismiss(group.images.map((image) => image.id));
-      this.groups.delete(groupId);
+      return this.reconcile(
+        invalid,
+        group.images.map((image) => image.id),
+      );
+    } catch (error) {
+      return {
+        ...this.reconcile(invalid),
+        error: error instanceof Error ? error.message : String(error),
+      };
     } finally {
       this.busy = false;
     }
@@ -181,13 +259,23 @@ export class DatabaseDuplicateService {
     const keeper = group.images.find((image) => image.id === keepId);
     if (!keeper) throw new Error('Select an image in this group.');
     this.busy = true;
-    const result: DuplicateCleanupResult = { removedIds: [], failed: [] };
+    const result: DuplicateCleanupResult = {
+      removedIds: [],
+      pendingRecoveryIds: [],
+      failed: [],
+      removedGroupIds: [],
+      groups: [],
+    };
+    const invalid = new Set<number>();
     try {
       const db = this.deps.requireDb();
       const folders = db.folders.listFolders();
       const visible = new Set(db.images.getVisibleImageIds());
-      if (!visible.has(keepId))
+      if (!visible.has(keepId)) {
+        invalid.add(keepId);
         throw new Error('The selected image is no longer available. Scan again.');
+      }
+      for (const image of group.images) if (!visible.has(image.id)) invalid.add(image.id);
       const candidates = group.images.filter((image) => {
         const folder = mostSpecificFolderForPath(folders, image.file_path);
         return (
@@ -198,9 +286,7 @@ export class DatabaseDuplicateService {
       });
       if (!candidates.length) throw new Error('The other images are read-only or unavailable.');
       for (const image of [keeper, ...candidates]) {
-        const current = await this.refresh(image.file_path, true);
-        if (current.source_hash !== image.file_hash)
-          throw new Error('An image changed. Scan again before cleanup.');
+        await this.revalidate(image, invalid);
       }
       const keeperPath = await fs.realpath(keeper.file_path);
       for (const image of candidates) {
@@ -215,10 +301,8 @@ export class DatabaseDuplicateService {
             throw new Error('Linked images cannot be removed by cleanup.');
           }
           await fs.access(path.dirname(image.file_path), fs.constants.W_OK);
-          const kept = await this.refresh(keeper.file_path, true);
-          const current = await this.refresh(image.file_path, true);
-          if (kept.source_hash !== keeper.file_hash || current.source_hash !== image.file_hash)
-            throw new Error('An image changed. Scan again.');
+          const kept = await this.revalidate(keeper, invalid);
+          const current = await this.revalidate(image, invalid);
           const move: CleanupMove = {
             id: randomUUID(),
             image_id: image.id,
@@ -236,6 +320,8 @@ export class DatabaseDuplicateService {
             sourceStamp(statSync(image.file_path)) !== current.source_stamp ||
             lstatSync(image.file_path).isSymbolicLink()
           ) {
+            invalid.add(keeper.id);
+            invalid.add(image.id);
             db.duplicates.setMoveState(move.id, 'failed', 'An image changed before removal.');
             throw new Error('An image changed. Scan again.');
           }
@@ -246,9 +332,12 @@ export class DatabaseDuplicateService {
             db.duplicates.setMoveState(move.id, 'failed', String(error));
             throw error;
           }
-          db.duplicates.setMoveState(move.id, 'trashed');
+          invalid.add(image.id);
+          result.pendingRecoveryIds.push(image.id);
           try {
+            db.duplicates.setMoveState(move.id, 'trashed');
             db.duplicates.finishMove(move);
+            result.pendingRecoveryIds.pop();
           } catch (error) {
             throw new Error(
               'The image was moved to Trash. Restart Sortie to finish updating its boards.',
@@ -263,14 +352,15 @@ export class DatabaseDuplicateService {
           });
         }
       }
-      if (result.removedIds.length) {
-        this.groups.clear();
-        this.deps.invalidateImageCache();
-      }
-      return result;
+    } catch (error) {
+      result.error = error instanceof Error ? error.message : String(error);
     } finally {
+      Object.assign(result, this.reconcile(invalid));
+      if (result.removedIds.length || result.pendingRecoveryIds.length)
+        this.deps.invalidateImageCache();
       this.busy = false;
     }
+    return result;
   }
 
   async recover(): Promise<void> {

@@ -76,8 +76,15 @@ export interface DuplicateScanResult {
   cancelled: boolean;
 }
 
-export interface DuplicateCleanupResult {
+export interface DuplicateGroupUpdate {
+  removedGroupIds: string[];
+  groups: DuplicateGroup[];
+  error?: string;
+}
+
+export interface DuplicateCleanupResult extends DuplicateGroupUpdate {
   removedIds: number[];
+  pendingRecoveryIds: number[];
   failed: Array<{ imageId: number; message: string }>;
 }
 
