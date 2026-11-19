@@ -10,8 +10,10 @@
       "electron"
     ],
     "nohoist": [
-      "pipeline/@gutenye/**",
-      "pipeline/@gutenye/**/**",
+      "pipeline/@gutenye/ocr-node",
+      "pipeline/@gutenye/ocr-node/@gutenye/ocr-common",
+      "pipeline/@gutenye/ocr-node/onnxruntime-node",
+      "pipeline/@gutenye/ocr-node/onnxruntime-node/**",
       "pipeline/onnxruntime-node",
       "pipeline/onnxruntime-common"
     ]

@@ -1,5 +1,3 @@
-import 'dotenv/config';
-
 export { DatabaseManager } from './lib/db';
 export { ClipEmbedder } from './lib/clip';
 export { extractExif } from './lib/exif';
@@ -16,6 +14,7 @@ export {
 export type { CleanupMove } from './lib/db-duplicates';
 export { extractPalette, hexToOklab } from './lib/palette';
 export { isRawPath, loadImageInput, shutdownRawLoader } from './lib/raw';
+export { sharp } from './lib/lazy-modules';
 export { runWithConcurrency } from './lib/worker-pool';
 export {
   classifyOrigin,

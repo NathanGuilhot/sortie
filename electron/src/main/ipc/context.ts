@@ -37,9 +37,25 @@ type InvokeHandler<K extends InvokeKey> = (
   args: InvokeArgsByKey[K],
 ) => Promise<InvokeResultByKey[K]> | InvokeResultByKey[K];
 
+type AnyInvokeHandler = (event: IpcMainInvokeEvent, args: unknown) => unknown;
+const invokeHandlers = new Map<string, AnyInvokeHandler>();
+
+/**
+ * Registers every invoke channel up front, so the window can open before the
+ * database is ready. Calls wait for `servicesReady`, then go to the handler
+ * that `handleInvoke` registered. If startup fails, they reject with that error.
+ */
+export function installInvokeDispatchers(servicesReady: Promise<void>): void {
+  for (const channel of new Set<string>(Object.values(IPC_INVOKE_CHANNELS))) {
+    ipcMain.handle(channel, async (event, args: unknown) => {
+      await servicesReady;
+      const handler = invokeHandlers.get(channel);
+      if (!handler) throw new Error(`No handler registered for '${channel}'`);
+      return await handler(event, args);
+    });
+  }
+}
+
 export function handleInvoke<K extends InvokeKey>(key: K, handler: InvokeHandler<K>): void {
-  const channel = IPC_INVOKE_CHANNELS[key];
-  ipcMain.handle(channel, async (event, args) => {
-    return await handler(event, args as InvokeArgsByKey[K]);
-  });
+  invokeHandlers.set(IPC_INVOKE_CHANNELS[key], handler as AnyInvokeHandler);
 }

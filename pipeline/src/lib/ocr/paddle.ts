@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
-import sharp from 'sharp';
+import { sharp } from '../lazy-modules';
 import { dynamicImport } from '../dynamic-import';
 import { resolveImageInput } from '../raw';
 import type { OcrBlock, OcrEngine, OcrEngineOptions } from './types';

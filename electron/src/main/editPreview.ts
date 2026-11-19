@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import sharp from 'sharp';
+import { sharp } from 'pipeline';
 import { buildCacheKey } from './cacheKey';
 
 export interface EditPreviewRequest {

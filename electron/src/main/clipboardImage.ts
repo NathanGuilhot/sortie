@@ -1,5 +1,4 @@
-import sharp from 'sharp';
-import { loadImageInput } from 'pipeline';
+import { loadImageInput, sharp } from 'pipeline';
 
 export async function createDisplayOrientedPngBuffer(filePath: string): Promise<Buffer> {
   const input = await loadImageInput(filePath);

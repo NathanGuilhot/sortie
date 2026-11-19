@@ -72,7 +72,11 @@ export class DatabaseService {
     this.db = new DatabaseManager(dbPath);
     this.embedder = new ClipEmbedder(clipCacheDir);
     this.suggestionEngine = new SuggestionEngine(this.db);
-    this.ocrService = new DatabaseOcrService(this.db, ocrModelsPath);
+    this.ocrService = new DatabaseOcrService(this.db, ocrModelsPath, () =>
+      this.warmupEmbedder()
+        .then(() => this.embedder?.initialize())
+        .catch(() => undefined),
+    );
   }
 
   async runStartupMaintenance(): Promise<void> {

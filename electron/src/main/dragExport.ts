@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import sharp from 'sharp';
-import { loadImageInput } from 'pipeline';
+import { loadImageInput, sharp } from 'pipeline';
 import { buildCacheKey } from './cacheKey';
 import { getSortieUserDataPaths, type SortieUserDataPaths } from './userDataPaths';
 

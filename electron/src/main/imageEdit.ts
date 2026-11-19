@@ -1,4 +1,4 @@
-import sharp from 'sharp';
+import { sharp } from 'pipeline';
 import type { ImageEditTransform } from 'shared';
 
 export async function renderImageEdit(
