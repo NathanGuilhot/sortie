@@ -4,6 +4,18 @@ const path = require('node:path');
 exports.default = function afterPack(context) {
   if (context.electronPlatformName !== 'darwin') return;
 
+  // electronLanguages doesn't prune the Electron framework's locales on macOS.
+  const locales = path.join(
+    context.appOutDir,
+    `${context.packager.appInfo.productFilename}.app`,
+    'Contents/Frameworks/Electron Framework.framework/Resources',
+  );
+  for (const entry of fs.readdirSync(locales)) {
+    if (entry.endsWith('.lproj') && entry !== 'en.lproj') {
+      fs.rmSync(path.join(locales, entry), { recursive: true });
+    }
+  }
+
   const source = path.join(
     context.packager.projectDir,
     'build',

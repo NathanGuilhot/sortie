@@ -12,7 +12,8 @@ export class DatabaseOcrService {
 
   constructor(
     private readonly db: DatabaseManager,
-    ocrModelsPath?: string,
+    ocrModelsPath: string | undefined,
+    private readonly beforeEngineInit: () => Promise<void>,
   ) {
     if (ocrModelsPath) {
       this.engine = createOcrEngine({ modelsPath: ocrModelsPath });
@@ -97,9 +98,12 @@ export class DatabaseOcrService {
     if (this.ready) return;
     if (this.initPromise) return this.initPromise;
 
-    this.initPromise = this.engine.initialize().then(() => {
-      this.ready = true;
-    });
+    const engine = this.engine;
+    this.initPromise = this.beforeEngineInit()
+      .then(() => engine.initialize())
+      .then(() => {
+        this.ready = true;
+      });
 
     try {
       await this.initPromise;

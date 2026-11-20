@@ -58,6 +58,7 @@ export default defineConfig({
     build: {
       target: 'chrome118',
       outDir: 'dist/renderer',
+      minify: 'esbuild',
       rollupOptions: {
         input: {
           index: path.resolve(__dirname, 'src/renderer/index.html'),

@@ -1,5 +1,5 @@
 import { CLIP_INPUT_SIZE, normalizeVector } from 'shared';
-import sharp from 'sharp';
+import { sharp } from './lazy-modules';
 import { dynamicImport } from './dynamic-import';
 import { resolveImageInput } from './raw';
 

@@ -7,6 +7,7 @@
     "buildResources": "resources"
   },
   "compression": "maximum",
+  "electronLanguages": ["en", "en-US"],
   "afterPack": "scripts/after-pack.cjs",
   "afterSign": "scripts/after-sign.cjs",
   "protocols": [
@@ -52,24 +53,15 @@
     "!**/node_modules/onnxruntime-web/dist/*.map",
     "!**/node_modules/core-js/**",
     "!**/node_modules/@babel/**",
-    "!**/node_modules/react/**",
-    "!**/node_modules/react-dom/**",
-    "!**/node_modules/react-router/**",
-    "!**/node_modules/react-router-dom/**",
-    "!**/node_modules/react-dnd/**",
-    "!**/node_modules/react-dnd-html5-backend/**",
-    "!**/node_modules/react-photo-gallery/**",
-    "!**/node_modules/react-window/**",
-    "!**/node_modules/react-window-infinite-loader/**",
-    "!**/node_modules/react-tag-input/**",
-    "!**/node_modules/@react-dnd/**",
-    "!**/node_modules/@fontsource/**",
-    "!**/node_modules/lodash-es/**",
-    "!**/node_modules/web-streams-polyfill/**",
-    "!**/node_modules/fuse.js/**",
-    "!**/node_modules/zustand/**",
-    "!**/node_modules/classnames/**",
-    "!**/node_modules/scheduler/**"
+    "!build/**",
+    "!out/**",
+    "!**/node_modules/onnxruntime-web/dist/{ort.js,ort-web.js,*.min.js,*.es5.*,*.es6.*}",
+    "!**/node_modules/better-sqlite3/{deps,src}/**",
+    "!**/node_modules/better-sqlite3/build/Release/{obj,obj.target}/**",
+    "!**/node_modules/better-sqlite3/build/Release/{sqlite3.a,test_extension.node}",
+    "!**/node_modules/@gutenye/ocr-models/assets/**",
+    "!**/node_modules/onnxruntime-node/bin/**",
+    "**/node_modules/onnxruntime-node/bin/*/{d[${os}]rwin,${os}*}/${arch}/**"
   ],
   "asarUnpack": [
     "**/*.node",
@@ -94,20 +86,12 @@
     "entitlements": "resources/entitlements.mac.plist",
     "entitlementsInherit": "resources/entitlements.mac.plist",
     "gatekeeperAssess": false,
-    "artifactName": "Sortie-${version}-${arch}.${ext}",
-    "files": [
-      "!**/node_modules/onnxruntime-node/bin/napi-v3/linux/**",
-      "!**/node_modules/onnxruntime-node/bin/napi-v3/win32/**"
-    ]
+    "artifactName": "Sortie-${version}-${arch}.${ext}"
   },
   "win": {
     "target": ["nsis"],
     "icon": "resources/icons/icon.ico",
-    "artifactName": "Sortie-Setup-${version}.${ext}",
-    "files": [
-      "!**/node_modules/onnxruntime-node/bin/napi-v3/darwin/**",
-      "!**/node_modules/onnxruntime-node/bin/napi-v3/linux/**"
-    ]
+    "artifactName": "Sortie-Setup-${version}.${ext}"
   },
   "nsis": {
     "oneClick": false,
@@ -123,11 +107,7 @@
     "synopsis": "Local-first photo tagger with CLIP embeddings",
     "category": "Graphics",
     "icon": "resources/icons/icon.png",
-    "target": ["AppImage", "deb"],
-    "files": [
-      "!**/node_modules/onnxruntime-node/bin/napi-v3/darwin/**",
-      "!**/node_modules/onnxruntime-node/bin/napi-v3/win32/**"
-    ]
+    "target": ["AppImage", "deb"]
   },
   "publish": [
     {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu } from 'electron';
+import { app, BrowserWindow, dialog, Menu } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { shutdownRawLoader } from 'pipeline';
@@ -6,6 +6,7 @@ import { DatabaseService } from './database';
 import { WatcherService } from './watcher';
 import { FolderAvailabilityMonitor } from './folderAvailability';
 import { setupIpcHandlers } from './ipc';
+import { installInvokeDispatchers } from './ipc/context';
 import { emitToRenderer } from './ipc/events';
 import {
   ExternalImportService,
@@ -37,6 +38,16 @@ let quitCleanupPromise: Promise<void> | null = null;
 let provenanceBackfillStarted = false;
 const pendingExternalImports: ExternalImportInvocation[] = [];
 
+let resolveServicesReady!: () => void;
+let rejectServicesReady!: (error: unknown) => void;
+const servicesReady = new Promise<void>((resolve, reject) => {
+  resolveServicesReady = resolve;
+  rejectServicesReady = reject;
+});
+servicesReady.catch(() => undefined);
+// Services are assigned before startup maintenance ends.
+let servicesInitialized = false;
+
 const initialExternalImport = parseExternalImportArgs(process.argv);
 if (initialExternalImport) {
   pendingExternalImports.push(initialExternalImport);
@@ -53,7 +64,7 @@ app.on('second-instance', (_event, argv) => {
     queueExternalImport(invocation);
   }
 
-  if (!mainWindow && externalImportService) {
+  if (!mainWindow && servicesInitialized) {
     createWindow();
   } else if (mainWindow) {
     showMainWindow();
@@ -73,14 +84,20 @@ app.on('open-file', (event, filePath) => {
 
 function queueExternalImport(invocation: ExternalImportInvocation): void {
   pendingExternalImports.push(invocation);
-  if (externalImportService && !mainWindow && app.isReady()) {
+  if (servicesInitialized && !mainWindow && app.isReady()) {
     createWindow();
   }
   flushExternalImports();
 }
 
 function flushExternalImports(): void {
-  if (!externalImportService || !mainWindow || mainWindow.webContents.isLoading()) return;
+  if (
+    !servicesInitialized ||
+    !externalImportService ||
+    !mainWindow ||
+    mainWindow.webContents.isLoading()
+  )
+    return;
   while (pendingExternalImports.length > 0) {
     const invocation = pendingExternalImports.shift()!;
     void externalImportService.run(invocation).catch((error) => {
@@ -157,7 +174,15 @@ function createWindow() {
 
   mainWindow.webContents.once('did-stop-loading', () => setImmediate(flushExternalImports));
   mainWindow.webContents.once('did-finish-load', () => {
-    void startBackgroundProvenanceBackfill();
+    void servicesReady.then(
+      () => {
+        flushExternalImports();
+        void startBackgroundProvenanceBackfill();
+        // Loading CLIP blocks the main thread; let the gallery paint first.
+        setTimeout(() => void dbService?.warmupEmbedder(), 1000);
+      },
+      () => undefined,
+    );
   });
 
   if (process.env.NODE_ENV === 'development') {
@@ -221,7 +246,6 @@ async function initializeServices() {
   dbService.onEmbedderStatus((status) => {
     emitToRenderer(mainWindow, 'embedderStatus', status);
   });
-  void dbService.warmupEmbedder();
 
   dbService.ocr.onUpdate((payload) => {
     emitToRenderer(mainWindow, 'ocrUpdated', payload);
@@ -273,6 +297,7 @@ void app.whenReady().then(async () => {
     createProtocolPathGuard({
       allowedRoots: [app.getPath('userData')],
       getLibraryFolderPaths: async () => {
+        await servicesReady;
         if (!dbService) throw new Error('database not ready');
         const folders = await dbService.folders.getFolders();
         return folders.map((folder) => folder.path);
@@ -282,7 +307,12 @@ void app.whenReady().then(async () => {
       },
     }),
   );
-  await registerExternalImportEntrypoints();
+  installInvokeDispatchers(servicesReady);
+  createWindow();
+  Menu.setApplicationMenu(buildMenu(mainWindow));
+  void registerExternalImportEntrypoints().catch((error) => {
+    console.warn('[external-import] entrypoint registration failed:', error);
+  });
 
   try {
     app.setAboutPanelOptions({
@@ -297,20 +327,6 @@ void app.whenReady().then(async () => {
     console.warn('About panel options failed:', error);
   }
 
-  await initializeServices();
-  createWindow();
-  void dbService?.images
-    .recheckExternalImageAvailability()
-    .then(({ changed }) => {
-      if (changed > 0) {
-        console.log(`[maintenance] updated availability for ${changed} external images`);
-      }
-    })
-    .catch((error) => {
-      console.warn('[maintenance] external image availability check failed:', error);
-    });
-  Menu.setApplicationMenu(buildMenu(mainWindow));
-
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -321,6 +337,29 @@ void app.whenReady().then(async () => {
     void availabilityMonitor?.checkNow();
     void dbService?.images.recheckExternalImageAvailability();
   });
+
+  try {
+    await initializeServices();
+    servicesInitialized = true;
+    resolveServicesReady();
+  } catch (error) {
+    console.error('[boot] service initialization failed:', error);
+    rejectServicesReady(error);
+    const message = error instanceof Error ? error.message : String(error);
+    dialog.showErrorBox('Sortie could not start', message);
+    app.quit();
+    return;
+  }
+  void dbService?.images
+    .recheckExternalImageAvailability()
+    .then(({ changed }) => {
+      if (changed > 0) {
+        console.log(`[maintenance] updated availability for ${changed} external images`);
+      }
+    })
+    .catch((error) => {
+      console.warn('[maintenance] external image availability check failed:', error);
+    });
 });
 
 app.on('window-all-closed', () => {

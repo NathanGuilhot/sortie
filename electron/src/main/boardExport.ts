@@ -1,4 +1,3 @@
-import { ZipArchive } from 'archiver';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -71,6 +70,7 @@ export async function exportBoardZip(options: BoardExportOptions): Promise<Board
       path.dirname(destinationPath),
       `.${path.basename(destinationPath)}.sortie-${randomUUID()}.tmp`,
     );
+    const { ZipArchive } = await import('archiver');
     const output = fs.createWriteStream(tempPath, { flags: 'wx' });
     const archive = new ZipArchive({ store: true });
     let completed = 0;

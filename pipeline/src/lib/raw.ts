@@ -1,6 +1,6 @@
 import path from 'path';
-import sharp from 'sharp';
-import { ExifTool } from 'exiftool-vendored';
+import type { ExifTool } from 'exiftool-vendored';
+import { sharp } from './lazy-modules';
 
 // Camera RAW formats whose pixel data sharp/libvips can't decode. Each file
 // contains an embedded full-size JPEG preview (the camera's OOC render), which
@@ -30,7 +30,9 @@ let toolInstance: ExifTool | null = null;
 
 function tool(): ExifTool {
   if (!toolInstance) {
-    toolInstance = new ExifTool({ taskTimeoutMillis: 20_000 });
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ExifTool: Tool } = require('exiftool-vendored') as { ExifTool: typeof ExifTool };
+    toolInstance = new Tool({ taskTimeoutMillis: 20_000 });
     const shutdown = () => {
       void toolInstance?.end();
       toolInstance = null;

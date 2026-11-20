@@ -1,4 +1,4 @@
-import sharp from 'sharp';
+import { sharp } from './lazy-modules';
 import { resolveImageInput } from './raw';
 import kmeans from 'kmeans-ts';
 import { PaletteColor } from 'shared';

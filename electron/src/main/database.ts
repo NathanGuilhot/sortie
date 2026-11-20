@@ -72,7 +72,12 @@ export class DatabaseService {
     this.db = new DatabaseManager(dbPath);
     this.embedder = new ClipEmbedder(clipCacheDir);
     this.suggestionEngine = new SuggestionEngine(this.db);
-    this.ocrService = new DatabaseOcrService(this.db, ocrModelsPath);
+    // CLIP (onnxruntime 1.14) must load before OCR (1.24), or CLIP breaks or crashes.
+    this.ocrService = new DatabaseOcrService(this.db, ocrModelsPath, () =>
+      this.warmupEmbedder()
+        .then(() => this.embedder?.initialize())
+        .catch(() => undefined),
+    );
   }
 
   async runStartupMaintenance(): Promise<void> {

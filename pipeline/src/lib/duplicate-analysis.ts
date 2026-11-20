@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import type { Stats } from 'fs';
-import sharp from 'sharp';
+import { sharp } from './lazy-modules';
 import { computeFileHash } from './dhash';
 import { isRawPath } from './raw';
 

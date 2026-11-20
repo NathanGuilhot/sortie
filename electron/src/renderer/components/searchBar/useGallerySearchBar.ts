@@ -89,7 +89,8 @@ export function useGallerySearchBar({
     handleDrop,
     handlePaste,
   } = useReverseImageSearch({
-    embedderReady: embedderStatus.state === 'ready',
+    // Warmup is deferred; the model loads on demand.
+    embedderReady: embedderStatus.state === 'ready' || embedderStatus.state === 'idle',
     embedderWarming: embedderStatus.state === 'warming',
     setSearchQuery: (value) => {
       setLocalQuery(value);

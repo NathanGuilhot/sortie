@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { RefObject } from 'react';
 import { buildSearchQuery } from './buildSearchQuery';
 import { useImageStore } from '../stores/imageStore';
@@ -41,11 +41,18 @@ export function useGalleryQuery(scrollContainerRef: RefObject<HTMLDivElement | n
     originDataRevision,
     activeImageQuery,
   ]);
+  // No debounce on the first query. Set inside the timer so StrictMode's
+  // discarded first effect doesn't count as the first run.
+  const hasRunRef = useRef(false);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void runQuery(query);
-      scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    }, 300);
+    const timer = setTimeout(
+      () => {
+        hasRunRef.current = true;
+        void runQuery(query);
+        scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      },
+      hasRunRef.current ? 300 : 0,
+    );
     return () => clearTimeout(timer);
   }, [query, runQuery, scrollContainerRef]);
   return query;
