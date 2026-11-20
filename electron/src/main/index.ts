@@ -179,7 +179,7 @@ function createWindow() {
         flushExternalImports();
         void startBackgroundProvenanceBackfill();
         // Loading CLIP blocks the main thread; let the gallery paint first.
-        setTimeout(() => void dbService?.warmupEmbedder(), 3000);
+        setTimeout(() => void dbService?.warmupEmbedder(), 1000);
       },
       () => undefined,
     );
