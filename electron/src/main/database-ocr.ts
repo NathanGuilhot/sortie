@@ -10,15 +10,10 @@ export class DatabaseOcrService {
   private inFlight = new Map<number, Promise<OcrBlock[]>>();
   private updateListeners = new Set<(payload: OcrUpdatePayload) => void>();
 
-  /**
-   * @param beforeEngineInit Runs once before the OCR engine first loads. CLIP
-   *   (onnxruntime 1.14) must create its sessions before OCR (onnxruntime
-   *   1.24) does: in the reverse order CLIP fails or the process crashes.
-   */
   constructor(
     private readonly db: DatabaseManager,
-    ocrModelsPath?: string,
-    private readonly beforeEngineInit?: () => Promise<void>,
+    ocrModelsPath: string | undefined,
+    private readonly beforeEngineInit: () => Promise<void>,
   ) {
     if (ocrModelsPath) {
       this.engine = createOcrEngine({ modelsPath: ocrModelsPath });
@@ -104,7 +99,7 @@ export class DatabaseOcrService {
     if (this.initPromise) return this.initPromise;
 
     const engine = this.engine;
-    this.initPromise = (this.beforeEngineInit?.() ?? Promise.resolve())
+    this.initPromise = this.beforeEngineInit()
       .then(() => engine.initialize())
       .then(() => {
         this.ready = true;

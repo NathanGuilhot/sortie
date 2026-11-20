@@ -1,23 +1,20 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { pruneFrameworkLocales } = require('./prune-framework-locales.cjs');
 
 exports.default = function afterPack(context) {
   if (context.electronPlatformName !== 'darwin') return;
 
-  const appBundle = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
-  const removed = pruneFrameworkLocales(
-    path.join(
-      appBundle,
-      'Contents',
-      'Frameworks',
-      'Electron Framework.framework',
-      'Versions',
-      'A',
-      'Resources',
-    ),
+  // electronLanguages doesn't prune the Electron framework's locales on macOS.
+  const locales = path.join(
+    context.appOutDir,
+    `${context.packager.appInfo.productFilename}.app`,
+    'Contents/Frameworks/Electron Framework.framework/Resources',
   );
-  console.log(`[prune] removed ${removed.length} unused framework locales`);
+  for (const entry of fs.readdirSync(locales)) {
+    if (entry.endsWith('.lproj') && entry !== 'en.lproj') {
+      fs.rmSync(path.join(locales, entry), { recursive: true });
+    }
+  }
 
   const source = path.join(
     context.packager.projectDir,
@@ -31,7 +28,13 @@ exports.default = function afterPack(context) {
     );
   }
 
-  const destination = path.join(appBundle, 'Contents', 'PlugIns', 'SortieFinderSync.appex');
+  const destination = path.join(
+    context.appOutDir,
+    `${context.packager.appInfo.productFilename}.app`,
+    'Contents',
+    'PlugIns',
+    'SortieFinderSync.appex',
+  );
   fs.rmSync(destination, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.cpSync(source, destination, { recursive: true });

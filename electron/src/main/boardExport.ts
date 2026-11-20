@@ -70,7 +70,6 @@ export async function exportBoardZip(options: BoardExportOptions): Promise<Board
       path.dirname(destinationPath),
       `.${path.basename(destinationPath)}.sortie-${randomUUID()}.tmp`,
     );
-    // archiver is ~200KB of the main bundle and only needed here.
     const { ZipArchive } = await import('archiver');
     const output = fs.createWriteStream(tempPath, { flags: 'wx' });
     const archive = new ZipArchive({ store: true });

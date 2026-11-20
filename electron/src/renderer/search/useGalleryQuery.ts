@@ -4,8 +4,6 @@ import { buildSearchQuery } from './buildSearchQuery';
 import { useImageStore } from '../stores/imageStore';
 import { useUIStore } from '../stores/uiStore';
 
-const QUERY_DEBOUNCE_MS = 300;
-
 export function useGalleryQuery(scrollContainerRef: RefObject<HTMLDivElement | null>) {
   const searchQuery = useUIStore((s) => s.searchQuery);
   const dateRange = useUIStore((s) => s.dateRange);
@@ -43,19 +41,17 @@ export function useGalleryQuery(scrollContainerRef: RefObject<HTMLDivElement | n
     originDataRevision,
     activeImageQuery,
   ]);
-  // The debounce is for typing. The query on mount fires at once so the
-  // gallery isn't held back on startup. The flag flips when the query
-  // actually runs, so StrictMode's discarded first effect doesn't consume it.
+  // No debounce on the first query. Set inside the timer so StrictMode's
+  // discarded first effect doesn't count as the first run.
   const hasRunRef = useRef(false);
   useEffect(() => {
-    const isFirstRun = !hasRunRef.current;
     const timer = setTimeout(
       () => {
         hasRunRef.current = true;
         void runQuery(query);
-        if (!isFirstRun) scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       },
-      isFirstRun ? 0 : QUERY_DEBOUNCE_MS,
+      hasRunRef.current ? 300 : 0,
     );
     return () => clearTimeout(timer);
   }, [query, runQuery, scrollContainerRef]);

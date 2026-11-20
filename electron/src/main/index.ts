@@ -36,12 +36,8 @@ let externalImportService: ExternalImportService | null = null;
 let hasRunQuitCleanup = false;
 let quitCleanupPromise: Promise<void> | null = null;
 let provenanceBackfillStarted = false;
-let embedderWarmupScheduled = false;
-let rendererLoaded = false;
 const pendingExternalImports: ExternalImportInvocation[] = [];
 
-// The window opens while services start. IPC calls and protocol lookups wait
-// on this promise instead of failing.
 let resolveServicesReady!: () => void;
 let rejectServicesReady!: (error: unknown) => void;
 const servicesReady = new Promise<void>((resolve, reject) => {
@@ -49,13 +45,8 @@ const servicesReady = new Promise<void>((resolve, reject) => {
   rejectServicesReady = reject;
 });
 servicesReady.catch(() => undefined);
-// Set once initializeServices has fully finished (services are assigned
-// earlier, while startup maintenance is still running).
+// Services are assigned before startup maintenance ends.
 let servicesInitialized = false;
-
-// CLIP model loading blocks the main thread for ~300ms, so it waits until
-// the gallery has painted. Searches before then initialize it on demand.
-const EMBEDDER_WARMUP_DELAY_MS = 3000;
 
 const initialExternalImport = parseExternalImportArgs(process.argv);
 if (initialExternalImport) {
@@ -100,8 +91,13 @@ function queueExternalImport(invocation: ExternalImportInvocation): void {
 }
 
 function flushExternalImports(): void {
-  if (!servicesInitialized || !externalImportService || !mainWindow) return;
-  if (mainWindow.webContents.isLoading()) return;
+  if (
+    !servicesInitialized ||
+    !externalImportService ||
+    !mainWindow ||
+    mainWindow.webContents.isLoading()
+  )
+    return;
   while (pendingExternalImports.length > 0) {
     const invocation = pendingExternalImports.shift()!;
     void externalImportService.run(invocation).catch((error) => {
@@ -178,8 +174,15 @@ function createWindow() {
 
   mainWindow.webContents.once('did-stop-loading', () => setImmediate(flushExternalImports));
   mainWindow.webContents.once('did-finish-load', () => {
-    rendererLoaded = true;
-    runPostStartupWork();
+    void servicesReady.then(
+      () => {
+        flushExternalImports();
+        void startBackgroundProvenanceBackfill();
+        // Loading CLIP blocks the main thread; let the gallery paint first.
+        setTimeout(() => void dbService?.warmupEmbedder(), 3000);
+      },
+      () => undefined,
+    );
   });
 
   if (process.env.NODE_ENV === 'development') {
@@ -187,19 +190,6 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     void mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
-  }
-}
-
-// Runs once both the services and the first page are ready, whichever
-// finishes last.
-function runPostStartupWork(): void {
-  if (!rendererLoaded || !servicesInitialized || !dbService) return;
-  flushExternalImports();
-  void startBackgroundProvenanceBackfill();
-  if (!embedderWarmupScheduled) {
-    embedderWarmupScheduled = true;
-    const service = dbService;
-    setTimeout(() => void service.warmupEmbedder(), EMBEDDER_WARMUP_DELAY_MS);
   }
 }
 
@@ -360,7 +350,6 @@ void app.whenReady().then(async () => {
     app.quit();
     return;
   }
-  runPostStartupWork();
   void dbService?.images
     .recheckExternalImageAvailability()
     .then(({ changed }) => {

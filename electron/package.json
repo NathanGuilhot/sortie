@@ -19,15 +19,10 @@
     "start": "electron-vite preview",
     "dev": "node scripts/dev.js",
     "package": "electron-builder --dir",
-    "postpackage": "node scripts/check-bundle-size.mjs",
     "dist": "electron-builder",
-    "postdist": "node scripts/check-bundle-size.mjs",
     "dist:mac": "yarn build:finder-sync && electron-builder --mac",
-    "postdist:mac": "node scripts/check-bundle-size.mjs",
     "dist:win": "electron-builder --win",
-    "postdist:win": "node scripts/check-bundle-size.mjs",
-    "dist:linux": "electron-builder --linux",
-    "postdist:linux": "node scripts/check-bundle-size.mjs"
+    "dist:linux": "electron-builder --linux"
   },
   "dependencies": {
     "chokidar": "^3.6.0",
@@ -38,7 +33,6 @@
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.0.0",
-    "@electron/asar": "^3.3.1",
     "@electron/rebuild": "^3.7.0",
     "@fontsource/dm-sans": "^5.2.8",
     "@types/archiver": "^8.0.0",

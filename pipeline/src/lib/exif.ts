@@ -1,4 +1,5 @@
-import { getExifr, sharp } from './lazy-modules';
+import type exifr from 'exifr';
+import { sharp } from './lazy-modules';
 import { resolveImageInput } from './raw';
 
 export interface ExifData {
@@ -52,7 +53,8 @@ export async function extractExif(imagePath: string, input?: string | Buffer): P
   const dimSource: string | Buffer = input ?? imagePath;
   try {
     /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
-    const exif = await getExifr().parse(imagePath, {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const exif = await (require('exifr') as typeof exifr).parse(imagePath, {
       tiff: true,
       exif: true,
       gps: true,

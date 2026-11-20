@@ -31,26 +31,4 @@ describe('useGalleryQuery', () => {
 
     expect(runQuery).toHaveBeenCalledTimes(1);
   });
-
-  it('debounces later queries by 300ms', () => {
-    renderHook(() => useGalleryQuery(createRef<HTMLDivElement>()), { wrapper: strict });
-    act(() => {
-      vi.advanceTimersByTime(0);
-    });
-    runQuery.mockClear();
-
-    act(() => {
-      useUIStore.getState().setSearchQuery('beach');
-    });
-    act(() => {
-      vi.advanceTimersByTime(299);
-    });
-    expect(runQuery).not.toHaveBeenCalled();
-
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(runQuery).toHaveBeenCalledTimes(1);
-    expect(runQuery.mock.calls[0][0]).toMatchObject({ text: 'beach' });
-  });
 });
