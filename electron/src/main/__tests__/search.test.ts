@@ -179,3 +179,153 @@ describe('DatabaseSearchService gallery totals', () => {
     }
   });
 });
+
+describe('DatabaseSearchService OCR text search', () => {
+  const ocrBlock = (text: string) => ({
+    text,
+    bbox: { x: 0.1, y: 0.1, width: 0.5, height: 0.1 },
+    confidence: 0.9,
+  });
+
+  function textService(
+    t: ReturnType<typeof createTestDb>,
+    embedText: (text: string) => Promise<number[]> = async () => clipVector(0),
+  ) {
+    const embedded: string[] = [];
+    const service = new DatabaseSearchService({
+      requireDb: () => t.manager,
+      getEmbedder: () =>
+        ({
+          embedText: (text: string) => {
+            embedded.push(text);
+            return embedText(text);
+          },
+        }) as unknown as ReturnType<ConstructorParameters<typeof DatabaseSearchService>[0]['getEmbedder']>,
+      getOrBuildShuffledIds: (_cacheKey, loadIds) => loadIds(),
+      fetchImagesByIdsInOrder: (ids) => ids.map((id) => image(id)) as SearchResult[],
+    });
+    return { service, embedded };
+  }
+
+  it('puts text matches first, then visual results, without duplicates', async () => {
+    const t = createTestDb();
+    try {
+      const visualBest = seedImage(t, '/photos/1.jpg');
+      const textFar = seedImage(t, '/photos/2.jpg');
+      const textNear = seedImage(t, '/photos/3.jpg');
+      t.manager.vectors.insertEmbedding(visualBest, clipVector(0));
+      t.manager.vectors.insertEmbedding(textNear, clipVector(0.2));
+      t.manager.vectors.insertEmbedding(textFar, clipVector(0.4));
+      t.manager.ocr.saveImageOcr(textFar, [ocrBlock('Big SALE today')]);
+      t.manager.ocr.saveImageOcr(textNear, [ocrBlock('sale')]);
+
+      const { images } = await textService(t).service.queryImages({ text: 'sale' });
+
+      expect(images.map((result) => result.id)).toEqual([textNear, textFar, visualBest]);
+      expect(images[0].ocrMatch?.ranges).toEqual([{ block: 0, start: 0, end: 4 }]);
+      expect(images[1].ocrMatch?.blocks[0]).toMatchObject({ text: 'Big SALE today', index: 0 });
+      expect(images[2].ocrMatch).toBeUndefined();
+    } finally {
+      t.close();
+    }
+  });
+
+  it('with quotes, shows only text matches and skips CLIP when nothing else is typed', async () => {
+    const t = createTestDb();
+    try {
+      const visual = seedImage(t, '/photos/1.jpg');
+      const text = seedImage(t, '/photos/2.jpg');
+      t.manager.vectors.insertEmbedding(visual, clipVector(0));
+      t.manager.ocr.saveImageOcr(text, [ocrBlock('Open late')]);
+
+      const { service, embedded } = textService(t);
+      const { images } = await service.queryImages({ text: '"open late"' });
+
+      expect(images.map((result) => result.id)).toEqual([text]);
+      expect(embedded).toEqual([]);
+    } finally {
+      t.close();
+    }
+  });
+
+  it('ranks quoted matches by the unquoted words', async () => {
+    const t = createTestDb();
+    try {
+      const far = seedImage(t, '/photos/1.jpg');
+      const near = seedImage(t, '/photos/2.jpg');
+      t.manager.vectors.insertEmbedding(far, clipVector(0.5));
+      t.manager.vectors.insertEmbedding(near, clipVector(0.1));
+      t.manager.ocr.saveImageOcr(far, [ocrBlock('sale')]);
+      t.manager.ocr.saveImageOcr(near, [ocrBlock('sale')]);
+
+      const { service, embedded } = textService(t);
+      const { images } = await service.queryImages({ text: 'poster "sale"' });
+
+      expect(embedded).toEqual(['poster']);
+      expect(images.map((result) => result.id)).toEqual([near, far]);
+    } finally {
+      t.close();
+    }
+  });
+
+  it('still returns text matches when CLIP fails', async () => {
+    const t = createTestDb();
+    try {
+      const id = seedImage(t, '/photos/1.jpg');
+      t.manager.ocr.saveImageOcr(id, [ocrBlock('sale')]);
+
+      const { images } = await textService(t, async () => {
+        throw new Error('model missing');
+      }).service.queryImages({ text: 'sale' });
+
+      expect(images.map((result) => result.id)).toEqual([id]);
+    } finally {
+      t.close();
+    }
+  });
+
+  it('applies the other filters to text matches', async () => {
+    const t = createTestDb();
+    try {
+      const plain = seedImage(t, '/photos/1.jpg');
+      const fav = seedImage(t, '/photos/2.jpg');
+      t.raw.prepare('UPDATE images SET favorite = 1 WHERE id = ?').run(fav);
+      t.manager.ocr.saveImageOcr(plain, [ocrBlock('sale')]);
+      t.manager.ocr.saveImageOcr(fav, [ocrBlock('sale')]);
+
+      const { images } = await textService(t).service.queryImages({
+        text: '"sale"',
+        favorites: true,
+      });
+
+      expect(images.map((result) => result.id)).toEqual([fav]);
+    } finally {
+      t.close();
+    }
+  });
+
+  it('leaves half the page to visual results when text matches abound', async () => {
+    const t = createTestDb();
+    try {
+      const textIds: number[] = [];
+      for (let index = 0; index < 6; index++) {
+        const id = seedImage(t, `/photos/text-${index}.jpg`);
+        t.manager.ocr.saveImageOcr(id, [ocrBlock('sale')]);
+        textIds.push(id);
+      }
+      const visualIds: number[] = [];
+      for (let index = 0; index < 6; index++) {
+        const id = seedImage(t, `/photos/visual-${index}.jpg`);
+        t.manager.vectors.insertEmbedding(id, clipVector(index * 0.01));
+        visualIds.push(id);
+      }
+
+      const { images } = await textService(t).service.queryImages({ text: 'sale', limit: 4 });
+
+      expect(images.filter((result) => result.ocrMatch)).toHaveLength(2);
+      expect(images.slice(2).map((result) => result.id)).toEqual(visualIds.slice(0, 2));
+    } finally {
+      t.close();
+    }
+  });
+});

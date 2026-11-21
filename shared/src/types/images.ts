@@ -1,4 +1,5 @@
 import type { Tag } from './organization';
+import type { OcrSearchMatch } from './ocr';
 
 // `unknown` means examined without evidence; NULL means not examined yet.
 export type OriginKind = 'downloaded' | 'screenshot' | 'camera' | 'imported' | 'unknown';
@@ -87,6 +88,7 @@ export interface LinkPreview {
 export type SearchResult = Image & {
   distance?: number;
   tags?: Tag[];
+  ocrMatch?: OcrSearchMatch;
 };
 
 export interface ImagePage<T extends Image = Image> {

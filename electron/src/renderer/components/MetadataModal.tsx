@@ -38,6 +38,9 @@ export function MetadataModal({
   images: imagesProp,
 }: MetadataModalProps) {
   const storeImages = useImageStore((s) => s.images);
+  const ocrHighlights = useImageStore(
+    (s) => s.images.find((candidate) => candidate.id === image.id)?.ocrMatch?.ranges,
+  );
   const images = imagesProp ?? storeImages;
   const [showMetadata, setShowMetadata] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -331,7 +334,12 @@ export function MetadataModal({
               onLoad={() => setImageLoaded(true)}
               {...dragProps}
             />
-            <OcrOverlay imageId={image.id} imgRef={imgRef} imageLoaded={imageLoaded} />
+            <OcrOverlay
+              imageId={image.id}
+              imgRef={imgRef}
+              imageLoaded={imageLoaded}
+              highlights={ocrHighlights}
+            />
           </div>
         </div>
 

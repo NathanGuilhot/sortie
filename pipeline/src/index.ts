@@ -27,6 +27,15 @@ export {
   type ProvenanceEvidence,
   type ProvenanceReader,
 } from './lib/provenance';
-export { createOcrEngine, type OcrEngine, type OcrEngineOptions, type OcrBlock } from './lib/ocr';
+export {
+  createOcrEngine,
+  OCR_PROCESS_ENTRY,
+  type OcrEngine,
+  type OcrEngineOptions,
+  type OcrBlock,
+  type OcrProcessReply,
+  type OcrProcessRequest,
+} from './lib/ocr';
 export { createTestDb, seedFolder, seedImage, type TestDb } from './lib/testing/test-db';
 export type { TagSuggestion } from 'shared';
+export type { OcrBlockRow, OcrJobStamp } from './lib/db-ocr';

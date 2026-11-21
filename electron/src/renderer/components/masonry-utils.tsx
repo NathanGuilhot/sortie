@@ -1,5 +1,6 @@
 import { useState, memo } from 'react';
-import { Image } from 'shared';
+import type { Image, SearchResult } from 'shared';
+import { OcrMatchHighlight } from './OcrMatchHighlight';
 import { type Position } from './masonry-layout';
 import { isGif } from './gif-utils';
 import { GifBadge } from './gif';
@@ -14,12 +15,13 @@ export const MasonryImage = memo(function MasonryImage({
   columnWidth,
   onSelect,
 }: {
-  image: Image;
+  image: Image & Pick<SearchResult, 'ocrMatch'>;
   position: Position;
   columnWidth: number;
   onSelect: (image: Image) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const thumbnailRevision = useImageStore((state) => state.thumbnailRevision);
   const { dragProps, consumeDidDrag } = useImageDragOut(image);
 
@@ -75,8 +77,21 @@ export const MasonryImage = memo(function MasonryImage({
           opacity: loaded ? 1 : 0,
           transition: 'opacity 0.3s ease',
         }}
-        onLoad={() => setLoaded(true)}
+        onLoad={(event) => {
+          setLoaded(true);
+          const img = event.currentTarget;
+          setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
+        }}
       />
+      {image.ocrMatch && naturalSize && (
+        <OcrMatchHighlight
+          match={image.ocrMatch}
+          tileWidth={position.width}
+          tileHeight={position.height}
+          naturalWidth={naturalSize.width}
+          naturalHeight={naturalSize.height}
+        />
+      )}
       {gif && loaded && <GifBadge corner="bottom-right" />}
       {!!image.favorite && loaded && (
         <div

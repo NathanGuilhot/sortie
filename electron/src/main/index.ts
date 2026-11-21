@@ -180,6 +180,8 @@ function createWindow() {
         void startBackgroundProvenanceBackfill();
         // Loading CLIP blocks the main thread; let the gallery paint first.
         setTimeout(() => void dbService?.warmupEmbedder(), 1000);
+        // OCR runs in its own process; start it once startup work has settled.
+        setTimeout(() => dbService?.ocr.startBackgroundPass(), 5000);
       },
       () => undefined,
     );

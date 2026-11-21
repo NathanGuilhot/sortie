@@ -1,7 +1,9 @@
+import { hasSearchText, parseSearchText } from './ocr-text-search';
 import type { Query } from './types';
 
+// `""` alone is not a search.
 function hasNonEmptyText(value: string | undefined): boolean {
-  return value !== undefined && value.trim().length > 0;
+  return value !== undefined && hasSearchText(parseSearchText(value));
 }
 
 export function hasScoredSearchDimension(query: Query | null | undefined): boolean {

@@ -1,4 +1,4 @@
-import { DatabaseManager, ClipEmbedder, SuggestionEngine } from 'pipeline';
+import { DatabaseManager, ClipEmbedder, OCR_PROCESS_ENTRY, SuggestionEngine } from 'pipeline';
 import { EmbedderStatus, type AppSettingKey } from 'shared';
 import { DatabaseOcrService } from './database-ocr';
 import { DatabaseBoardsService } from './database/boards';
@@ -7,7 +7,8 @@ import { DatabaseImagesService } from './database/images';
 import { DatabaseMaintenanceService } from './database/maintenance';
 import { DatabaseSearchService } from './database/search';
 import { DatabaseDuplicateService } from './database/duplicates';
-import { shell } from 'electron';
+import { shell, utilityProcess } from 'electron';
+import { OcrProcessClient, type OcrChildProcess } from './ocr-process-client';
 
 export class DatabaseService {
   private db: DatabaseManager | null = null;
@@ -72,11 +73,19 @@ export class DatabaseService {
     this.db = new DatabaseManager(dbPath);
     this.embedder = new ClipEmbedder(clipCacheDir);
     this.suggestionEngine = new SuggestionEngine(this.db);
-    // CLIP (onnxruntime 1.14) must load before OCR (1.24), or CLIP breaks or crashes.
-    this.ocrService = new DatabaseOcrService(this.db, ocrModelsPath, () =>
-      this.warmupEmbedder()
-        .then(() => this.embedder?.initialize())
-        .catch(() => undefined),
+    // OCR runs in its own process: its onnxruntime (1.24) and CLIP's (1.14)
+    // need a strict load order and crash on quit when they share one.
+    this.ocrService = new DatabaseOcrService(
+      this.db,
+      ocrModelsPath,
+      (modelsPath) =>
+        new OcrProcessClient(
+          () =>
+            utilityProcess.fork(OCR_PROCESS_ENTRY, [], {
+              serviceName: 'Sortie OCR',
+              env: { ...process.env, SORTIE_OCR_MODELS_PATH: modelsPath },
+            }) as unknown as OcrChildProcess,
+        ),
     );
   }
 
@@ -132,6 +141,7 @@ export class DatabaseService {
   }
 
   async close(): Promise<void> {
+    await this.ocrService?.stop();
     await this.duplicates.close();
     await this.embedder?.dispose();
     this.db?.close();

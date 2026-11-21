@@ -258,4 +258,34 @@ export function runDatabaseMigrations(db: Database.Database, vecLoaded: boolean)
       db.pragma('user_version = 23');
     })();
   }
+
+  if (version < 24) {
+    // OCR text search: one row per image (rowid = image id), blocks joined in
+    // reading order. Triggers keep it in step with every OCR write, since each
+    // one (save, invalidate, file change, trash) also sets `ocr_status`.
+    // The OCR engine changed too, so images already read or found empty are
+    // read again, which also fills the index. Failed images stay failed.
+    db.transaction(() => {
+      db.exec(`
+        DELETE FROM image_ocr WHERE image_id IN (SELECT id FROM images WHERE ocr_status = 'done');
+        UPDATE images SET ocr_status = NULL, ocr_at = NULL WHERE ocr_status IN ('done', 'empty');
+        CREATE VIRTUAL TABLE IF NOT EXISTS image_ocr_fts USING fts5(
+          text, tokenize = 'trigram remove_diacritics 1'
+        );
+        CREATE TRIGGER IF NOT EXISTS image_ocr_fts_status AFTER UPDATE OF ocr_status ON images
+        BEGIN
+          DELETE FROM image_ocr_fts WHERE rowid = NEW.id;
+          INSERT INTO image_ocr_fts (rowid, text)
+            SELECT NEW.id, group_concat(text, ' ' ORDER BY block_index)
+            FROM image_ocr WHERE image_id = NEW.id AND NEW.ocr_status = 'done'
+            HAVING count(*) > 0;
+        END;
+        CREATE TRIGGER IF NOT EXISTS image_ocr_fts_delete AFTER DELETE ON images
+        BEGIN
+          DELETE FROM image_ocr_fts WHERE rowid = OLD.id;
+        END;
+      `);
+      db.pragma('user_version = 24');
+    })();
+  }
 }

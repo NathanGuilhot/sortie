@@ -75,4 +75,18 @@ export class DatabaseVectorRepository {
       )
       .all(new Float32Array(embedding), k, maxDistance) as VecMatchRow[];
   }
+
+  /** Distance from `embedding` to each listed image that has one. */
+  distancesForImages(embedding: number[], imageIds: number[]): Map<number, number> {
+    const distances = new Map<number, number>();
+    if (!this.vecLoaded || imageIds.length === 0) return distances;
+    const rows = this.db
+      .prepare(
+        `SELECT rowid, vec_distance_l2(embedding, ?) AS distance FROM vec_images
+         WHERE rowid IN (SELECT value FROM json_each(?))`,
+      )
+      .all(new Float32Array(embedding), JSON.stringify(imageIds)) as VecMatchRow[];
+    for (const row of rows) distances.set(Number(row.rowid), row.distance);
+    return distances;
+  }
 }
