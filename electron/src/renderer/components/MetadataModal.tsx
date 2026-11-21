@@ -11,8 +11,6 @@ import { buildSortieFileUrl } from './sortieImageUrl';
 import { useImageDragOut } from './useImageDragOut';
 import { ImageCropEditor } from './ImageCropEditor';
 
-const SWIPE_THRESHOLD_PX = 60;
-const SWIPE_VERTICAL_TOLERANCE_PX = 45;
 const WHEEL_SWIPE_THRESHOLD_PX = 45;
 const WHEEL_SWIPE_IDLE_RESET_MS = 160;
 
@@ -53,10 +51,11 @@ export function MetadataModal({
   const imgRef = useRef<HTMLImageElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const cache = useRef(new Map<number, SearchResult[]>());
-  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
-  const didSwipeRef = useRef(false);
   const wheelSwipeConsumedRef = useRef(false);
   const wheelSwipeResetRef = useRef<number | null>(null);
+  // The browser fires click on the common ancestor of press and release, so a
+  // text selection released on the backdrop would otherwise close the modal.
+  const pressedBackdropRef = useRef(false);
   const { dragProps } = useImageDragOut(image);
 
   // Reset image loaded state when image changes
@@ -176,39 +175,13 @@ export function MetadataModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  const handlePointerDown = (event: React.PointerEvent) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    pointerStartRef.current = { x: event.clientX, y: event.clientY };
-  };
-
-  const handlePointerUp = (event: React.PointerEvent) => {
-    const start = pointerStartRef.current;
-    pointerStartRef.current = null;
-    if (!start) return;
-
-    const deltaX = event.clientX - start.x;
-    const deltaY = event.clientY - start.y;
-    const horizontalSwipe =
-      Math.abs(deltaX) >= SWIPE_THRESHOLD_PX &&
-      Math.abs(deltaY) <= SWIPE_VERTICAL_TOLERANCE_PX &&
-      Math.abs(deltaX) > Math.abs(deltaY);
-    if (!horizontalSwipe) return;
-
-    didSwipeRef.current = true;
-    if (deltaX > 0 && canGoBack) {
-      onBack();
-    } else if (deltaX < 0 && canGoForward) {
-      onForward();
-    }
-
-    window.setTimeout(() => {
-      didSwipeRef.current = false;
-    }, 0);
-  };
-
-  const handleCloseClick = () => {
-    if (didSwipeRef.current) return;
-    onClose();
+  const backdropCloseProps = {
+    onPointerDown: (event: React.PointerEvent) => {
+      pressedBackdropRef.current = event.target === event.currentTarget;
+    },
+    onClick: () => {
+      if (pressedBackdropRef.current) onClose();
+    },
   };
 
   useEffect(() => {
@@ -254,9 +227,7 @@ export function MetadataModal({
       {/* Dark backdrop */}
       <div
         className="absolute inset-0 bg-black/90"
-        onClick={handleCloseClick}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
+        {...backdropCloseProps}
       />
 
       {/* Top bar */}
@@ -346,14 +317,9 @@ export function MetadataModal({
         {/* Center image */}
         <div
           className="flex-1 flex items-center justify-center p-4 min-w-0 h-full overflow-hidden"
-          onClick={handleCloseClick}
-          onPointerDown={handlePointerDown}
-          onPointerUp={handlePointerUp}
+          {...backdropCloseProps}
         >
-          <div
-            className="relative inline-block max-w-full max-h-full"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="relative inline-block max-w-full max-h-full">
             <img
               ref={imgRef}
               src={buildSortieFileUrl(image.file_path, image.file_mtime_ms)}
@@ -364,12 +330,6 @@ export function MetadataModal({
               style={{ maxHeight: 'calc(100vh - 56px - 32px)' }}
               onLoad={() => setImageLoaded(true)}
               {...dragProps}
-              onDragStart={(event) => {
-                // Dragging out would otherwise land as a horizontal swipe and
-                // navigate to the neighbouring image on release.
-                pointerStartRef.current = null;
-                dragProps.onDragStart(event);
-              }}
             />
             <OcrOverlay imageId={image.id} imgRef={imgRef} imageLoaded={imageLoaded} />
           </div>
