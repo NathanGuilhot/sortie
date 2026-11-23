@@ -1,7 +1,30 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const OCR_MODEL_FILES = ['detection.onnx', 'recognition.onnx', 'dictionary.txt'];
+
+function assertOcrModels(context) {
+  const resources =
+    context.electronPlatformName === 'darwin'
+      ? path.join(
+          context.appOutDir,
+          `${context.packager.appInfo.productFilename}.app`,
+          'Contents',
+          'Resources',
+        )
+      : path.join(context.appOutDir, 'resources');
+  const missing = OCR_MODEL_FILES.filter(
+    (name) => !fs.existsSync(path.join(resources, 'models', 'ocr', name)),
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `OCR models missing from the package (${missing.join(', ')}). Run "yarn workspace sortie-desktop fetch:ocr-models" before packaging.`,
+    );
+  }
+}
+
 exports.default = function afterPack(context) {
+  assertOcrModels(context);
   if (context.electronPlatformName !== 'darwin') return;
 
   // electronLanguages doesn't prune the Electron framework's locales on macOS.

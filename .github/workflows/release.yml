@@ -35,7 +35,7 @@ jobs:
             electron/src/renderer/public/favicon.svg
             electron/src/renderer/public/favicon.ico
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 3
 
   release-mac-arm:
     needs: generate-icons
@@ -54,6 +54,8 @@ jobs:
         with:
           name: icons
           path: electron
+
+      - run: yarn workspace sortie-desktop run fetch:ocr-models
 
       - run: yarn build:code
 
@@ -74,14 +76,14 @@ jobs:
           name: itch-mac-arm64
           path: electron/out/mac-arm64
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 3
 
   release-mac-intel:
     needs: generate-icons
-    runs-on: macos-13
-    # macos-13 (Intel) runners are scarce and frequently time out waiting for
-    # allocation. publish-itch runs with `if: !cancelled()` and per-channel
+    # macos-13 was retired on 2025-12-04; macos-15-intel is GitHub's Intel
+    # replacement. publish-itch runs with `if: !cancelled()` and per-channel
     # gating so a stalled Intel run doesn't block the other channels.
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
 
@@ -96,6 +98,8 @@ jobs:
         with:
           name: icons
           path: electron
+
+      - run: yarn workspace sortie-desktop run fetch:ocr-models
 
       - run: yarn build:code
 
@@ -116,7 +120,7 @@ jobs:
           name: itch-mac-x64
           path: electron/out/mac
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 3
 
   release-windows:
     needs: generate-icons
@@ -135,6 +139,8 @@ jobs:
         with:
           name: icons
           path: electron
+
+      - run: yarn workspace sortie-desktop run fetch:ocr-models
 
       - run: yarn build:code
 
@@ -155,7 +161,7 @@ jobs:
           name: itch-windows
           path: electron/out/win-unpacked
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 3
 
   release-linux:
     needs: generate-icons
@@ -182,6 +188,8 @@ jobs:
           name: icons
           path: electron
 
+      - run: yarn workspace sortie-desktop run fetch:ocr-models
+
       - run: yarn build:code
 
       - run: yarn workspace sortie-desktop run dist:linux --publish always
@@ -203,13 +211,13 @@ jobs:
           name: itch-linux
           path: electron/out/linux-unpacked
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 3
 
   publish-itch:
     needs: [release-mac-arm, release-mac-intel, release-windows, release-linux]
     # Run as long as the release wasn't manually cancelled. Each matrix entry
     # gates its own steps on its specific upstream job's result, so a stalled
-    # macos-13 runner won't block arm64/Windows/Linux from publishing.
+    # Intel runner won't block arm64/Windows/Linux from publishing.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     env:
