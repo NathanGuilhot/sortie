@@ -228,10 +228,7 @@ export function MetadataModal({
   return (
     <div ref={modalRef} className="fixed inset-0 z-50 animate-fade-in">
       {/* Dark backdrop */}
-      <div
-        className="absolute inset-0 bg-black/90"
-        {...backdropCloseProps}
-      />
+      <div className="absolute inset-0 bg-black/90" {...backdropCloseProps} />
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-10">

@@ -119,7 +119,10 @@ export class PaddleOcrEngine implements OcrEngine {
   }
 
   private async readLines(imagePath: string): Promise<GutenLine[]> {
-    const lineImages = (await this.detection.run(imagePath)) as Array<{ box: Quad; image: LineImage }>;
+    const lineImages = (await this.detection.run(imagePath)) as Array<{
+      box: Quad;
+      image: LineImage;
+    }>;
     const lines: GutenLine[] = [];
     for (const { box, image } of lineImages) {
       // The crop of a tall box was turned a quarter turn counter-clockwise, so

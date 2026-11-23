@@ -200,7 +200,9 @@ describe('DatabaseSearchService OCR text search', () => {
             embedded.push(text);
             return embedText(text);
           },
-        }) as unknown as ReturnType<ConstructorParameters<typeof DatabaseSearchService>[0]['getEmbedder']>,
+        }) as unknown as ReturnType<
+          ConstructorParameters<typeof DatabaseSearchService>[0]['getEmbedder']
+        >,
       getOrBuildShuffledIds: (_cacheKey, loadIds) => loadIds(),
       fetchImagesByIdsInOrder: (ids) => ids.map((id) => image(id)) as SearchResult[],
     });
